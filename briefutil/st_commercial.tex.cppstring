@@ -1,0 +1,151 @@
+R"(
+
+\documentclass[12pt,a4paper]{scrartcl}
+\usepackage{scrlayer-scrpage}
+\usepackage[ngerman]{babel}
+
+\usepackage[absolute,overlay]{textpos}
+\usepackage[utf8]{inputenc}
+\usepackage{tgadventor}
+\usepackage{lmodern}
+\usepackage{ifthen}
+\usepackage[dvinames]{xcolor}
+\usepackage{lastpage}
+\usepackage[top=0.9in,left=1in,bottom=1.6in,right=1in]{geometry}
+\usepackage{graphicx}
+\usepackage[colorlinks=false,
+            pdfborder={0 0 0},
+            ]{hyperref}
+\usepackage{lipsum}
+\usepackage[absolute]{textpos}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+\usepackage[oldstylenums]{kpfonts}
+\usepackage[T1]{fontenc}
+
+% No paragraph indentation
+\parindent0pt
+\setlength{\parskip}{0.8\baselineskip}
+\raggedright
+\pagestyle{empty}
+
+\definecolor{ColorOfLogo}{RGB}{49,132,155}
+\definecolor{ColorOfFooter}{RGB}{9,92,105}
+\definecolor{ColorOfLine}{RGB}{200, 200, 200}
+% Ensure consistency in the footer
+\urlstyle{sf}
+
+\setkomafont{pagefoot}{\normalfont\sffamily}
+
+
+%  \setfoot{}{}{\ifthenelse{\equal{\pageref{LastPage}}{1}}{}{Seite \thepage\ von \pageref{LastPage}}}
+\setlength{\footheight}{47.67638pt}
+\ifoot{
+    \fontsize{9}{9}
+    \fontfamily{lmss}\selectfont
+	\ifthenelse{\equal{\pageref{LastPage}}{1}}{}{\hfill Seite \thepage\ von \pageref{LastPage}\\[5mm]}
+    \fontsize{8}{8}
+    \color{ColorOfFooter}
+    \fontfamily{lmss}\selectfont
+	\vfill Muster AG • Musterstr. 6, 12345 Musterstadt, Germany • max.mustermann@muster-ag.de\\
+	Sitz der Gesellschaft: Musterstadt • Geschäftsführer: Max Mustermann • Registergericht: Musterstadt HRB 54321
+}
+\cfoot{}
+\ofoot{}
+
+\thispagestyle{scrheadings}
+\pagestyle{scrheadings}
+
+
+\begin{document}
+
+
+% -------------------------------------------------------
+% Add fixed elements (logo, address etc) of first page
+\begin{textblock*}{1.7in}(5.5in,0.8in)
+    \color{ColorOfLogo}
+    \fontsize{24}{24}
+    \fontfamily{pag}\selectfont
+    Muster AG
+\end{textblock*}
+
+\begin{tikzpicture}[remember picture,overlay]
+    \draw[color=ColorOfLine,line width=3pt]
+    	(current page.north west)+(0in,-1.33in) --
+        ($(-1.1in,-1.33in)+(current page.north east)$);
+\end{tikzpicture}
+
+\begin{textblock*}{1.6in}(5.5in,1.3in)
+    \fontsize{8}{8}
+    \fontfamily{lmss}\selectfont
+    \color{black}
+    Musterstr. 6 \\
+    12345 Musterstadt \\~\\
+    max.mustermann@muster-ag.de
+\end{textblock*}
+
+\begin{textblock*}{3.35in}(1in,2.01in)
+    \fontsize{8}{8}
+    \color{ColorOfFooter}
+    \fontfamily{lmss}\selectfont
+    Muster AG • Musterstr. 6 • 12345 Musterstadt
+\end{textblock*}
+
+\begin{textblock*}{1.6in}(5.5in,3in)
+    \color{black}
+    \fontsize{10}{10}
+    \fontfamily{lmss}\selectfont
+    \today
+\end{textblock*}
+
+
+\begin{tikzpicture}[remember picture,overlay]
+    \draw[color=black,line width=0.5pt]
+    	(current page.north west)+(0in,-105mm) --
+        ($(current page.north west)+(10mm,-105mm)$);
+    \draw[color=black,line width=0.5pt]
+    	(current page.north west)+(0in,-210mm) --
+        ($(current page.north west)+(10mm,-210mm)$);
+    \draw[color=black,line width=0.5pt]
+    	(current page.north west)+(0in,-148.5mm) --
+        ($(current page.north west)+(15mm,-148.5mm)$);
+    \draw[color=black,line width=0.5pt]
+    	(current page.north west)+(1in,-2.3in) --
+        ($(current page.north west)+(3.42in,-2.3in)$);
+\end{tikzpicture}
+
+
+\begin{textblock*}{4.4in}(1in,2.2in)
+    \fontsize{10}{12}
+    \fontfamily{lmss}\selectfont
+    \color{black}
+
+%%ADDRESS%%
+
+\end{textblock*}
+
+
+\fontsize{10}{12}
+\fontfamily{lmss}\selectfont
+
+
+\color{black}
+
+\vskip 58.4mm
+
+\textbf{%%TITLE%%}
+
+
+\vskip 11.1mm
+
+%%BODY%% \\[2\baselineskip]
+Mit freundlichen Grüßen
+
+\includegraphics[width=1.9in]{%%RESOURCE_DIR%%mustermann_signature.png}
+
+Max Mustermann \\
+Geschätsführer der Muster AG
+\end{document}
+
+)"
