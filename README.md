@@ -5,7 +5,10 @@ A letter generation utility
 ## Overview
 
 briefutil is a simple utility that generates pdf letters, based on LaTeX templates.
+
 It's works as follows:
+
+
 ![usage](https://github.com/imakris/briefutil/blob/master/example.png?raw=true)
 
 It requires MiKTeX to be installed and included in PATH.
