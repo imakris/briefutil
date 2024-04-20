@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QCoreApplication>
+#include <QRegularExpression>
 
 #include "mustermann_signature.png.h"
 
@@ -100,9 +101,9 @@ QList<QString> Proxy::get_sender_templates() const
 QString fix_lf(const QString& str_in)
 {
     QString str = str_in;
-    str.replace(QRegExp("\\r"), "");
-    str.replace(QRegExp("\\n[ \\t]+\\n"), "\n\n");
-    str.replace(QRegExp("^\\n+"), "");
+    str.replace(QRegularExpression("\\r"), "");
+    str.replace(QRegularExpression("\\n[ \\t]+\\n"), "\n\n");
+    str.replace(QRegularExpression("^\\n+"), "");
 
     size_t lf_count = 0;
     int locked_index = -1;
@@ -136,23 +137,47 @@ QString fix_lf(const QString& str_in)
 }
 
 
-void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body)
+QString escape_latex(const QString& input)
 {
+    QString output = input;
+    QMap<QString, QString> latexSpecialChars{
+        {"\\", "\\textbackslash "}, {"&", "\\&"}, {"%", "\\%"},
+        {"$", "\\$"}, {"#", "\\#"}, {"_", "\\_"}, {"{", "\\{"},
+        {"}", "\\}"}, {"~", "\\textasciitilde "}, {"^", "\\textasciicircum "}
+    };
+    for (auto it = latexSpecialChars.begin(); it != latexSpecialChars.end(); ++it) {
+        output.replace(QRegularExpression(QRegularExpression::escape(it.key())), it.value());
+    }
+    return output;
+}
+
+
+QString sanitize_filename(const QString& input)
+{
+    QString sanitized = input;
+    sanitized.replace(QRegularExpression("[\\\\/:*?\"<>|]+"), "_"); // Replace problematic filesystem characters
+    sanitized.replace(QRegularExpression("\\s+"), "_"); // Replace spaces with underscores to avoid issues
+    sanitized = sanitized.trimmed(); // Trim whitespace from the start and end
+    return sanitized;
+}
+
+void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body) {
     auto used_template = m_sender_templates[from] + ".tex";
 
-    // replace line feeds with '\\'
-    QString recipient = fix_lf(to);
-    QString lf_body = fix_lf(body);
+    // Escape text for LaTeX processing
+    QString recipient   = escape_latex(fix_lf(to));
+    QString lf_body     = escape_latex(fix_lf(body));
+    QString mod_subject = escape_latex(subject.isEmpty() ? "[no subject]" : subject);
 
-    // make filename (used for temporary tex and pdf)
+    // Sanitize the original input for filenames
+    QString filename_to      = sanitize_filename(to);
+    QString filename_subject = sanitize_filename(subject);
+
+    // Make filename (used for temporary tex and pdf)
     QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
-    QString mod_subject = subject.isEmpty() ? "[no subject]" : subject;
-    QString tex_fn = prefix + mod_subject + " @FROM@ " +  m_sender_templates[from] + ".tex";
+    QString tex_fn = prefix + filename_subject + "_FROM_" + filename_to + ".tex";
 
-    // pdf2latex has a bug finding files with 2 or more consecutive spaces
-    tex_fn.replace(QRegExp("\\s+"), " ");
-
-    // make temporary .tex file contents
+    // Make temporary .tex file contents
     QString tex_template_path = m_sender_template_dir + m_sender_templates[from] + ".tex";
 
     std::ifstream t(tex_template_path.toStdString());
