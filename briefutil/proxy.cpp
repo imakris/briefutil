@@ -165,8 +165,8 @@ void Proxy::make_pdf(int from, const QString& to, const QString& subject, const 
     auto used_template = m_sender_templates[from] + ".tex";
 
     // Escape text for LaTeX processing
-    QString recipient   = escape_latex(fix_lf(to));
-    QString lf_body     = escape_latex(fix_lf(body));
+    QString recipient   = fix_lf(escape_latex(to));
+    QString lf_body     = fix_lf(escape_latex(body));
     QString mod_subject = escape_latex(subject.isEmpty() ? "[no subject]" : subject);
 
     // Sanitize the original input for filenames
