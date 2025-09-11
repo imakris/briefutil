@@ -140,15 +140,20 @@ QString fix_lf(const QString& str_in)
 QString escape_latex(const QString& input)
 {
     QString output = input;
+    // First, escape backslashes. This is a simple string replacement
+    // and doesn't need the regex complexity.
+    output.replace("\\", "\\textbackslash ");
+
+    // Then, escape other special characters.
     QMap<QString, QString> latexSpecialChars{
-        {"\\", "\\textbackslash "}, {"&", "\\&"}, {"%", "\\%"},
+        {"&", "\\&"}, {"%", "\\%"},
         {"$", "\\$"}, {"#", "\\#"}, {"_", "\\_"}, {"{", "\\{"},
         {"}", "\\}"}, {"~", "\\textasciitilde "}, {"^", "\\textasciicircum "},
         {"<", "\\textless "}, {">", "\\textgreater "}, {"|", "\\textbar "},
         {"\"", "\\textquotedbl "}, {"'", "\\textquotesingle "}, {"/", "\\slash "}
     };
     for (auto it = latexSpecialChars.begin(); it != latexSpecialChars.end(); ++it) {
-        output.replace(QRegularExpression(QRegularExpression::escape(it.key())), it.value());
+        output.replace(it.key(), it.value());
     }
     return output;
 }
@@ -157,7 +162,7 @@ QString escape_latex(const QString& input)
 QString sanitize_filename(const QString& input)
 {
     QString sanitized = input;
-    sanitized.replace(QRegularExpression("[\\\\/:*?\"<>|]+"), "_"); // Replace problematic filesystem characters
+    sanitized.replace(QRegularExpression("[\\\\/:*?\"<>|%~]+"), "_"); // Replace problematic filesystem characters
     sanitized.replace(QRegularExpression("\\s+"), "_"); // Replace spaces with underscores to avoid issues
     sanitized = sanitized.trimmed(); // Trim whitespace from the start and end
     return sanitized;
