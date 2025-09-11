@@ -143,7 +143,9 @@ QString escape_latex(const QString& input)
     QMap<QString, QString> latexSpecialChars{
         {"\\", "\\textbackslash "}, {"&", "\\&"}, {"%", "\\%"},
         {"$", "\\$"}, {"#", "\\#"}, {"_", "\\_"}, {"{", "\\{"},
-        {"}", "\\}"}, {"~", "\\textasciitilde "}, {"^", "\\textasciicircum "}
+        {"}", "\\}"}, {"~", "\\textasciitilde "}, {"^", "\\textasciicircum "},
+        {"<", "\\textless "}, {">", "\\textgreater "}, {"|", "\\textbar "},
+        {"\"", "\\textquotedbl "}, {"'", "\\textquotesingle "}, {"/", "\\slash "}
     };
     for (auto it = latexSpecialChars.begin(); it != latexSpecialChars.end(); ++it) {
         output.replace(QRegularExpression(QRegularExpression::escape(it.key())), it.value());
