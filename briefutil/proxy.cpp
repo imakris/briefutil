@@ -100,40 +100,31 @@ QList<QString> Proxy::get_sender_templates() const
 
 QString fix_lf(const QString& str_in)
 {
+    // Create a working copy
     QString str = str_in;
-    str.replace(QRegularExpression("\\r"), "");
-    str.replace(QRegularExpression("\\n[ \\t]+\\n"), "\n\n");
-    str.replace(QRegularExpression("^\\n+"), "");
 
-    size_t lf_count = 0;
-    int locked_index = -1;
-    QString ret;
-    for (size_t i=0; i<str.size(); i++) {
-        if (str.at(i)=='\n') {
-            if (locked_index == -1) {
-                locked_index=i;
-            }
-            else {
-                lf_count++;
-            }
-        }
-        else {
-            if (locked_index != -1) {
-                if (lf_count >= 1) {
-                    ret.push_back(" \\\\[");
-                    ret.push_back(QString::number( lf_count+1 ));
-                    ret.push_back("\\baselineskip] ");
-                }
-                else {
-                    ret.push_back(" \\\\ ");
-                }
-                lf_count = 0;
-                locked_index = -1;
-            }
-            ret.push_back(str.at(i));
-        }
+    // Normalize line endings to LF
+    str.replace("\r\n", "\n");
+    str.replace("\r", "\n");
+
+    // Trim leading/trailing whitespace, including newlines
+    str = str.trimmed();
+
+    // Split the entire text into paragraphs based on one or more blank lines
+    QStringList paragraphs = str.split(QRegularExpression("\\n[\\s\\n]*\\n"));
+
+    // Process each paragraph
+    for (int i = 0; i < paragraphs.size(); ++i) {
+        // Trim whitespace from the paragraph itself
+        QString paragraph = paragraphs[i].trimmed();
+        // Replace remaining single newlines within the paragraph with a LaTeX line break
+        paragraph.replace('\n', " \\\\ ");
+        paragraphs[i] = paragraph;
     }
-    return ret;
+
+    // Join the paragraphs back with a double newline, which LaTeX interprets
+    // as a paragraph break with a standard gap.
+    return paragraphs.join("\n\n");
 }
 
 
@@ -168,7 +159,8 @@ QString sanitize_filename(const QString& input)
     return sanitized;
 }
 
-void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body) {
+void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body)
+{
     auto used_template = m_sender_templates[from] + ".tex";
 
     // Escape text for LaTeX processing
@@ -179,6 +171,11 @@ void Proxy::make_pdf(int from, const QString& to, const QString& subject, const 
     // Sanitize the original input for filenames
     QString filename_to      = sanitize_filename(to);
     QString filename_subject = sanitize_filename(subject);
+
+    // Truncate the subject if it's too long for a filename
+    if (filename_subject.length() > 50) {
+        filename_subject.truncate(50);
+    }
 
     // Make filename (used for temporary tex and pdf)
     QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
