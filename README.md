@@ -60,3 +60,25 @@ At runtime the program locates `texify.exe` from the bundled portable MiKTeX tre
 Source code is provided under the Simplified BSD License (see `LICENSE.txt`). The included templates and signature rely on generic "Max Mustermann" placeholder data so that nothing personal is shipped with the repository.
 
 Feel free to tailor everything to your own letterhead.
+
+## GitHub Actions badges for different operating systems
+
+GitHub generates one status badge per workflow file. When a workflow file
+contains a matrix that runs on both Linux and Windows, the badge aggregates the
+result across every matrix job. To show separate badges for Linux and Windows
+you need to split the automation into two workflow files (for example,
+`ci-linux.yml` and `ci-windows.yml`) or otherwise create distinct workflows that
+filter on the target operating system. Each workflow then gets its own badge
+URL, letting you embed independent status images such as:
+
+```markdown
+![Linux build](https://github.com/<owner>/<repo>/actions/workflows/ci-linux.yml/badge.svg)
+![Windows build](https://github.com/<owner>/<repo>/actions/workflows/ci-windows.yml/badge.svg)
+```
+
+Within each workflow you can keep the job matrix focused on a single operating
+system—for example, a Linux-only workflow might use `runs-on: ubuntu-latest`
+while the Windows workflow uses `runs-on: windows-latest`. This keeps the badge
+status meaningful for the platform it represents while still letting you share
+common steps between the two files via [reusable workflows](https://docs.github.com/actions/using-workflows/reusing-workflows)
+or composite actions when you want to avoid duplication.
