@@ -1,6 +1,6 @@
 # briefutil
 
-Small Qt Quick app I use to turn ad-hoc letter text into a nicely formatted PDF via LaTeX. It started as a personal helper, so the repository reflects that spirit; if it proves useful to others, wonderful, but it is still tuned first and foremost for my own workflow.
+Small Qt Quick app I use to turn short letter drafts into nicely formatted PDFs via LaTeX. It’s a personal tool built around my own workflow, shared here in case someone happens to find it useful.
 
 ![briefutil preview](example.png)
 
@@ -59,4 +59,4 @@ At runtime the program locates `texify.exe` from the bundled portable MiKTeX tre
 
 Source code is provided under the Simplified BSD License (see `LICENSE.txt`). The included templates and signature rely on generic "Max Mustermann" placeholder data so that nothing personal is shipped with the repository.
 
-Enjoy, and feel free to tailor everything to your own letterhead.
+Feel free to tailor everything to your own letterhead.
