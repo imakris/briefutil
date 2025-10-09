@@ -1,0 +1,20 @@
+@echo off
+setlocal
+set "SETUP_EXE=@MIKTEX_SETUP_EXE_NATIVE@"
+set "PACKAGE_REPO=@MIKTEX_PACKAGE_REPOSITORY_NATIVE@"
+set "PORTABLE_DIR=@MIKTEX_PORTABLE_DIR_NATIVE@"
+set "REMOTE_REPO=@MIKTEX_REMOTE_REPOSITORY@"
+set "CMAKE_EXE=@CMAKE_COMMAND_NATIVE@"
+"%CMAKE_EXE%" -E make_directory "%PACKAGE_REPO%"
+if errorlevel 1 goto :fail
+"%CMAKE_EXE%" -E make_directory "%PORTABLE_DIR%"
+if errorlevel 1 goto :fail
+"%SETUP_EXE%" download --package-set=@MIKTEX_PACKAGE_SET@ --remote-package-repository=%REMOTE_REPO% --local-package-repository="%PACKAGE_REPO%" --use-registry=no --modify-path=no --verbose
+if errorlevel 1 goto :fail
+"%SETUP_EXE%" install --package-set=@MIKTEX_PACKAGE_SET@ --local-package-repository="%PACKAGE_REPO%" --portable="%PORTABLE_DIR%" --use-registry=no --modify-path=no --verbose
+if errorlevel 1 goto :fail
+"%CMAKE_EXE%" -E touch "@MIKTEX_PORTABLE_STAMP_NATIVE@"
+if errorlevel 1 goto :fail
+exit /b 0
+:fail
+exit /b 1

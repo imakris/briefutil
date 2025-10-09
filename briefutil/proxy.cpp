@@ -12,6 +12,11 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QRegularExpression>
+#include <QFileInfo>
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QStringConverter>
+#endif
 
 #include "mustermann_signature.png.h"
 
@@ -25,6 +30,15 @@ Proxy* lgen() { return s_me; }
 
 Proxy::Proxy(QObject*)
 {
+    const QString portable_texify = QDir(QCoreApplication::applicationDirPath())
+        .filePath("miktex/texmfs/install/miktex/bin/x64/texify.exe");
+    if (QFile::exists(portable_texify)) {
+        m_texify_path = portable_texify;
+    }
+    else {
+        m_texify_path = "texify.exe";
+    }
+
     std::ifstream t("./output_dir.conf");
     QString output_dir = QString::fromUtf8(
         std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()).c_str()
@@ -100,88 +114,60 @@ QList<QString> Proxy::get_sender_templates() const
 
 QString fix_lf(const QString& str_in)
 {
-    // Create a working copy
     QString str = str_in;
+    str.replace(QRegularExpression("\\r"), "");
+    str.replace(QRegularExpression("\\n[ \\t]+\\n"), "\n\n");
+    str.replace(QRegularExpression("^\\n+"), "");
 
-    // Normalize line endings to LF
-    str.replace("\r\n", "\n");
-    str.replace("\r", "\n");
-
-    // Trim leading/trailing whitespace, including newlines
-    str = str.trimmed();
-
-    // Split the entire text into paragraphs based on one or more blank lines
-    QStringList paragraphs = str.split(QRegularExpression("\\n[\\s\\n]*\\n"));
-
-    // Process each paragraph
-    for (int i = 0; i < paragraphs.size(); ++i) {
-        // Trim whitespace from the paragraph itself
-        QString paragraph = paragraphs[i].trimmed();
-        // Replace remaining single newlines within the paragraph with a LaTeX line break
-        paragraph.replace('\n', " \\\\ ");
-        paragraphs[i] = paragraph;
+    size_t lf_count = 0;
+    int locked_index = -1;
+    QString ret;
+    for (size_t i=0; i<str.size(); i++) {
+        if (str.at(i)=='\n') {
+            if (locked_index == -1) {
+                locked_index=i;
+            }
+            else {
+                lf_count++;
+            }
+        }
+        else {
+            if (locked_index != -1) {
+                if (lf_count >= 1) {
+                    ret.push_back(" \\\\[");
+                    ret.push_back(QString::number( lf_count+1 ));
+                    ret.push_back("\\baselineskip] ");
+                }
+                else {
+                    ret.push_back(" \\\\ ");
+                }
+                lf_count = 0;
+                locked_index = -1;
+            }
+            ret.push_back(str.at(i));
+        }
     }
-
-    // Join the paragraphs back with a double newline, which LaTeX interprets
-    // as a paragraph break with a standard gap.
-    return paragraphs.join("\n\n");
+    return ret;
 }
 
-
-QString escape_latex(const QString& input)
-{
-    QString output = input;
-    // First, escape backslashes. This is a simple string replacement
-    // and doesn't need the regex complexity.
-    output.replace("\\", "\\textbackslash ");
-
-    // Then, escape other special characters.
-    QMap<QString, QString> latexSpecialChars{
-        {"&", "\\&"}, {"%", "\\%"},
-        {"$", "\\$"}, {"#", "\\#"}, {"_", "\\_"}, {"{", "\\{"},
-        {"}", "\\}"}, {"~", "\\textasciitilde "}, {"^", "\\textasciicircum "},
-        {"<", "\\textless "}, {">", "\\textgreater "}, {"|", "\\textbar "},
-        {"\"", "\\textquotedbl "}, {"'", "\\textquotesingle "}, {"/", "\\slash "}
-    };
-    for (auto it = latexSpecialChars.begin(); it != latexSpecialChars.end(); ++it) {
-        output.replace(it.key(), it.value());
-    }
-    return output;
-}
-
-
-QString sanitize_filename(const QString& input)
-{
-    QString sanitized = input;
-    sanitized.replace(QRegularExpression("[\\\\/:*?\"<>|%~]+"), "_"); // Replace problematic filesystem characters
-    sanitized.replace(QRegularExpression("\\s+"), "_"); // Replace spaces with underscores to avoid issues
-    sanitized = sanitized.trimmed(); // Trim whitespace from the start and end
-    return sanitized;
-}
 
 void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body)
 {
     auto used_template = m_sender_templates[from] + ".tex";
 
-    // Escape text for LaTeX processing
-    QString recipient   = fix_lf(escape_latex(to));
-    QString lf_body     = fix_lf(escape_latex(body));
-    QString mod_subject = escape_latex(subject.isEmpty() ? "[no subject]" : subject);
+    // replace line feeds with '\\'
+    QString recipient = fix_lf(to);
+    QString lf_body = fix_lf(body);
 
-    // Sanitize the original input for filenames
-    QString filename_to      = sanitize_filename(to);
-    QString filename_subject = sanitize_filename(subject);
-
-    // Truncate the subject if it's too long for a filename
-    if (filename_subject.length() > 50) {
-        filename_subject.truncate(50);
-    }
-
-    // Make filename (used for temporary tex and pdf)
+    // make filename (used for temporary tex and pdf)
     QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
-    QString tex_fn = prefix + filename_subject + "_FROM_" + filename_to + ".tex";
+    QString mod_subject = subject.isEmpty() ? "[no subject]" : subject;
+    QString tex_fn = prefix + mod_subject + " @FROM@ " +  m_sender_templates[from] + ".tex";
 
-    // Make temporary .tex file contents
+    // pdf2latex has a bug finding files with 2 or more consecutive spaces
+    tex_fn.replace(QRegularExpression("\\s+"), " ");
+
+    // make temporary .tex file contents
     QString tex_template_path = m_sender_template_dir + m_sender_templates[from] + ".tex";
 
     std::ifstream t(tex_template_path.toStdString());
@@ -200,12 +186,17 @@ void Proxy::make_pdf(int from, const QString& to, const QString& subject, const 
 
     QFile tex_file(tex_path);
     if (tex_file.open(QIODevice::WriteOnly)) {
-        QTextStream out(&tex_file); out << tex_content.toUtf8();
+        QTextStream out(&tex_file);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        out.setEncoding(QStringConverter::Utf8);
+#else
         out.setCodec("UTF-8");
+#endif
+        out << tex_content;
         tex_file.close();
     }
 
     QStringList args = {"--pdf", "--synctex=1", "--clean", "--batch", "--run-viewer", tex_path};
     m_texify.setWorkingDirectory(m_output_dir);
-    m_texify.start("texify.exe", args);
+    m_texify.start(m_texify_path, args);
 }

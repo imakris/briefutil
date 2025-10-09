@@ -44,12 +44,12 @@ R"(
 \ifoot{
     \fontsize{9}{9}
     \fontfamily{lmss}\selectfont
-	\ifthenelse{\equal{\pageref{LastPage}}{1}}{}{\hfill Seite \thepage\ von \pageref{LastPage}\\[5mm]}
+    \ifthenelse{\equal{\pageref{LastPage}}{1}}{}{\hfill Seite \thepage\ von \pageref{LastPage}\\[5mm]}
     \fontsize{8}{8}
     \color{ColorOfFooter}
     \fontfamily{lmss}\selectfont
-	\vfill Muster AG • Musterstr. 6, 12345 Musterstadt, Germany • max.mustermann@muster-ag.de\\
-	Sitz der Gesellschaft: Musterstadt • Geschäftsführer: Max Mustermann • Registergericht: Musterstadt HRB 54321
+    \vfill Muster AG -- Musterstr. 6, 12345 Musterstadt, Germany -- kontakt@muster-ag.de\\
+    Sitz der Gesellschaft: Musterstadt -- Gesch\"aftsleitung: Max Mustermann -- Registergericht: Musterstadt HRB 54321
 }
 \cfoot{}
 \ofoot{}
@@ -72,7 +72,7 @@ R"(
 
 \begin{tikzpicture}[remember picture,overlay]
     \draw[color=ColorOfLine,line width=3pt]
-    	(current page.north west)+(0in,-1.33in) --
+        (current page.north west)+(0in,-1.33in) --
         ($(-1.1in,-1.33in)+(current page.north east)$);
 \end{tikzpicture}
 
@@ -82,14 +82,14 @@ R"(
     \color{black}
     Musterstr. 6 \\
     12345 Musterstadt \\~\\
-    max.mustermann@muster-ag.de
+    kontakt@muster-ag.de
 \end{textblock*}
 
 \begin{textblock*}{3.35in}(1in,2.01in)
     \fontsize{8}{8}
     \color{ColorOfFooter}
     \fontfamily{lmss}\selectfont
-    Muster AG • Musterstr. 6 • 12345 Musterstadt
+    Muster AG -- Musterstr. 6 -- 12345 Musterstadt
 \end{textblock*}
 
 \begin{textblock*}{1.6in}(5.5in,3in)
@@ -102,16 +102,16 @@ R"(
 
 \begin{tikzpicture}[remember picture,overlay]
     \draw[color=black,line width=0.5pt]
-    	(current page.north west)+(0in,-105mm) --
+        (current page.north west)+(0in,-105mm) --
         ($(current page.north west)+(10mm,-105mm)$);
     \draw[color=black,line width=0.5pt]
-    	(current page.north west)+(0in,-210mm) --
+        (current page.north west)+(0in,-210mm) --
         ($(current page.north west)+(10mm,-210mm)$);
     \draw[color=black,line width=0.5pt]
-    	(current page.north west)+(0in,-148.5mm) --
+        (current page.north west)+(0in,-148.5mm) --
         ($(current page.north west)+(15mm,-148.5mm)$);
     \draw[color=black,line width=0.5pt]
-    	(current page.north west)+(1in,-2.3in) --
+        (current page.north west)+(1in,-2.3in) --
         ($(current page.north west)+(3.42in,-2.3in)$);
 \end{tikzpicture}
 
@@ -140,12 +140,12 @@ R"(
 \vskip 11.1mm
 
 %%BODY%% \\[2\baselineskip]
-Mit freundlichen Grüßen
+Mit freundlichen Gr\"u\ssen
 
 \includegraphics[width=1.9in]{%%RESOURCE_DIR%%mustermann_signature.png}
 
 Max Mustermann \\
-Geschätsführer der Muster AG
+Gesch\"aftsleitung der Muster AG
 \end{document}
 
 )"

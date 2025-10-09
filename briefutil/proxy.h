@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QList>
 #include <QProcess>
+#include <QString>
 
 class Proxy: public QObject
 {
@@ -21,6 +22,7 @@ public:
 
 private:
     QProcess m_texify;
+    QString m_texify_path;
     QString m_sender_template_dir;
     QString m_output_dir;
     QList<QString> m_sender_templates;
