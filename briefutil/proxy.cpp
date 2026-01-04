@@ -13,9 +13,16 @@
 #include <QCoreApplication>
 #include <QRegularExpression>
 #include <QFileInfo>
+#include <QWindow>
+#include <QSettings>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QStringConverter>
+#endif
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dwmapi.h>
 #endif
 
 #include "mustermann_signature.png.h"
@@ -43,6 +50,7 @@ Proxy::Proxy(QObject*)
     QString output_dir = QString::fromUtf8(
         std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()).c_str()
     );
+    output_dir = output_dir.trimmed();
 
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
@@ -111,6 +119,12 @@ QList<QString> Proxy::get_sender_templates() const
     return m_sender_templates;
 }
 
+static QString sanitize_filename(const QString& input)
+{
+    QString sanitized = input.trimmed();
+    sanitized.replace(QRegularExpression("[<>:\"/\\\\|?*\\x00-\\x1F]"), "_");
+    return sanitized;
+}
 
 QString fix_lf(const QString& str_in)
 {
@@ -153,6 +167,9 @@ QString fix_lf(const QString& str_in)
 
 void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body)
 {
+    if (from < 0 || from >= m_sender_templates.size())
+        return;
+
     auto used_template = m_sender_templates[from] + ".tex";
 
     // replace line feeds with '\\'
@@ -162,6 +179,10 @@ void Proxy::make_pdf(int from, const QString& to, const QString& subject, const 
     // make filename (used for temporary tex and pdf)
     QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
     QString mod_subject = subject.isEmpty() ? "[no subject]" : subject;
+    mod_subject = sanitize_filename(mod_subject);
+    if (mod_subject.isEmpty()) {
+        mod_subject = "[no subject]";
+    }
     QString tex_fn = prefix + mod_subject + " @FROM@ " +  m_sender_templates[from] + ".tex";
 
     // pdf2latex has a bug finding files with 2 or more consecutive spaces
@@ -199,4 +220,37 @@ void Proxy::make_pdf(int from, const QString& to, const QString& subject, const 
     QStringList args = {"--pdf", "--synctex=1", "--clean", "--batch", "--run-viewer", tex_path};
     m_texify.setWorkingDirectory(m_output_dir);
     m_texify.start(m_texify_path, args);
+}
+
+
+void Proxy::setWindowDarkMode(QWindow* window, bool dark)
+{
+#ifdef Q_OS_WIN
+    if (!window)
+        return;
+
+    HWND hwnd = reinterpret_cast<HWND>(window->winId());
+    BOOL useDarkMode = dark ? TRUE : FALSE;
+
+    // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+)
+    constexpr DWORD DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(useDarkMode));
+#else
+    Q_UNUSED(window);
+    Q_UNUSED(dark);
+#endif
+}
+
+
+void Proxy::saveDarkMode(bool dark)
+{
+    QSettings settings("briefutil", "briefutil");
+    settings.setValue("appearance/darkMode", dark);
+}
+
+
+bool Proxy::loadDarkMode() const
+{
+    QSettings settings("briefutil", "briefutil");
+    return settings.value("appearance/darkMode", false).toBool();
 }
