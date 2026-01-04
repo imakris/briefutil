@@ -3,6 +3,7 @@
 Small Qt Quick utility I use to turn ad-hoc letter text into a nicely formatted PDF via LaTeX. It grew out of personal needs and is still maintained with that mindset—if it helps someone else, fantastic, but it is not a polished, generally supported product.
 
 ![Example UI](example.png)
+![Sample UI](sample_screenshot.png)
 
 The app drives MiKTeX’s `texify.exe` under the hood to compile LaTeX templates shipped with the program (placeholders featuring “Max Mustermann” data and a synthetic signature).
 
