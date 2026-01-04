@@ -2,8 +2,11 @@
 
 Small Qt Quick utility I use to turn ad-hoc letter text into nicely formatted PDFs via LaTeX. It is a personal tool built around my own workflow, shared in case someone else finds it useful.
 
-![Example UI](example.png)
-![Sample UI](sample_screenshot.png)
+<p align="center">
+  <img src="example.png" alt="Example UI" width="946" height="1678" style="max-width: 100%; height: auto;">
+  <br>
+  <img src="sample_screenshot.png" alt="Sample UI" width="786" height="660" style="max-width: 100%; height: auto;">
+</p>
 
 ## Repository layout
 ```
