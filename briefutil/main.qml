@@ -42,8 +42,11 @@ ApplicationWindow {
     Connections {
         target: proxy
 
-        function onTexify_finished() {
+        function onPdf_generated(success, message) {
             root.isBusy = false
+            if (!success && message.length > 0) {
+                console.warn("PDF generation failed: " + message)
+            }
         }
     }
 

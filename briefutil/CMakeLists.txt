@@ -1,148 +1,262 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 
-project(briefutil VERSION 0.1 LANGUAGES CXX)
+project(briefutil VERSION 0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+cmake_policy(SET CMP0074 NEW)
 
-if (WIN32)
-    option(BRIEFUTIL_BUNDLE_MIKTEX "Download and package a portable MiKTeX runtime." ON)
-    if (BRIEFUTIL_BUNDLE_MIKTEX)
-        set(MIKTEX_SETUP_VERSION "5.5.0+1763023")
-        set(MIKTEX_PACKAGE_SET "basic")
-        set(MIKTEX_SETUP_ARCHIVE "miktexsetup-${MIKTEX_SETUP_VERSION}-x64.zip")
-        set(MIKTEX_SETUP_URL "https://mirror.ctan.org/systems/win32/miktex/setup/windows-x64/${MIKTEX_SETUP_ARCHIVE}")
-        set(MIKTEX_STAGING_DIR "${CMAKE_BINARY_DIR}/miktex")
-        set(MIKTEX_SETUP_ZIP "${MIKTEX_STAGING_DIR}/${MIKTEX_SETUP_ARCHIVE}")
-        set(MIKTEX_SETUP_EXE "${MIKTEX_STAGING_DIR}/miktexsetup_standalone.exe")
-        set(MIKTEX_PORTABLE_DIR "${MIKTEX_STAGING_DIR}/portable")
-        set(MIKTEX_PACKAGE_REPOSITORY "${MIKTEX_STAGING_DIR}/package-repo")
-        set(MIKTEX_PORTABLE_STAMP "${MIKTEX_STAGING_DIR}/miktex-portable.stamp")
-        file(MAKE_DIRECTORY "${MIKTEX_STAGING_DIR}")
-        set(_briefutil_need_miktex_download TRUE)
-        if (EXISTS "${MIKTEX_SETUP_ZIP}")
-            file(SIZE "${MIKTEX_SETUP_ZIP}" _briefutil_miktex_zip_size)
-            if (_briefutil_miktex_zip_size GREATER 0)
-                set(_briefutil_need_miktex_download FALSE)
-            else()
-                message(WARNING "Existing MiKTeX archive is empty, forcing re-download.")
-            endif()
-        endif()
-        if (_briefutil_need_miktex_download)
-            message(STATUS "Downloading MiKTeX setup from ${MIKTEX_SETUP_URL}")
-            file(DOWNLOAD "${MIKTEX_SETUP_URL}" "${MIKTEX_SETUP_ZIP}" SHOW_PROGRESS)
-        endif()
-        unset(_briefutil_miktex_zip_size)
-        unset(_briefutil_need_miktex_download)
-        add_custom_command(
-            OUTPUT "${MIKTEX_SETUP_EXE}"
-            COMMAND powershell -NoLogo -NoProfile -Command "Expand-Archive -LiteralPath \"${MIKTEX_SETUP_ZIP}\" -DestinationPath \"${MIKTEX_STAGING_DIR}\" -Force"
-            DEPENDS "${MIKTEX_SETUP_ZIP}"
-            COMMENT "Extracting MiKTeX setup"
-            VERBATIM
-        )
-        set(MIKTEX_REMOTE_REPOSITORY "https://ctan.net/systems/win32/miktex/tm/packages/")
-        file(TO_NATIVE_PATH "${MIKTEX_SETUP_EXE}" MIKTEX_SETUP_EXE_NATIVE)
-        file(TO_NATIVE_PATH "${MIKTEX_PACKAGE_REPOSITORY}" MIKTEX_PACKAGE_REPOSITORY_NATIVE)
-        file(TO_NATIVE_PATH "${MIKTEX_PORTABLE_DIR}" MIKTEX_PORTABLE_DIR_NATIVE)
-        file(TO_NATIVE_PATH "${MIKTEX_PORTABLE_STAMP}" MIKTEX_PORTABLE_STAMP_NATIVE)
-        file(TO_NATIVE_PATH "${CMAKE_COMMAND}" CMAKE_COMMAND_NATIVE)
-        set(MIKTEX_BOOTSTRAP_SCRIPT "${CMAKE_BINARY_DIR}/bootstrap_miktex.cmd")
-        configure_file(
-            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/bootstrap_miktex.cmd.in"
-            "${MIKTEX_BOOTSTRAP_SCRIPT}"
-            @ONLY
-        )
-        add_custom_command(
-            OUTPUT "${MIKTEX_PORTABLE_STAMP}"
-            COMMAND cmd /c "${MIKTEX_BOOTSTRAP_SCRIPT}"
-            DEPENDS "${MIKTEX_SETUP_EXE}"
-            WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-            COMMENT "Bootstrapping portable MiKTeX distribution (this can take a while)"
-            VERBATIM
-            USES_TERMINAL
-        )
-        add_custom_target(portable_miktex DEPENDS "${MIKTEX_PORTABLE_STAMP}")
-    endif()
+# ============================================================================
+# libHaru (static, with PNG support via zlib + libpng)
+# ============================================================================
+
+include(FetchContent)
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(SKIP_INSTALL_ALL  ON  CACHE BOOL "" FORCE)
+
+# -- zlib --
+FetchContent_Declare(zlib
+    GIT_REPOSITORY https://github.com/madler/zlib.git
+    GIT_TAG        v1.3.1
+)
+set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(zlib)
+
+# Expose zlibstatic as ZLIB::ZLIB imported target so that find_package(ZLIB)
+# in downstream deps (libpng, libHaru) finds it without searching the system.
+if(NOT TARGET ZLIB::ZLIB)
+    add_library(ZLIB::ZLIB INTERFACE IMPORTED)
+    target_link_libraries(ZLIB::ZLIB INTERFACE zlibstatic)
+    target_include_directories(ZLIB::ZLIB INTERFACE
+        "${zlib_SOURCE_DIR}" "${zlib_BINARY_DIR}")
 endif()
+set(ZLIB_FOUND       TRUE CACHE BOOL "" FORCE)
+set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
+set(ZLIB_LIBRARY     "zlibstatic" CACHE STRING "" FORCE)
+
+# -- libpng --
+FetchContent_Declare(libpng
+    GIT_REPOSITORY https://github.com/pnggroup/libpng.git
+    GIT_TAG        v1.6.47
+)
+set(PNG_SHARED    OFF CACHE BOOL "" FORCE)
+set(PNG_STATIC    ON  CACHE BOOL "" FORCE)
+set(PNG_TESTS     OFF CACHE BOOL "" FORCE)
+set(PNG_TOOLS     OFF CACHE BOOL "" FORCE)
+set(PNG_FRAMEWORK OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(libpng)
+
+# Expose png_static as PNG::PNG for libHaru
+if(NOT TARGET PNG::PNG)
+    add_library(PNG::PNG INTERFACE IMPORTED)
+    target_link_libraries(PNG::PNG INTERFACE png_static)
+    target_include_directories(PNG::PNG INTERFACE
+        "${libpng_SOURCE_DIR}" "${libpng_BINARY_DIR}")
+endif()
+set(PNG_FOUND          TRUE CACHE BOOL "" FORCE)
+set(PNG_PNG_INCLUDE_DIR "${libpng_SOURCE_DIR}" CACHE PATH "" FORCE)
+set(PNG_LIBRARY        "png_static" CACHE STRING "" FORCE)
+
+# -- libHaru --
+FetchContent_Declare(libharu
+    GIT_REPOSITORY https://github.com/libharu/libharu.git
+    GIT_TAG        v2.4.5
+)
+set(LIBHPDF_EXAMPLES OFF CACHE BOOL "" FORCE)
+if(DEFINED CMAKE_SKIP_INSTALL_RULES)
+    set(_briefutil_saved_skip_install_rules_defined TRUE)
+    set(_briefutil_saved_skip_install_rules "${CMAKE_SKIP_INSTALL_RULES}")
+endif()
+set(CMAKE_SKIP_INSTALL_RULES ON)
+FetchContent_MakeAvailable(libharu)
+if(_briefutil_saved_skip_install_rules_defined)
+    set(CMAKE_SKIP_INSTALL_RULES "${_briefutil_saved_skip_install_rules}")
+else()
+    unset(CMAKE_SKIP_INSTALL_RULES)
+endif()
+unset(_briefutil_saved_skip_install_rules_defined)
+unset(_briefutil_saved_skip_install_rules)
+# CMake still emits a parent include() for the fetched subproject install
+# script, so provide an explicit no-op file to keep app installs self-contained.
+file(WRITE "${libharu_BINARY_DIR}/cmake_install.cmake"
+    "# libharu install rules are intentionally suppressed for briefutil.\n")
+
+target_include_directories(hpdf PRIVATE "${libpng_BINARY_DIR}")
+add_dependencies(hpdf png_static)
+
+# ============================================================================
+# Qt 6
+# ============================================================================
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+get_filename_component(_qt_bin_dir "${Qt6_DIR}/../../../bin" ABSOLUTE)
+set(_windeployqt "${_qt_bin_dir}/windeployqt.exe")
 
 set(PROJECT_SOURCES
     main.cpp
     proxy.cpp
+    pdf_renderer_haru.cpp
+    sender_profile.cpp
+    letter_builder.cpp
     qml.qrc
 )
 
-if (QT_VERSION_MAJOR GREATER_EQUAL 6)
-    qt_add_executable(briefutil
-        WIN32
-        MANUAL_FINALIZATION
-        ${PROJECT_SOURCES}
-    )
-else()
-    add_executable(briefutil
-        WIN32
-        ${PROJECT_SOURCES}
-    )
-endif()
+qt_add_executable(briefutil
+    WIN32
+    MANUAL_FINALIZATION
+    ${PROJECT_SOURCES}
+)
 
-target_include_directories(briefutil PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(briefutil PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${libharu_SOURCE_DIR}/include
+    ${libharu_BINARY_DIR}/include
+)
 
 target_link_libraries(briefutil
     PRIVATE
-        Qt${QT_VERSION_MAJOR}::Core
-        Qt${QT_VERSION_MAJOR}::Gui
-        Qt${QT_VERSION_MAJOR}::Qml
-        Qt${QT_VERSION_MAJOR}::Quick
-        Qt${QT_VERSION_MAJOR}::QuickControls2
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        hpdf
 )
 
 if (WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
-endif()
-
-if (WIN32)
     target_sources(briefutil PRIVATE briefutil.rc)
+    get_filename_component(_cxx_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            add_custom_command(TARGET briefutil POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_cxx_compiler_dir}/${_runtime_dll}"
+                    "$<TARGET_FILE_DIR:briefutil>"
+                VERBATIM
+            )
+        endif()
+    endforeach()
+    add_custom_command(TARGET briefutil POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:briefutil>
+            $<TARGET_FILE_DIR:briefutil>
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+    if(EXISTS "${_windeployqt}")
+        add_custom_command(TARGET briefutil POST_BUILD
+            COMMAND "${_windeployqt}"
+                --dir "$<TARGET_FILE_DIR:briefutil>"
+                --qmldir "${CMAKE_CURRENT_SOURCE_DIR}"
+                --no-translations
+                "$<TARGET_FILE:briefutil>"
+            VERBATIM
+        )
+    endif()
 endif()
 
-if (QT_VERSION_MAJOR GREATER_EQUAL 6)
-    qt_import_qml_plugins(briefutil)
-    qt_finalize_executable(briefutil)
+qt_import_qml_plugins(briefutil)
+qt_finalize_executable(briefutil)
+
+# ============================================================================
+# Renderer smoke test (not installed, development only)
+# ============================================================================
+
+add_executable(test_renderer EXCLUDE_FROM_ALL
+    test_renderer.cpp
+    pdf_renderer_haru.cpp
+)
+
+target_include_directories(test_renderer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${libharu_SOURCE_DIR}/include
+    ${libharu_BINARY_DIR}/include
+)
+
+target_link_libraries(test_renderer PRIVATE hpdf)
+
+if(WIN32)
+    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            add_custom_command(TARGET test_renderer POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_cxx_compiler_dir}/${_runtime_dll}"
+                    "$<TARGET_FILE_DIR:test_renderer>"
+                VERBATIM
+            )
+        endif()
+    endforeach()
 endif()
+
+# ============================================================================
+# Letter builder test (not installed, development only)
+# ============================================================================
+
+add_executable(test_letter_builder EXCLUDE_FROM_ALL
+    test_letter_builder.cpp
+    pdf_renderer_haru.cpp
+    sender_profile.cpp
+    letter_builder.cpp
+)
+
+target_include_directories(test_letter_builder PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${libharu_SOURCE_DIR}/include
+    ${libharu_BINARY_DIR}/include
+)
+
+target_link_libraries(test_letter_builder PRIVATE
+    hpdf
+    Qt6::Core
+)
+
+if(WIN32)
+    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            add_custom_command(TARGET test_letter_builder POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_cxx_compiler_dir}/${_runtime_dll}"
+                    "$<TARGET_FILE_DIR:test_letter_builder>"
+                VERBATIM
+            )
+        endif()
+    endforeach()
+    add_custom_command(TARGET test_letter_builder POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:test_letter_builder>
+            $<TARGET_FILE_DIR:test_letter_builder>
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+endif()
+
+# ============================================================================
+# Install
+# ============================================================================
 
 install(TARGETS briefutil
     RUNTIME DESTINATION bin
     BUNDLE DESTINATION .
 )
 
-if (WIN32 AND BRIEFUTIL_BUNDLE_MIKTEX)
-    install(DIRECTORY "${MIKTEX_PORTABLE_DIR}/" DESTINATION miktex)
-    install(CODE
-        "if(NOT EXISTS \"${MIKTEX_PORTABLE_DIR}/texmfs/install/miktex/bin/x64/texify.exe\")
-             message(FATAL_ERROR \"Portable MiKTeX was not prepared. Run 'cmake --build ${CMAKE_BINARY_DIR} --target portable_miktex --config \${CMAKE_INSTALL_CONFIG_NAME}' before installing.\")
-         endif()")
-endif()
-
 if (WIN32)
-    if (QT_VERSION_MAJOR EQUAL 6)
-        qt_generate_deploy_app_script(
-            TARGET briefutil
-            OUTPUT_SCRIPT briefutil_deploy_qt
-            NO_UNSUPPORTED_PLATFORM_ERROR
-        )
-        install(SCRIPT ${briefutil_deploy_qt})
-    endif()
+    qt_generate_deploy_app_script(
+        TARGET briefutil
+        OUTPUT_SCRIPT briefutil_deploy_qt
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT ${briefutil_deploy_qt})
 endif()
 
 set(CPACK_PACKAGE_NAME "briefutil")
 set(CPACK_PACKAGE_VENDOR "briefutil")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility for generating PDF letters via Qt Quick and MiKTeX.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility for generating PDF letters with Qt Quick.")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 
 if (WIN32)

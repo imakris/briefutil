@@ -1,0 +1,13 @@
+{
+    "id": "Max Mustermann",
+    "style": "simple",
+    "sender_lines": [
+        "Max Mustermann",
+        "Musterstr. 6",
+        "12345 Musterstadt"
+    ],
+    "email": "max.mustermann@example.org",
+    "return_address_line": "Max Mustermann \u2022 Musterstr. 6 \u2022 12345 Musterstadt",
+    "signer_name": "Max Mustermann",
+    "signature_image": "mustermann_signature.png"
+}

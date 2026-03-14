@@ -1,123 +1,136 @@
 #include "proxy.h"
+#include "sender_profile.h"
+#include "letter_builder.h"
+#include "pdf_renderer_haru.h"
+#include "default_profiles.h"
+#include "mustermann_signature.png.h"
 
 #include <string>
 #include <filesystem>
-#include <iostream>
 #include <fstream>
+#include <cstring>
 
-#include <QProcess>
 #include <QFile>
-#include <QTextStream>
 #include <QDateTime>
 #include <QDir>
 #include <QCoreApplication>
 #include <QRegularExpression>
-#include <QFileInfo>
+#include <QLocale>
 #include <QWindow>
 #include <QSettings>
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#include <QStringConverter>
-#endif
+#include <QDesktopServices>
+#include <QElapsedTimer>
+#include <QFileInfo>
+#include <QDebug>
+#include <QUrl>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dwmapi.h>
 #endif
 
-#include "mustermann_signature.png.h"
-
-using namespace std;
 namespace fs = std::filesystem;
 
 
-static Proxy* s_me = nullptr;
-Proxy* lgen() { return s_me; }
-
+// ============================================================================
+// Construction and profile discovery
+// ============================================================================
 
 Proxy::Proxy(QObject*)
 {
-    const QString portable_texify = QDir(QCoreApplication::applicationDirPath())
-        .filePath("miktex/texmfs/install/miktex/bin/x64/texify.exe");
-    if (QFile::exists(portable_texify)) {
-        m_texify_path = portable_texify;
-    }
-    else {
-        m_texify_path = "texify.exe";
-    }
-
+    // Output directory
     std::ifstream t("./output_dir.conf");
     QString output_dir = QString::fromUtf8(
-        std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()).c_str()
+        std::string((std::istreambuf_iterator<char>(t)),
+                     std::istreambuf_iterator<char>()).c_str()
     );
     output_dir = output_dir.trimmed();
 
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
         m_output_dir = output_dir;
-    }
-    else {
+    } else {
         m_output_dir = QDir::homePath() + "/briefutil/output/";
         qodir = QDir(m_output_dir);
     }
-
-    // if it does not exist, try to create it
     if (!qodir.exists())
         qodir.mkpath(".");
 
+    // Template directory
     m_sender_template_dir = QDir::homePath() + "/briefutil/templates/";
-    QDir qtemplatesdir(m_sender_template_dir);
-    if (!qtemplatesdir.exists()) {
-        qtemplatesdir.mkpath(".");
+    QDir templates_dir(m_sender_template_dir);
 
-        std::ofstream t1_ofs(
-            (m_sender_template_dir + "Max Mustermann.tex").toStdString(),
-            std::ios::out|std::ios::binary
-        );
-        std::string t1_string =
-#include "st_simple.tex.cppstring"
-            ;
-        t1_ofs << t1_string;
-        t1_ofs.close();
-
-        std::ofstream t2_ofs(
-            (m_sender_template_dir + "Max Mustermann, Mustermann AG.tex").toStdString(),
-            std::ios::out|std::ios::binary
-        );
-        std::string t2_string =
-#include "st_commercial.tex.cppstring"
-            ;
-        t2_ofs << t2_string;
-        t2_ofs.close();
-
-        std::ofstream signature_ofs(
-            (m_sender_template_dir + "mustermann_signature.png").toStdString(),
-            std::ios::out|std::ios::binary
-        );
-        signature_ofs.write(
-            (const char*)mustermann_signature_png::data().first,
-            mustermann_signature_png::data().second);
-        signature_ofs.close();
+    if (!templates_dir.exists()) {
+        templates_dir.mkpath(".");
     }
 
-    // detect tex templates in the working directory
-    // and populate m_sender_templates.
-    std::string ext(".tex");
-    for (auto &p : fs::directory_iterator(m_sender_template_dir.toStdString())) {
+    // Seed default JSON profiles and placeholder signature on first launch and
+    // after upgrades from older .tex-based versions where the directory already
+    // exists but the native assets do not.
+    auto write_file_if_missing = [&](const QString& path, const char* data,
+                                     size_t size, bool refresh_old_placeholder = false) {
+        QFileInfo info(path);
+        if (info.exists()) {
+            if (!(refresh_old_placeholder && info.size() == 67)) {
+                return;
+            }
+        }
+
+        std::ofstream ofs(path.toStdString(), std::ios::out | std::ios::binary);
+        if (!ofs) {
+            return;
+        }
+        ofs.write(data, (std::streamsize)size);
+    };
+
+    write_file_if_missing(m_sender_template_dir + "Max Mustermann.json",
+                          k_default_profile_simple_json,
+                          std::strlen(k_default_profile_simple_json));
+    write_file_if_missing(m_sender_template_dir + "Max Mustermann, Mustermann AG.json",
+                          k_default_profile_commercial_json,
+                          std::strlen(k_default_profile_commercial_json));
+    write_file_if_missing(m_sender_template_dir + "mustermann_signature.png",
+                          (const char*)mustermann_signature_png::data().first,
+                          mustermann_signature_png::data().second,
+                          true);
+
+    // Warn about leftover .tex files
+    for (auto& p : fs::directory_iterator(m_sender_template_dir.toStdString())) {
         if (p.path().extension() == ".tex") {
-            m_sender_templates.push_back(QString::fromStdString(p.path().stem().string()));
+            qWarning("briefutil: found old .tex template '%s'. "
+                     "Please convert it to a .json sender profile. "
+                     "See the default .json profiles for the expected format.",
+                     p.path().filename().string().c_str());
         }
     }
 
-    QObject::connect(&m_texify, SIGNAL(finished(int, QProcess::ExitStatus)),
-         this, SIGNAL(texify_finished()) );
+    // Discover .json sender profiles
+    for (auto& p : fs::directory_iterator(m_sender_template_dir.toStdString())) {
+        if (p.path().extension() == ".json") {
+            auto result = load_sender_profile(p.path().string());
+            if (result.ok) {
+                m_profile_names.push_back(
+                    QString::fromStdString(result.profile.id));
+                m_profiles.push_back(std::move(result.profile));
+            } else {
+                qWarning("briefutil: failed to load profile '%s': %s",
+                         p.path().filename().string().c_str(),
+                         result.error.c_str());
+            }
+        }
+    }
 }
 
 
 QList<QString> Proxy::get_sender_templates() const
 {
-    return m_sender_templates;
+    return m_profile_names;
 }
+
+
+// ============================================================================
+// PDF generation — native renderer
+// ============================================================================
 
 static QString sanitize_filename(const QString& input)
 {
@@ -126,102 +139,72 @@ static QString sanitize_filename(const QString& input)
     return sanitized;
 }
 
-QString fix_lf(const QString& str_in)
+void Proxy::make_pdf(int from, const QString& to,
+                     const QString& subject, const QString& body)
 {
-    QString str = str_in;
-    str.replace(QRegularExpression("\\r"), "");
-    str.replace(QRegularExpression("\\n[ \\t]+\\n"), "\n\n");
-    str.replace(QRegularExpression("^\\n+"), "");
-
-    size_t lf_count = 0;
-    int locked_index = -1;
-    QString ret;
-    for (size_t i=0; i<str.size(); i++) {
-        if (str.at(i)=='\n') {
-            if (locked_index == -1) {
-                locked_index=i;
-            }
-            else {
-                lf_count++;
-            }
-        }
-        else {
-            if (locked_index != -1) {
-                if (lf_count >= 1) {
-                    ret.push_back(" \\\\[");
-                    ret.push_back(QString::number( lf_count+1 ));
-                    ret.push_back("\\baselineskip] ");
-                }
-                else {
-                    ret.push_back(" \\\\ ");
-                }
-                lf_count = 0;
-                locked_index = -1;
-            }
-            ret.push_back(str.at(i));
-        }
-    }
-    return ret;
-}
-
-
-void Proxy::make_pdf(int from, const QString& to, const QString& subject, const QString& body)
-{
-    if (from < 0 || from >= m_sender_templates.size())
+    if (from < 0 || from >= (int)m_profiles.size()) {
+        emit pdf_generated(false, "Invalid sender profile selection.");
         return;
+    }
 
-    auto used_template = m_sender_templates[from] + ".tex";
+    const auto& profile = m_profiles[from];
 
-    // replace line feeds with '\\'
-    QString recipient = fix_lf(to);
-    QString lf_body = fix_lf(body);
-
-    // make filename (used for temporary tex and pdf)
+    // Build filename: separate display subject from filename slug
     QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
-    QString mod_subject = subject.isEmpty() ? "[no subject]" : subject;
-    mod_subject = sanitize_filename(mod_subject);
-    if (mod_subject.isEmpty()) {
-        mod_subject = "[no subject]";
-    }
-    QString tex_fn = prefix + mod_subject + " @FROM@ " +  m_sender_templates[from] + ".tex";
+    QString filename_slug = sanitize_filename(subject);
+    if (filename_slug.isEmpty())
+        filename_slug = "letter";
 
-    // pdf2latex has a bug finding files with 2 or more consecutive spaces
-    tex_fn.replace(QRegularExpression("\\s+"), " ");
+    QString pdf_filename = prefix + filename_slug + ".pdf";
+    pdf_filename.replace(QRegularExpression("\\s+"), " ");
 
-    // make temporary .tex file contents
-    QString tex_template_path = m_sender_template_dir + m_sender_templates[from] + ".tex";
+    QString pdf_path = m_output_dir + "/" + pdf_filename;
 
-    std::ifstream t(tex_template_path.toStdString());
-    QString tex_content = QString::fromUtf8(
-        std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()).c_str()
-    );
+    // Format date using German locale
+    QLocale german(QLocale::German);
+    QString date_str = german.toString(QDate::currentDate(), "d. MMMM yyyy");
 
-    QString tex_template_path_absolute = QFileInfo(tex_template_path).canonicalPath() + "/";
+    QElapsedTimer timer;
+    timer.start();
 
-    tex_content.replace("%%ADDRESS%%", recipient);
-    tex_content.replace("%%TITLE%%", mod_subject);
-    tex_content.replace("%%BODY%%", lf_body);
-    tex_content.replace("%%RESOURCE_DIR%%", tex_template_path_absolute);
+    // Build the letter
+    Letter_input input;
+    input.recipient = to.toStdString();
+    input.subject   = subject.toStdString();
+    input.body      = body.toStdString();
+    input.date      = date_str.toStdString();
 
-    QString tex_path = m_output_dir + "/" + tex_fn;
+    auto doc = build_letter(profile, input,
+                            m_sender_template_dir.toStdString());
 
-    QFile tex_file(tex_path);
-    if (tex_file.open(QIODevice::WriteOnly)) {
-        QTextStream out(&tex_file);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        out.setEncoding(QStringConverter::Utf8);
-#else
-        out.setCodec("UTF-8");
-#endif
-        out << tex_content;
-        tex_file.close();
+    // Render
+    auto result = render_pdf(doc, pdf_path.toStdString());
+
+    if (!result.ok) {
+        emit pdf_generated(false,
+            QString::fromStdString(result.message.empty()
+                ? result.detail : result.message));
+        return;
     }
 
-    QStringList args = {"--pdf", "--synctex=1", "--clean", "--batch", "--run-viewer", tex_path};
-    m_texify.setWorkingDirectory(m_output_dir);
-    m_texify.start(m_texify_path, args);
+    // Open the PDF in the default viewer
+    qInfo("briefutil: native PDF generated in %lld ms",
+          timer.elapsed());
+
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(pdf_path))) {
+        emit pdf_generated(false,
+            "PDF wurde erstellt, konnte aber nicht automatisch geoeffnet werden: "
+            + pdf_path);
+        return;
+    }
+
+    emit pdf_generated(true, QString());
 }
 
+
+// ============================================================================
+// Dark mode support
+// ============================================================================
 
 void Proxy::setWindowDarkMode(QWindow* window, bool dark)
 {
@@ -231,23 +214,20 @@ void Proxy::setWindowDarkMode(QWindow* window, bool dark)
 
     HWND hwnd = reinterpret_cast<HWND>(window->winId());
     BOOL useDarkMode = dark ? TRUE : FALSE;
-
-    // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 20H1+)
     constexpr DWORD DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDarkMode, sizeof(useDarkMode));
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                          &useDarkMode, sizeof(useDarkMode));
 #else
     Q_UNUSED(window);
     Q_UNUSED(dark);
 #endif
 }
 
-
 void Proxy::saveDarkMode(bool dark)
 {
     QSettings settings("briefutil", "briefutil");
     settings.setValue("appearance/darkMode", dark);
 }
-
 
 bool Proxy::loadDarkMode() const
 {
