@@ -48,10 +48,36 @@ ApplicationWindow {
                 console.warn("PDF generation failed: " + message)
             }
         }
+
+        function onSender_templates_changed() {
+            root.refreshSenderTemplates()
+        }
     }
 
     background: Rectangle {
         color: root.palette.window
+    }
+
+    function refreshSenderTemplates() {
+        var currentText = w_from.currentText
+        var options = proxy.get_sender_templates()
+        w_from.model.clear()
+        for (var i = 0; i < options.length; i++) {
+            w_from.model.append({"": options[i]})
+        }
+
+        var newIndex = -1
+        for (var j = 0; j < options.length; j++) {
+            if (options[j] === currentText) {
+                newIndex = j
+                break
+            }
+        }
+        if (newIndex < 0 && options.length > 0) {
+            newIndex = 0
+        }
+        w_from.currentIndex = newIndex
+        root.hasTemplates = options.length > 0
     }
 
     ColumnLayout {
@@ -73,15 +99,7 @@ ApplicationWindow {
             }
 
             Component.onCompleted: {
-                w_from.model.clear();
-                var options = proxy.get_sender_templates();
-                for (var i=0; i<options.length; i++) {
-                    w_from.model.append({"": options[i]});
-                }
-                if (options.length != 0) {
-                    w_from.currentIndex = 0;
-                }
-                root.hasTemplates = options.length > 0
+                root.refreshSenderTemplates()
             }
         }
 
@@ -205,31 +223,53 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
 
-            // Theme toggle button
+            // Settings button (gear)
             RoundButton {
-                id: themeToggle
+                id: settingsBtn
                 Layout.preferredWidth: 28
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
 
                 background: Rectangle {
                     radius: width / 2
-                    color: themeToggle.pressed ? (root.darkMode ? "#4d4d4d" : "#909090")
-                                               : (root.darkMode ? "#3d3d3d" : "#505050")
+                    color: settingsBtn.pressed ? (root.darkMode ? "#4d4d4d" : "#b0b0b0")
+                                               : (root.darkMode ? "#3d3d3d" : "#d0d0d0")
                     border.width: 1
-                    border.color: root.darkMode ? "#5d5d5d" : "#404040"
+                    border.color: root.darkMode ? "#5d5d5d" : "#a0a0a0"
                 }
 
                 contentItem: Text {
-                    text: root.darkMode ? "\u2600" : "\uD83C\uDF19"
-                    font.pixelSize: 14
+                    text: "\u2699"
+                    font.pixelSize: 15
+                    anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: "#ffffff"
+                    color: root.darkMode ? "#ffffff" : "#333333"
                 }
 
+                property var settingsWindow: null
+
                 onClicked: {
-                    root.darkMode = !root.darkMode
+                    if (settingsWindow) {
+                        settingsWindow.show()
+                        settingsWindow.raise()
+                        settingsWindow.requestActivate()
+                        return
+                    }
+                    var component = Qt.createComponent("qrc:/SettingsWindow.qml")
+                    if (component.status === Component.Ready) {
+                        settingsWindow = component.createObject(root, {
+                            proxy: proxy,
+                            darkMode: Qt.binding(function() { return root.darkMode })
+                        })
+                        settingsWindow.destroyed.connect(function() {
+                            settingsBtn.settingsWindow = null
+                        })
+                        settingsWindow.darkModeToggled.connect(function(dark) {
+                            root.darkMode = dark
+                        })
+                        settingsWindow.show()
+                    }
                 }
             }
 
@@ -240,9 +280,28 @@ ApplicationWindow {
                 text: root.isBusy ? "PLEASE WAIT" : "GO"
                 enabled: root.hasTemplates && !root.isBusy
 
+                background: Rectangle {
+                    implicitWidth: 90
+                    implicitHeight: 28
+                    color: !button.enabled ? (root.darkMode ? "#2a2a2a" : "#cccccc")
+                         : button.pressed  ? (root.darkMode ? "#505050" : "#c0c0c0")
+                         :                   (root.darkMode ? "#3d3d3d" : "#e0e0e0")
+                    border.width: 1
+                    border.color: root.darkMode ? "#555555" : "#c0c0c0"
+                    radius: 3
+                }
+                contentItem: Text {
+                    text: button.text
+                    color: !button.enabled ? (root.darkMode ? "#666666" : "#999999")
+                                           : (root.darkMode ? "#ffffff" : "#000000")
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
                 onReleased: {
-                    if (root.isBusy || !root.hasTemplates)
+                    if (root.isBusy || !root.hasTemplates) {
                         return;
+                    }
                     root.isBusy = true
                     proxy.make_pdf(w_from.currentIndex, w_to.text, w_subject.text, w_body.text)
                 }
