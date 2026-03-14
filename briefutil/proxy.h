@@ -28,5 +28,4 @@ private:
     QString m_sender_template_dir;
     QString m_output_dir;
     std::vector<Sender_profile> m_profiles;
-    QList<QString> m_profile_names;
 };

@@ -72,19 +72,6 @@ struct Document
 
 
 // ============================================================================
-// Pagination frame — defines the printable text area on a page
-// ============================================================================
-
-struct Page_frame
-{
-    float top_mm;
-    float left_mm;
-    float right_mm;
-    float bottom_mm;     // bottom margin (from page bottom)
-};
-
-
-// ============================================================================
 // Render result
 // ============================================================================
 

@@ -1,5 +1,5 @@
 // ============================================================================
-// Phase 3 test — full pipeline: profile loading + letter builder + renderer
+// Full pipeline test — profile loading + letter builder + renderer
 // ============================================================================
 
 #include "sender_profile.h"
@@ -8,7 +8,6 @@
 #include "default_profiles.h"
 
 #include <QCoreApplication>
-#include <QJsonDocument>
 #include <QDir>
 #include <QFile>
 
@@ -473,6 +472,6 @@ int main(int argc, char* argv[])
         QDir().rmdir(tmp_dir);
     }
 
-    std::printf("\nAll Phase 3/5 letter-builder tests passed.\n");
+    std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

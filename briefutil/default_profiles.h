@@ -1,7 +1,6 @@
 #pragma once
 
-// Default sender profile JSON strings, embedded at compile time.
-// These replace the .tex.cppstring templates for native rendering.
+// Default sender profile JSON strings embedded at compile time.
 
 inline const char* k_default_profile_simple_json = R"({
     "id": "Max Mustermann",

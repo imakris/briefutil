@@ -6,15 +6,12 @@
 
 
 // ============================================================================
-// Layout constants — extracted from st_simple.tex.cppstring
-//
-// All values in mm unless noted. Inches converted: 1in = 25.4mm.
+// Layout constants for the native DIN 5008 letter layout.
 // ============================================================================
 
 // DIN 5008 Form B page geometry
 static constexpr float k_margin_left_mm   = 25.0f;
 static constexpr float k_margin_right_mm  = 20.0f;
-static constexpr float k_margin_bottom_mm = 20.0f;
 
 // DIN 5008 Form B info block
 static constexpr float k_sender_x_mm     = 125.0f;
@@ -22,9 +19,7 @@ static constexpr float k_sender_y_mm     = 50.0f;
 static constexpr float k_sender_w_mm     = 65.0f;
 
 // DIN 5008 Form B address field
-static constexpr float k_address_field_x_mm = 20.0f;
 static constexpr float k_address_text_x_mm  = 25.0f;
-static constexpr float k_address_field_w_mm = 85.0f;
 static constexpr float k_address_text_w_mm  = 80.0f;
 static constexpr float k_return_x_mm        = k_address_text_x_mm;
 static constexpr float k_return_y_mm        = 59.2f;
@@ -83,10 +78,8 @@ static constexpr float k_company_x_mm    = k_sender_x_mm;
 static constexpr float k_company_y_mm    = 33.0f;
 static constexpr float k_company_w_mm    = k_sender_w_mm;
 static constexpr float k_company_size_pt = 24.0f;
-static constexpr float k_comm_sender_y_mm = k_sender_y_mm;
 static constexpr float k_top_rule_y_mm   = 45.0f;
 static constexpr float k_top_rule_x1_mm  = 0.0f;
-static constexpr float k_top_rule_x2_mm  = k_page_width_mm;
 static constexpr float k_top_rule_width_pt = 3.0f;
 static constexpr float k_footer_text_size_pt = 8.0f;
 
@@ -127,8 +120,7 @@ static void add_fold_marks(Page& page)
     });
 }
 
-// Build the sender block text from profile lines + email, with a blank line
-// between address and email (matching the \\~\\ in the LaTeX template).
+// Build the sender block text from profile lines + email.
 static std::string build_sender_text(const Sender_profile& profile)
 {
     std::string text;
@@ -145,7 +137,7 @@ static std::string build_sender_text(const Sender_profile& profile)
 
 
 // ============================================================================
-// Letter builder — simple style
+// Letter builder
 // ============================================================================
 
 Document build_letter(const Sender_profile& profile,
@@ -159,6 +151,7 @@ Document build_letter(const Sender_profile& profile,
     // Wrap body text and compute pagination
     auto body_lines = wrap_text(input.body, Font_id::sans,
                                 k_body_size_pt, k_body_width_mm);
+    auto sender_text = build_sender_text(profile);
 
     auto ret_metrics = measure_text(profile.return_address_line,
                                     Font_id::sans,
@@ -168,7 +161,7 @@ Document build_letter(const Sender_profile& profile,
                                     false);
     float return_rule_x2_mm = k_return_x_mm + pt_to_mm(ret_metrics.width_pt);
 
-    auto sender_metrics = measure_text(build_sender_text(profile),
+    auto sender_metrics = measure_text(sender_text,
                                        Font_id::sans,
                                        k_sender_size_pt,
                                        k_sender_lead_pt,
@@ -302,11 +295,9 @@ Document build_letter(const Sender_profile& profile,
                 });
             }
 
-            // Sender block (commercial shifts down to 1.3in)
-            float sender_y = commercial ? k_comm_sender_y_mm : k_sender_y_mm;
             page.elements.push_back(Text_block{
-                k_sender_x_mm, sender_y, k_sender_w_mm,
-                build_sender_text(profile),
+                k_sender_x_mm, k_sender_y_mm, k_sender_w_mm,
+                sender_text,
                 Font_id::sans, k_sender_size_pt, k_sender_lead_pt,
                 k_black, false
             });

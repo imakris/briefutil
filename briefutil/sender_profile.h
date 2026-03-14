@@ -31,7 +31,7 @@ struct Sender_profile
     std::string              signer_name;
     std::string              signature_image;     // filename relative to profile directory
 
-    // Commercial-only fields (Phase 5)
+    // Commercial-only fields
     std::string              company_name;
     Color                    company_name_color = { 49/255.0f, 132/255.0f, 155/255.0f };
     Color                    top_rule_color     = { 200/255.0f, 200/255.0f, 200/255.0f };

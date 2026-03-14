@@ -1,5 +1,5 @@
 // ============================================================================
-// Phase 2 smoke test — validates document model + renderer + pagination
+// Renderer smoke test — validates document model + renderer + pagination
 //
 // Builds a multi-page document by hand and renders it to PDF.
 // Run: test_renderer [output.pdf]

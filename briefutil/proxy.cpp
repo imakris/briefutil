@@ -6,14 +6,11 @@
 #include "mustermann_signature.png.h"
 
 #include <string>
-#include <filesystem>
-#include <fstream>
 #include <cstring>
 
 #include <QFile>
 #include <QDateTime>
 #include <QDir>
-#include <QCoreApplication>
 #include <QRegularExpression>
 #include <QLocale>
 #include <QWindow>
@@ -29,9 +26,6 @@
 #include <dwmapi.h>
 #endif
 
-namespace fs = std::filesystem;
-
-
 // ============================================================================
 // Construction and profile discovery
 // ============================================================================
@@ -39,12 +33,11 @@ namespace fs = std::filesystem;
 Proxy::Proxy(QObject*)
 {
     // Output directory
-    std::ifstream t("./output_dir.conf");
-    QString output_dir = QString::fromUtf8(
-        std::string((std::istreambuf_iterator<char>(t)),
-                     std::istreambuf_iterator<char>()).c_str()
-    );
-    output_dir = output_dir.trimmed();
+    QFile output_dir_file("./output_dir.conf");
+    QString output_dir;
+    if (output_dir_file.open(QIODevice::ReadOnly)) {
+        output_dir = QString::fromUtf8(output_dir_file.readAll()).trimmed();
+    }
 
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
@@ -64,9 +57,7 @@ Proxy::Proxy(QObject*)
         templates_dir.mkpath(".");
     }
 
-    // Seed default JSON profiles and placeholder signature on first launch and
-    // after upgrades from older .tex-based versions where the directory already
-    // exists but the native assets do not.
+    // Seed the default profiles and signature asset if they are missing.
     auto write_file_if_missing = [&](const QString& path, const char* data,
                                      size_t size, bool refresh_old_placeholder = false) {
         QFileInfo info(path);
@@ -76,11 +67,11 @@ Proxy::Proxy(QObject*)
             }
         }
 
-        std::ofstream ofs(path.toStdString(), std::ios::out | std::ios::binary);
-        if (!ofs) {
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
             return;
         }
-        ofs.write(data, (std::streamsize)size);
+        file.write(data, (qint64)size);
     };
 
     write_file_if_missing(m_sender_template_dir + "Max Mustermann.json",
@@ -94,29 +85,17 @@ Proxy::Proxy(QObject*)
                           mustermann_signature_png::data().second,
                           true);
 
-    // Warn about leftover .tex files
-    for (auto& p : fs::directory_iterator(m_sender_template_dir.toStdString())) {
-        if (p.path().extension() == ".tex") {
-            qWarning("briefutil: found old .tex template '%s'. "
-                     "Please convert it to a .json sender profile. "
-                     "See the default .json profiles for the expected format.",
-                     p.path().filename().string().c_str());
-        }
-    }
-
     // Discover .json sender profiles
-    for (auto& p : fs::directory_iterator(m_sender_template_dir.toStdString())) {
-        if (p.path().extension() == ".json") {
-            auto result = load_sender_profile(p.path().string());
-            if (result.ok) {
-                m_profile_names.push_back(
-                    QString::fromStdString(result.profile.id));
-                m_profiles.push_back(std::move(result.profile));
-            } else {
-                qWarning("briefutil: failed to load profile '%s': %s",
-                         p.path().filename().string().c_str(),
-                         result.error.c_str());
-            }
+    const auto profile_files = templates_dir.entryList({ "*.json" }, QDir::Files, QDir::Name);
+    for (const auto& profile_file : profile_files) {
+        const auto profile_path = templates_dir.filePath(profile_file);
+        auto result = load_sender_profile(profile_path.toStdString());
+        if (result.ok) {
+            m_profiles.push_back(std::move(result.profile));
+        } else {
+            qWarning("briefutil: failed to load profile '%s': %s",
+                     qPrintable(profile_file),
+                     result.error.c_str());
         }
     }
 }
@@ -124,7 +103,12 @@ Proxy::Proxy(QObject*)
 
 QList<QString> Proxy::get_sender_templates() const
 {
-    return m_profile_names;
+    QList<QString> profile_names;
+    profile_names.reserve((qsizetype)m_profiles.size());
+    for (const auto& profile : m_profiles) {
+        profile_names.push_back(QString::fromStdString(profile.id));
+    }
+    return profile_names;
 }
 
 
