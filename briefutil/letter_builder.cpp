@@ -1,6 +1,6 @@
 #include "letter_builder.h"
-#include "pdf_renderer_haru.h"
 #include "markdown_parser.h"
+#include "pdf_renderer_haru.h"
 #include "rich_text_layout.h"
 
 #include <cmath>
@@ -72,8 +72,8 @@ static constexpr float k_body_lead_pt    = 12.0f;
 static constexpr float k_footer_size_pt  = 9.0f;
 
 // Colors
-static constexpr Color k_black           = { 0, 0, 0 };
-static constexpr Color k_footer_color    = { 9/255.0f, 92/255.0f, 105/255.0f };
+static constexpr color_t k_black           = { 0, 0, 0 };
+static constexpr color_t k_footer_color    = { 9/255.0f, 92/255.0f, 105/255.0f };
 
 // Commercial-specific layout
 static constexpr float k_company_x_mm    = k_sender_x_mm;
@@ -111,13 +111,13 @@ static int fit_line_count(float available_height_mm, float line_height_mm)
 
 static void add_fold_marks(Page& page)
 {
-    page.elements.push_back(Line_segment{
+    page.elements.push_back(line_segment_t{
         k_mark_x_mm, k_fold1_mm, k_mark_x_mm + k_fold_len_mm, k_fold1_mm, 0.5f, k_black
     });
-    page.elements.push_back(Line_segment{
+    page.elements.push_back(line_segment_t{
         k_mark_x_mm, k_fold2_mm, k_mark_x_mm + k_fold_len_mm, k_fold2_mm, 0.5f, k_black
     });
-    page.elements.push_back(Line_segment{
+    page.elements.push_back(line_segment_t{
         k_mark_x_mm, k_punch_mm, k_mark_x_mm + k_punch_len_mm, k_punch_mm, 0.5f, k_black
     });
 }
@@ -153,7 +153,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
     auto sender_text = build_sender_text(profile);
 
     auto ret_metrics = measure_text(profile.return_address_line,
-                                    Font_id::sans,
+                                    Font_id::SANS,
                                     k_return_size_pt,
                                     0,
                                     k_address_text_w_mm,
@@ -161,13 +161,13 @@ Build_letter_result build_letter(const Sender_profile& profile,
     float return_rule_x2_mm = k_return_x_mm + pt_to_mm(ret_metrics.width_pt);
 
     auto sender_metrics = measure_text(sender_text,
-                                       Font_id::sans,
+                                       Font_id::SANS,
                                        k_sender_size_pt,
                                        k_sender_lead_pt,
                                        k_sender_w_mm,
                                        false);
     auto date_metrics = measure_text(input.date,
-                                     Font_id::sans,
+                                     Font_id::SANS,
                                      k_date_size_pt,
                                      0,
                                      k_sender_w_mm,
@@ -237,11 +237,11 @@ Build_letter_result build_letter(const Sender_profile& profile,
 
         if (pi == 0) {
             // -- First page: header elements --
-            bool commercial = (profile.style == Profile_style::commercial);
+            bool commercial = (profile.style == Profile_style::COMMERCIAL);
 
             if (commercial && !profile.company_name.empty()) {
                 auto company_metrics = measure_text(profile.company_name,
-                                                    Font_id::sans_bold,
+                                                    Font_id::SANS_BOLD,
                                                     k_company_size_pt,
                                                     0,
                                                     k_company_w_mm,
@@ -251,11 +251,11 @@ Build_letter_result build_letter(const Sender_profile& profile,
                 page.elements.push_back(Text_block{
                     k_company_x_mm, k_company_y_mm, k_company_w_mm,
                     profile.company_name,
-                    Font_id::sans_bold, k_company_size_pt, 0,
+                    Font_id::SANS_BOLD, k_company_size_pt, 0,
                     profile.company_name_color, false
                 });
 
-                page.elements.push_back(Line_segment{
+                page.elements.push_back(line_segment_t{
                     k_top_rule_x1_mm, k_top_rule_y_mm,
                     company_right_mm, k_top_rule_y_mm,
                     k_top_rule_width_pt, profile.top_rule_color
@@ -265,18 +265,18 @@ Build_letter_result build_letter(const Sender_profile& profile,
             page.elements.push_back(Text_block{
                 k_sender_x_mm, k_sender_y_mm, k_sender_w_mm,
                 sender_text,
-                Font_id::sans, k_sender_size_pt, k_sender_lead_pt,
+                Font_id::SANS, k_sender_size_pt, k_sender_lead_pt,
                 k_black, false
             });
 
             page.elements.push_back(Text_block{
                 k_return_x_mm, k_return_y_mm, k_address_text_w_mm,
                 profile.return_address_line,
-                Font_id::sans, k_return_size_pt, 0,
+                Font_id::SANS, k_return_size_pt, 0,
                 k_footer_color, false
             });
 
-            page.elements.push_back(Line_segment{
+            page.elements.push_back(line_segment_t{
                 k_return_x_mm, k_return_rule_y_mm,
                 return_rule_x2_mm, k_return_rule_y_mm,
                 0.5f, k_black
@@ -285,14 +285,14 @@ Build_letter_result build_letter(const Sender_profile& profile,
             page.elements.push_back(Text_block{
                 k_recip_x_mm, k_recip_y_mm, k_recip_w_mm,
                 input.recipient,
-                Font_id::sans, k_recip_size_pt, k_recip_lead_pt,
+                Font_id::SANS, k_recip_size_pt, k_recip_lead_pt,
                 k_black, false
             });
 
             page.elements.push_back(Text_block{
                 k_date_x_mm, k_date_y_mm, k_sender_w_mm,
                 input.date,
-                Font_id::sans, k_date_size_pt, 0,
+                Font_id::SANS, k_date_size_pt, 0,
                 k_black, false
             });
 
@@ -300,7 +300,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
                 page.elements.push_back(Text_block{
                     k_margin_left_mm, subject_y_mm, k_body_width_mm,
                     input.subject,
-                    Font_id::sans_bold, k_body_size_pt, k_body_lead_pt,
+                    Font_id::SANS_BOLD, k_body_size_pt, k_body_lead_pt,
                     k_black, false
                 });
             }
@@ -320,7 +320,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
             page.elements.push_back(Text_block{
                 k_margin_left_mm, closing_y, k_body_width_mm,
                 closing_text,
-                Font_id::sans, k_body_size_pt, k_body_lead_pt,
+                Font_id::SANS, k_body_size_pt, k_body_lead_pt,
                 k_black, false
             });
 
@@ -337,7 +337,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
             page.elements.push_back(Text_block{
                 k_margin_left_mm, after_closing, k_body_width_mm,
                 profile.signer_name,
-                Font_id::sans, k_body_size_pt, k_body_lead_pt,
+                Font_id::SANS, k_body_size_pt, k_body_lead_pt,
                 k_black, false
             });
 
@@ -346,7 +346,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
                 page.elements.push_back(Text_block{
                     k_margin_left_mm, after_closing, k_body_width_mm,
                     profile.signer_title,
-                    Font_id::sans, k_body_size_pt, k_body_lead_pt,
+                    Font_id::SANS, k_body_size_pt, k_body_lead_pt,
                     k_black, false
                 });
             }
@@ -359,26 +359,26 @@ Build_letter_result build_letter(const Sender_profile& profile,
         if (total_pages > 1) {
             std::string page_num = "Seite " + std::to_string(pi + 1)
                 + " von " + std::to_string(total_pages);
-            auto page_num_metrics = measure_text(page_num, Font_id::sans,
+            auto page_num_metrics = measure_text(page_num, Font_id::SANS,
                                                  k_footer_size_pt, 0, 200, false);
             float page_num_x = k_page_width_mm - k_margin_right_mm
                 - pt_to_mm(page_num_metrics.width_pt);
             page.elements.push_back(Text_block{
                 page_num_x, footer_y, k_body_width_mm,
                 page_num,
-                Font_id::sans, k_footer_size_pt, 0,
+                Font_id::SANS, k_footer_size_pt, 0,
                 k_black, false
             });
             footer_y += pt_to_mm(k_footer_size_pt) + 3.0f;
         }
 
         // Commercial footer lines (on every page)
-        if (profile.style == Profile_style::commercial) {
+        if (profile.style == Profile_style::COMMERCIAL) {
             for (const auto& fl : profile.footer_lines) {
                 page.elements.push_back(Text_block{
                     k_margin_left_mm, footer_y, k_body_width_mm,
                     fl,
-                    Font_id::sans, k_footer_text_size_pt,
+                    Font_id::SANS, k_footer_text_size_pt,
                     k_footer_text_size_pt,
                     k_footer_color, false
                 });

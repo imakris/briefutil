@@ -21,8 +21,8 @@ static std::vector<std::string> json_string_array(const QJsonObject& obj,
     return result;
 }
 
-static Color json_color(const QJsonObject& obj, const char* key,
-                        Color fallback)
+static color_t json_color(const QJsonObject& obj, const char* key,
+                          color_t fallback)
 {
     auto arr = obj.value(key).toArray();
     if (arr.size() != 3) return fallback;
@@ -61,7 +61,7 @@ Profile_load_result load_sender_profile(const std::string& json_path)
 
     auto style_str = obj.value("style").toString().toLower();
     p.style = (style_str == "commercial")
-        ? Profile_style::commercial : Profile_style::simple;
+        ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
 
     // Commercial fields
     p.company_name        = qs(obj.value("company_name").toString());

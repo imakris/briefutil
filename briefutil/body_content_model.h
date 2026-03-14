@@ -14,17 +14,17 @@
 
 enum class Inline_style
 {
-    normal,
-    bold,
-    italic,
-    bold_italic,
-    code,       // inline code (monospace)
+    NORMAL,
+    BOLD,
+    ITALIC,
+    BOLD_ITALIC,
+    CODE,       // inline code (monospace)
 };
 
 struct Text_run
 {
     std::string  text;
-    Inline_style style = Inline_style::normal;
+    Inline_style style = Inline_style::NORMAL;
 };
 
 struct Paragraph_block

@@ -15,11 +15,11 @@
 
 struct Layout_params
 {
-    float left_mm;
-    float width_mm;
-    float body_size_pt   = 10.0f;
-    float body_lead_pt   = 12.0f;
-    Color body_color     = { 0, 0, 0 };
+    float       left_mm;
+    float       width_mm;
+    float       body_size_pt   = 10.0f;
+    float       body_lead_pt   = 12.0f;
+    color_t     body_color     = { 0, 0, 0 };
     std::string profile_dir;   // for resolving image paths
 };
 

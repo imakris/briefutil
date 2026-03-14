@@ -1,30 +1,30 @@
 #include "proxy.h"
-#include "sender_profile.h"
-#include "letter_builder.h"
-#include "pdf_renderer_haru.h"
 #include "default_profiles.h"
+#include "letter_builder.h"
 #include "mustermann_signature.png.h"
+#include "pdf_renderer_haru.h"
+#include "sender_profile.h"
 
-#include <string>
-#include <cstring>
-
-#include <QFile>
 #include <QDateTime>
-#include <QDir>
-#include <QRegularExpression>
-#include <QLocale>
-#include <QWindow>
-#include <QSettings>
-#include <QDesktopServices>
-#include <QElapsedTimer>
-#include <QFileInfo>
 #include <QDebug>
+#include <QDesktopServices>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QLocale>
+#include <QRegularExpression>
+#include <QSettings>
 #include <QUrl>
+#include <QWindow>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dwmapi.h>
 #endif
+
+#include <cstring>
+#include <string>
 
 // ============================================================================
 // Construction and profile discovery
@@ -42,7 +42,8 @@ Proxy::Proxy(QObject*)
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
         m_output_dir = output_dir;
-    } else {
+    }
+    else {
         m_output_dir = QDir::homePath() + "/briefutil/output/";
         qodir = QDir(m_output_dir);
     }
@@ -92,7 +93,8 @@ Proxy::Proxy(QObject*)
         auto result = load_sender_profile(profile_path.toStdString());
         if (result.ok) {
             m_profiles.push_back(std::move(result.profile));
-        } else {
+        }
+        else {
             qWarning("briefutil: failed to load profile '%s': %s",
                      qPrintable(profile_file),
                      result.error.c_str());
@@ -196,7 +198,7 @@ void Proxy::make_pdf(int from, const QString& to,
 // Dark mode support
 // ============================================================================
 
-void Proxy::setWindowDarkMode(QWindow* window, bool dark)
+void Proxy::set_window_dark_mode(QWindow* window, bool dark)
 {
 #ifdef Q_OS_WIN
     if (!window)
@@ -213,13 +215,13 @@ void Proxy::setWindowDarkMode(QWindow* window, bool dark)
 #endif
 }
 
-void Proxy::saveDarkMode(bool dark)
+void Proxy::save_dark_mode(bool dark)
 {
     QSettings settings("briefutil", "briefutil");
     settings.setValue("appearance/darkMode", dark);
 }
 
-bool Proxy::loadDarkMode() const
+bool Proxy::load_dark_mode() const
 {
     QSettings settings("briefutil", "briefutil");
     return settings.value("appearance/darkMode", false).toBool();

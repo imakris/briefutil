@@ -1,9 +1,9 @@
+#include "proxy.h"
+
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
-#include <QCoreApplication>
-
-#include "proxy.h"
 
 int main(int argc, char *argv[])
 {

@@ -11,14 +11,14 @@
 
 enum class Profile_style
 {
-    simple,
-    commercial,
+    SIMPLE,
+    COMMERCIAL,
 };
 
 struct Sender_profile
 {
     std::string              id;
-    Profile_style            style = Profile_style::simple;
+    Profile_style            style = Profile_style::SIMPLE;
 
     // Sender block (right side of header)
     std::vector<std::string> sender_lines;       // e.g. {"Max Mustermann", "Musterstr. 6", ...}
@@ -33,8 +33,8 @@ struct Sender_profile
 
     // Commercial-only fields
     std::string              company_name;
-    Color                    company_name_color = { 49/255.0f, 132/255.0f, 155/255.0f };
-    Color                    top_rule_color     = { 200/255.0f, 200/255.0f, 200/255.0f };
+    color_t                  company_name_color = {  49/255.0f, 132/255.0f, 155/255.0f };
+    color_t                  top_rule_color     = { 200/255.0f, 200/255.0f, 200/255.0f };
     std::vector<std::string> footer_lines;
     std::string              signer_title;
 };

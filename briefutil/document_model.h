@@ -12,7 +12,7 @@
 // The renderer converts to libHaru's bottom-left point system internally.
 // ============================================================================
 
-struct Color
+struct color_t
 {
     float r = 0.0f;
     float g = 0.0f;
@@ -21,11 +21,11 @@ struct Color
 
 enum class Font_id
 {
-    sans,
-    sans_bold,
-    sans_italic,
-    sans_bold_italic,
-    mono,
+    SANS,
+    SANS_BOLD,
+    SANS_ITALIC,
+    SANS_BOLD_ITALIC,
+    MONO,
 };
 
 struct Text_block
@@ -34,21 +34,21 @@ struct Text_block
     float       y_mm;
     float       width_mm;
     std::string text;
-    Font_id     font    = Font_id::sans;
-    float       size_pt = 10.0f;
+    Font_id     font       = Font_id::SANS;
+    float       size_pt    = 10.0f;
     float       leading_pt = 0.0f;   // 0 = use size_pt
-    Color       color;
+    color_t     color;
     bool        wrap = false;         // greedy word-wrap to width_mm
 };
 
-struct Line_segment
+struct line_segment_t
 {
     float x1_mm;
     float y1_mm;
     float x2_mm;
     float y2_mm;
     float stroke_width_pt = 0.5f;
-    Color color;
+    color_t color;
 };
 
 struct Image_block
@@ -64,21 +64,21 @@ struct Text_span
     float       x_mm;
     float       y_mm;
     std::string text;
-    Font_id     font    = Font_id::sans;
+    Font_id     font    = Font_id::SANS;
     float       size_pt = 10.0f;
-    Color       color;
+    color_t     color;
 };
 
-struct Filled_rect
+struct filled_rect_t
 {
     float x_mm;
     float y_mm;
     float width_mm;
     float height_mm;
-    Color color;
+    color_t color;
 };
 
-using Page_element = std::variant<Text_block, Line_segment, Image_block, Text_span, Filled_rect>;
+using Page_element = std::variant<Text_block, line_segment_t, Image_block, Text_span, filled_rect_t>;
 
 struct Page
 {

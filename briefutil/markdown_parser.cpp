@@ -33,7 +33,7 @@ static std::vector<Text_run> parse_inline(const std::string& text)
     size_t i = 0;
     std::string current;
 
-    auto flush = [&](Inline_style style = Inline_style::normal) {
+    auto flush = [&](Inline_style style = Inline_style::NORMAL) {
         if (!current.empty()) {
             runs.push_back({ current, style });
             current.clear();
@@ -47,7 +47,7 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             if (close != std::string::npos) {
                 flush();
                 runs.push_back({ text.substr(i + 3, close - i - 3),
-                                 Inline_style::bold_italic });
+                                 Inline_style::BOLD_ITALIC });
                 i = close + 3;
                 continue;
             }
@@ -59,7 +59,7 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             if (close != std::string::npos) {
                 flush();
                 runs.push_back({ text.substr(i + 2, close - i - 2),
-                                 Inline_style::bold });
+                                 Inline_style::BOLD });
                 i = close + 2;
                 continue;
             }
@@ -71,7 +71,7 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             if (close != std::string::npos) {
                 flush();
                 runs.push_back({ text.substr(i + 1, close - i - 1),
-                                 Inline_style::italic });
+                                 Inline_style::ITALIC });
                 i = close + 1;
                 continue;
             }
@@ -83,7 +83,7 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             if (close != std::string::npos) {
                 flush();
                 runs.push_back({ text.substr(i + 1, close - i - 1),
-                                 Inline_style::code });
+                                 Inline_style::CODE });
                 i = close + 1;
                 continue;
             }
@@ -118,14 +118,14 @@ static std::vector<Text_run> parse_inline(const std::string& text)
 
 enum class Line_type
 {
-    empty,
-    heading,
-    bullet_item,
-    ordered_item,
-    image,
-    table_row,
-    table_separator,
-    text,
+    EMPTY,
+    HEADING,
+    BULLET_ITEM,
+    ORDERED_ITEM,
+    IMAGE,
+    TABLE_ROW,
+    TABLE_SEPARATOR,
+    TEXT,
 };
 
 struct Classified_line
@@ -159,7 +159,7 @@ static Classified_line classify_line(const std::string& line)
     auto trimmed = trim(line);
 
     if (trimmed.empty()) {
-        return { Line_type::empty, "", 0, 0 };
+        return { Line_type::EMPTY, "", 0, 0 };
     }
 
     // ATX headings: # Heading
@@ -171,7 +171,7 @@ static Classified_line classify_line(const std::string& line)
             i++;
         }
         if (i < trimmed.size() && trimmed[i] == ' ') {
-            return { Line_type::heading, trim(trimmed.substr(i + 1)), level, 0 };
+            return { Line_type::HEADING, trim(trimmed.substr(i + 1)), level, 0 };
         }
     }
 
@@ -181,7 +181,7 @@ static Classified_line classify_line(const std::string& line)
     // distinguisher.
     if ((trimmed[0] == '-' || trimmed[0] == '+' || trimmed[0] == '*') &&
         trimmed.size() > 1 && trimmed[1] == ' ') {
-        return { Line_type::bullet_item, trim(trimmed.substr(2)), 0, 0 };
+        return { Line_type::BULLET_ITEM, trim(trimmed.substr(2)), 0, 0 };
     }
 
     // Ordered list: 1. item
@@ -191,7 +191,7 @@ static Classified_line classify_line(const std::string& line)
         if (i < trimmed.size() && trimmed[i] == '.' &&
             i + 1 < trimmed.size() && trimmed[i + 1] == ' ') {
             int num = std::stoi(trimmed.substr(0, i));
-            return { Line_type::ordered_item, trim(trimmed.substr(i + 2)), 0, num };
+            return { Line_type::ORDERED_ITEM, trim(trimmed.substr(i + 2)), 0, num };
         }
     }
 
@@ -201,22 +201,22 @@ static Classified_line classify_line(const std::string& line)
         if (alt_end != std::string::npos) {
             size_t path_end = trimmed.find(')', alt_end + 2);
             if (path_end != std::string::npos) {
-                return { Line_type::image, trimmed, 0, 0 };
+                return { Line_type::IMAGE, trimmed, 0, 0 };
             }
         }
     }
 
     // Table separator: |---|---|
     if (is_table_separator_line(trimmed)) {
-        return { Line_type::table_separator, trimmed, 0, 0 };
+        return { Line_type::TABLE_SEPARATOR, trimmed, 0, 0 };
     }
 
     // Table row: | cell | cell |
     if (trimmed[0] == '|' && trimmed.back() == '|') {
-        return { Line_type::table_row, trimmed, 0, 0 };
+        return { Line_type::TABLE_ROW, trimmed, 0, 0 };
     }
 
-    return { Line_type::text, trimmed, 0, 0 };
+    return { Line_type::TEXT, trimmed, 0, 0 };
 }
 
 
@@ -317,123 +317,130 @@ std::vector<Body_block> parse_markdown(const std::string& input)
         auto cl = classify_line(lines[i]);
 
         switch (cl.type) {
-        case Line_type::empty:
-            flush_paragraph();
-            i++;
-            break;
-
-        case Line_type::heading:
-            flush_paragraph();
-            {
-                Heading_block hb;
-                hb.level = cl.heading_level;
-                hb.runs = parse_inline(cl.content);
-                blocks.push_back(std::move(hb));
-            }
-            i++;
-            break;
-
-        case Line_type::bullet_item:
-        case Line_type::ordered_item:
-            flush_paragraph();
-            {
-                bool ordered = (cl.type == Line_type::ordered_item);
-                List_block lb;
-                lb.ordered = ordered;
-                lb.start_number = cl.list_number;
-
-                while (i < lines.size()) {
-                    auto lcl = classify_line(lines[i]);
-                    bool is_matching_item =
-                        (ordered && lcl.type == Line_type::ordered_item) ||
-                        (!ordered && lcl.type == Line_type::bullet_item);
-
-                    if (is_matching_item) {
-                        List_item item;
-                        item.runs = parse_inline(lcl.content);
-                        lb.items.push_back(std::move(item));
-                        i++;
-                    } else if (!lb.items.empty() && lcl.type == Line_type::text
-                               && lines[i].size() >= 2
-                               && (lines[i][0] == ' ' || lines[i][0] == '\t')) {
-                        // Continuation line: indented text appended to
-                        // the last list item.
-                        auto& last = lb.items.back();
-                        // Add a space before the continuation text
-                        std::string cont = " " + lcl.content;
-                        auto cont_runs = parse_inline(cont);
-                        for (auto& r : cont_runs) {
-                            last.runs.push_back(std::move(r));
-                        }
-                        i++;
-                    } else {
-                        break;
-                    }
-                }
-
-                blocks.push_back(std::move(lb));
-            }
-            break;
-
-        case Line_type::image:
-            flush_paragraph();
-            blocks.push_back(parse_image_line(trim(lines[i])));
-            i++;
-            break;
-
-        case Line_type::table_row:
-            // Only start a table if the next line is a separator.
-            // Otherwise treat this as plain text.
-            if (i + 1 < lines.size() &&
-                classify_line(lines[i + 1]).type == Line_type::table_separator) {
+            case Line_type::EMPTY:
                 flush_paragraph();
-                Table_block tb;
+                i++;
+                break;
 
-                // Collect all table rows
-                while (i < lines.size()) {
-                    auto tcl = classify_line(lines[i]);
-                    if (tcl.type == Line_type::table_separator) {
-                        tb.has_header = true;
+            case Line_type::HEADING:
+                flush_paragraph();
+                {
+                    Heading_block hb;
+                    hb.level = cl.heading_level;
+                    hb.runs = parse_inline(cl.content);
+                    blocks.push_back(std::move(hb));
+                }
+                i++;
+                break;
+
+            case Line_type::BULLET_ITEM:
+            case Line_type::ORDERED_ITEM:
+                flush_paragraph();
+                {
+                    bool ordered = (cl.type == Line_type::ORDERED_ITEM);
+                    List_block lb;
+                    lb.ordered = ordered;
+                    lb.start_number = cl.list_number;
+
+                    while (i < lines.size()) {
+                        auto lcl = classify_line(lines[i]);
+                        bool is_matching_item =
+                            (ordered && lcl.type == Line_type::ORDERED_ITEM) ||
+                            (!ordered && lcl.type == Line_type::BULLET_ITEM);
+
+                        if (is_matching_item) {
+                            List_item item;
+                            item.runs = parse_inline(lcl.content);
+                            lb.items.push_back(std::move(item));
+                            i++;
+                        }
+                        else
+                        if (!lb.items.empty() && lcl.type == Line_type::TEXT
+                            && lines[i].size() >= 2
+                            && (lines[i][0] == ' ' || lines[i][0] == '\t')) {
+                            // Continuation line: indented text appended to
+                            // the last list item.
+                            auto& last = lb.items.back();
+                            // Add a space before the continuation text
+                            std::string cont = " " + lcl.content;
+                            auto cont_runs = parse_inline(cont);
+                            for (auto& r : cont_runs) {
+                                last.runs.push_back(std::move(r));
+                            }
+                            i++;
+                        }
+                        else {
+                            break;
+                        }
+                    }
+
+                    blocks.push_back(std::move(lb));
+                }
+                break;
+
+            case Line_type::IMAGE:
+                flush_paragraph();
+                blocks.push_back(parse_image_line(trim(lines[i])));
+                i++;
+                break;
+
+            case Line_type::TABLE_ROW:
+                // Only start a table if the next line is a separator.
+                // Otherwise treat this as plain text.
+                if (i + 1 < lines.size() &&
+                    classify_line(lines[i + 1]).type == Line_type::TABLE_SEPARATOR) {
+                    flush_paragraph();
+                    Table_block tb;
+
+                    // Collect all table rows
+                    while (i < lines.size()) {
+                        auto tcl = classify_line(lines[i]);
+                        if (tcl.type == Line_type::TABLE_SEPARATOR) {
+                            tb.has_header = true;
+                            i++;
+                            continue;
+                        }
+                        if (tcl.type != Line_type::TABLE_ROW) break;
+
+                        Table_row row;
+                        auto cell_texts = split_table_cells(tcl.content);
+                        for (const auto& ct : cell_texts) {
+                            Table_cell cell;
+                            cell.runs = parse_inline(ct);
+                            row.cells.push_back(std::move(cell));
+                        }
+                        tb.rows.push_back(std::move(row));
                         i++;
-                        continue;
                     }
-                    if (tcl.type != Line_type::table_row) break;
 
-                    Table_row row;
-                    auto cell_texts = split_table_cells(tcl.content);
-                    for (const auto& ct : cell_texts) {
-                        Table_cell cell;
-                        cell.runs = parse_inline(ct);
-                        row.cells.push_back(std::move(cell));
-                    }
-                    tb.rows.push_back(std::move(row));
+                    blocks.push_back(std::move(tb));
+                }
+                else {
+                    // Not a real table — treat as text
+                    if (!para_accum.empty()) para_accum += '\n';
+                    para_accum += cl.content;
                     i++;
                 }
+                break;
 
-                blocks.push_back(std::move(tb));
-            } else {
-                // Not a real table — treat as text
+            case Line_type::TABLE_SEPARATOR:
+                // Stray separator outside a table context, treat as text
                 if (!para_accum.empty()) para_accum += '\n';
                 para_accum += cl.content;
                 i++;
-            }
-            break;
+                break;
 
-        case Line_type::table_separator:
-            // Stray separator outside a table context, treat as text
-            if (!para_accum.empty()) para_accum += '\n';
-            para_accum += cl.content;
-            i++;
-            break;
+            case Line_type::TEXT:
+                // Preserve explicit line breaks within a paragraph.
+                // Single newlines become hard breaks, matching the current
+                // plain-text body path.
+                if (!para_accum.empty()) para_accum += '\n';
+                para_accum += cl.content;
+                i++;
+                break;
 
-        case Line_type::text:
-            // Preserve explicit line breaks within a paragraph.
-            // Single newlines become hard breaks, matching the current
-            // plain-text body path.
-            if (!para_accum.empty()) para_accum += '\n';
-            para_accum += cl.content;
-            i++;
-            break;
+            default:
+                break;
         }
     }
 

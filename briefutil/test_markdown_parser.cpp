@@ -31,7 +31,7 @@ int main()
         ASSERT(p, "plain text should be a Paragraph_block");
         ASSERT(p->runs.size() == 1, "plain text should have 1 run");
         ASSERT(p->runs[0].text == "Hello world", "text content mismatch");
-        ASSERT(p->runs[0].style == Inline_style::normal, "should be normal style");
+        ASSERT(p->runs[0].style == Inline_style::NORMAL, "should be normal style");
         std::printf("[OK] Plain text\n");
     }
 
@@ -61,11 +61,11 @@ int main()
         auto blocks = parse_markdown("Hello **bold** world");
         auto* p = get_block<Paragraph_block>(blocks[0]);
         ASSERT(p && p->runs.size() == 3, "bold should split into 3 runs");
-        ASSERT(p->runs[0].text == "Hello " && p->runs[0].style == Inline_style::normal,
+        ASSERT(p->runs[0].text == "Hello " && p->runs[0].style == Inline_style::NORMAL,
                "pre-bold run");
-        ASSERT(p->runs[1].text == "bold" && p->runs[1].style == Inline_style::bold,
+        ASSERT(p->runs[1].text == "bold" && p->runs[1].style == Inline_style::BOLD,
                "bold run");
-        ASSERT(p->runs[2].text == " world" && p->runs[2].style == Inline_style::normal,
+        ASSERT(p->runs[2].text == " world" && p->runs[2].style == Inline_style::NORMAL,
                "post-bold run");
         std::printf("[OK] Bold\n");
     }
@@ -75,7 +75,7 @@ int main()
         auto blocks = parse_markdown("Hello *italic* world");
         auto* p = get_block<Paragraph_block>(blocks[0]);
         ASSERT(p && p->runs.size() == 3, "italic should split into 3 runs");
-        ASSERT(p->runs[1].text == "italic" && p->runs[1].style == Inline_style::italic,
+        ASSERT(p->runs[1].text == "italic" && p->runs[1].style == Inline_style::ITALIC,
                "italic run");
         std::printf("[OK] Italic\n");
     }
@@ -86,7 +86,7 @@ int main()
         auto* p = get_block<Paragraph_block>(blocks[0]);
         ASSERT(p && p->runs.size() == 3, "bold+italic should split into 3 runs");
         ASSERT(p->runs[1].text == "both" &&
-               p->runs[1].style == Inline_style::bold_italic, "bold_italic run");
+               p->runs[1].style == Inline_style::BOLD_ITALIC, "bold_italic run");
         std::printf("[OK] Bold+italic\n");
     }
 
@@ -109,7 +109,7 @@ int main()
         auto blocks = parse_markdown("# Hello **bold** heading");
         auto* h = get_block<Heading_block>(blocks[0]);
         ASSERT(h && h->runs.size() == 3, "heading with bold = 3 runs");
-        ASSERT(h->runs[1].style == Inline_style::bold, "bold in heading");
+        ASSERT(h->runs[1].style == Inline_style::BOLD, "bold in heading");
         std::printf("[OK] Heading with inline formatting\n");
     }
 
@@ -175,7 +175,7 @@ int main()
         );
         auto* tb = get_block<Table_block>(blocks[0]);
         ASSERT(tb && tb->rows.size() == 2, "header + 1 data row");
-        ASSERT(tb->rows[1].cells[0].runs[0].style == Inline_style::bold,
+        ASSERT(tb->rows[1].cells[0].runs[0].style == Inline_style::BOLD,
                "bold in table cell");
         std::printf("[OK] Table with inline formatting\n");
     }

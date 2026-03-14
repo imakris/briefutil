@@ -19,7 +19,7 @@ Render_result render_pdf(const Document& doc, const std::string& output_path);
 // Text measurement — exposed for the letter builder's pagination logic
 // ============================================================================
 
-struct Text_metrics
+struct text_metrics_t
 {
     float width_pt;
     float height_pt;      // total height including all wrapped lines
@@ -28,7 +28,7 @@ struct Text_metrics
 
 // Measure how a text block would render (wrapping, line count, dimensions).
 // Does not draw anything. Uses Helvetica / Helvetica-Bold at the given size.
-Text_metrics measure_text(const std::string& text, Font_id font,
+text_metrics_t measure_text(const std::string& text, Font_id font,
                           float size_pt, float leading_pt,
                           float max_width_mm, bool wrap);
 
@@ -41,7 +41,7 @@ std::vector<std::string> wrap_text(const std::string& text, Font_id font,
 // Image measurement
 // ============================================================================
 
-struct Image_dimensions
+struct image_dimensions_t
 {
     float width_px  = 0;
     float height_px = 0;
@@ -49,4 +49,4 @@ struct Image_dimensions
 };
 
 // Read the pixel dimensions of a PNG file without rendering it.
-Image_dimensions measure_png(const std::string& path);
+image_dimensions_t measure_png(const std::string& path);

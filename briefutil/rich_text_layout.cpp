@@ -17,10 +17,10 @@ static float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
 static float heading_size(float body_pt, int level)
 {
     switch (level) {
-    case 1:  return body_pt * 1.6f;
-    case 2:  return body_pt * 1.3f;
-    case 3:  return body_pt * 1.1f;
-    default: return body_pt;
+        case 1:  return body_pt * 1.6f;
+        case 2:  return body_pt * 1.3f;
+        case 3:  return body_pt * 1.1f;
+        default: return body_pt;
     }
 }
 
@@ -28,9 +28,9 @@ static float heading_size(float body_pt, int level)
 static float heading_space_before(int level)
 {
     switch (level) {
-    case 1:  return 6.0f;
-    case 2:  return 4.0f;
-    default: return 3.0f;
+        case 1:  return 6.0f;
+        case 2:  return 4.0f;
+        default: return 3.0f;
     }
 }
 
@@ -51,11 +51,11 @@ static constexpr float k_table_space_mm         = 3.0f;
 static Font_id font_for_style(Inline_style style)
 {
     switch (style) {
-    case Inline_style::bold:        return Font_id::sans_bold;
-    case Inline_style::italic:      return Font_id::sans_italic;
-    case Inline_style::bold_italic: return Font_id::sans_bold_italic;
-    case Inline_style::code:        return Font_id::mono;
-    default:                        return Font_id::sans;
+        case Inline_style::BOLD:        return Font_id::SANS_BOLD;
+        case Inline_style::ITALIC:      return Font_id::SANS_ITALIC;
+        case Inline_style::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
+        case Inline_style::CODE:        return Font_id::MONO;
+        default:                        return Font_id::SANS;
     }
 }
 
@@ -70,7 +70,7 @@ struct Positioned_span
     std::string text;
     Font_id     font;
     float       size_pt;
-    Color       color;
+    color_t     color;
 };
 
 struct Laid_out_line
@@ -90,7 +90,7 @@ struct Laid_out_line
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<Text_run>& runs,
     float left_mm, float max_width_mm,
-    float size_pt, float lead_pt, Color color)
+    float size_pt, float lead_pt, color_t color)
 {
     std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
@@ -102,7 +102,7 @@ static std::vector<Laid_out_line> layout_runs(
     float cursor_x_mm = left_mm;
 
     // The span currently being accumulated (same style, same line)
-    Positioned_span building_span = { left_mm, "", Font_id::sans, size_pt, color };
+    Positioned_span building_span = { left_mm, "", Font_id::SANS, size_pt, color };
     bool has_building_span = false;
 
     auto commit_building_span = [&]() {
@@ -118,7 +118,8 @@ static std::vector<Laid_out_line> layout_runs(
         if (!current_spans.empty()) {
             lines.push_back({ std::move(current_spans), line_h_mm });
             current_spans.clear();
-        } else {
+        }
+        else {
             lines.push_back({ {}, line_h_mm });
         }
         cursor_x_mm = left_mm;
@@ -172,14 +173,17 @@ static std::vector<Laid_out_line> layout_runs(
 
                         if (cursor_x_mm > left_mm) {
                             building_span.text = " " + word;
-                        } else {
+                        }
+                        else {
                             building_span.text = word;
                         }
-                    } else {
+                    }
+                    else {
                         // Same style — append to current span
                         if (cursor_x_mm > left_mm) {
                             building_span.text += " " + word;
-                        } else {
+                        }
+                        else {
                             building_span.text += word;
                         }
                     }
@@ -352,7 +356,8 @@ static Table_layout_info compute_table_columns(const Table_block& tb,
 
     if (total_pref <= available_mm) {
         info.col_widths_mm = pref_widths;
-    } else {
+    }
+    else {
         // Shrink proportionally, but never below minimum
         float excess = total_pref - available_mm;
         float shrinkable = total_pref - total_min;
@@ -373,7 +378,7 @@ static Table_layout_info compute_table_columns(const Table_block& tb,
 static float layout_table_row(const Table_row& row,
                               const Table_layout_info& tl,
                               float left_mm, float y_mm,
-                              float size_pt, float lead_pt, Color color,
+                              float size_pt, float lead_pt, color_t color,
                               bool is_header,
                               std::vector<Page_element>& elements)
 {
@@ -400,10 +405,10 @@ static float layout_table_row(const Table_row& row,
         // For header cells, force bold
         if (is_header) {
             for (auto& r : runs) {
-                if (r.style == Inline_style::normal)
-                    r.style = Inline_style::bold;
-                else if (r.style == Inline_style::italic)
-                    r.style = Inline_style::bold_italic;
+                if (r.style == Inline_style::NORMAL)
+                    r.style = Inline_style::BOLD;
+                else if (r.style == Inline_style::ITALIC)
+                    r.style = Inline_style::BOLD_ITALIC;
             }
         }
 
@@ -438,20 +443,20 @@ static float layout_table_row(const Table_row& row,
     }
 
     // Draw cell borders
-    Color border_color = { 0.5f, 0.5f, 0.5f };
+    color_t border_color = { 0.5f, 0.5f, 0.5f };
     float table_right = left_mm;
     for (int c = 0; c < tl.num_cols; c++) {
         table_right += tl.col_widths_mm[c];
     }
 
     // Top border of row
-    elements.push_back(Line_segment{
+    elements.push_back(line_segment_t{
         left_mm, y_mm, table_right, y_mm,
         k_table_border_width_pt, border_color
     });
 
     // Bottom border of row
-    elements.push_back(Line_segment{
+    elements.push_back(line_segment_t{
         left_mm, y_mm + row_height, table_right, y_mm + row_height,
         k_table_border_width_pt, border_color
     });
@@ -459,7 +464,7 @@ static float layout_table_row(const Table_row& row,
     // Vertical borders
     x = left_mm;
     for (int c = 0; c <= tl.num_cols; c++) {
-        elements.push_back(Line_segment{
+        elements.push_back(line_segment_t{
             x, y_mm, x, y_mm + row_height,
             k_table_border_width_pt, border_color
         });
@@ -507,7 +512,9 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 cursor.emit_lines(lines);
                 cursor.y_mm += k_paragraph_space_mm;
 
-            } else if constexpr (std::is_same_v<T, Heading_block>) {
+            }
+            else
+            if constexpr (std::is_same_v<T, Heading_block>) {
                 float hsize = heading_size(params.body_size_pt, b.level);
                 float hlead = hsize * 1.2f;
                 float space_before = heading_space_before(b.level);
@@ -522,17 +529,19 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 // Make heading runs bold
                 for (auto& line : lines) {
                     for (auto& span : line.spans) {
-                        if (span.font == Font_id::sans)
-                            span.font = Font_id::sans_bold;
-                        else if (span.font == Font_id::sans_italic)
-                            span.font = Font_id::sans_bold_italic;
+                        if (span.font == Font_id::SANS)
+                            span.font = Font_id::SANS_BOLD;
+                        else if (span.font == Font_id::SANS_ITALIC)
+                            span.font = Font_id::SANS_BOLD_ITALIC;
                     }
                 }
 
                 cursor.emit_lines(lines);
                 cursor.y_mm += k_heading_space_after_mm;
 
-            } else if constexpr (std::is_same_v<T, List_block>) {
+            }
+            else
+            if constexpr (std::is_same_v<T, List_block>) {
                 float item_left = params.left_mm + k_list_indent_mm;
                 float item_width = params.width_mm - k_list_indent_mm;
 
@@ -543,13 +552,14 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                     std::string marker;
                     if (b.ordered) {
                         marker = std::to_string(b.start_number + idx) + ".";
-                    } else {
+                    }
+                    else {
                         marker = "\xe2\x80\xa2"; // UTF-8 bullet •
                     }
 
                     cursor.current_elements().push_back(Text_span{
                         params.left_mm + k_bullet_offset_mm, cursor.y_mm,
-                        marker, Font_id::sans, params.body_size_pt,
+                        marker, Font_id::SANS, params.body_size_pt,
                         params.body_color
                     });
 
@@ -563,7 +573,9 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 }
                 cursor.y_mm += k_paragraph_space_mm;
 
-            } else if constexpr (std::is_same_v<T, Image_content_block>) {
+            }
+            else
+            if constexpr (std::is_same_v<T, Image_content_block>) {
                 std::string img_path = b.path;
                 bool is_absolute = (!b.path.empty() &&
                     (b.path[0] == '/' || b.path[0] == '\\' ||
@@ -581,7 +593,8 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                     float natural_h_mm = dims.height_px * 25.4f / 96.0f;
                     img_width_mm = std::min(natural_w_mm, params.width_mm);
                     img_height_mm = img_width_mm * (natural_h_mm / natural_w_mm);
-                } else {
+                }
+                else {
                     // Fallback if PNG can't be read
                     img_width_mm = params.width_mm * 0.5f;
                     img_height_mm = img_width_mm * 0.5f;
@@ -611,14 +624,17 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
 
                 cursor.y_mm += img_height_mm + 2.0f;
 
-            } else if constexpr (std::is_same_v<T, Table_block>) {
+            }
+            else
+            if constexpr (std::is_same_v<T, Table_block>) {
                 auto tl = compute_table_columns(b, params.width_mm,
                                                 params.body_size_pt);
                 if (!tl.valid) {
                     result.error = "Eine Tabelle ist zu breit f\xc3\xbcr "
                                    "den verf\xc3\xbcgbaren Seitenbereich.";
                     return;
-                } else {
+                }
+                else {
                     int header_rows = b.has_header ? 1 : 0;
 
                     for (int ri = 0; ri < (int)b.rows.size(); ri++) {
@@ -658,11 +674,13 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 }
                 cursor.y_mm += k_table_space_mm;
 
-            } else if constexpr (std::is_same_v<T, Code_block>) {
+            }
+            else
+            if constexpr (std::is_same_v<T, Code_block>) {
                 // Code block: monospace font, light grey background.
                 // Split across pages line-by-line if needed.
                 static constexpr float k_code_pad_mm = 3.0f;
-                static constexpr Color k_code_bg = { 0.94f, 0.94f, 0.94f };
+                static constexpr color_t k_code_bg = { 0.94f, 0.94f, 0.94f };
                 float code_size_pt = params.body_size_pt * 0.85f;
                 float code_lead_pt = code_size_pt * 1.3f;
 
@@ -706,7 +724,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                         + 2 * k_code_pad_mm;
 
                     // Background rectangle for this chunk
-                    cursor.current_elements().push_back(Filled_rect{
+                    cursor.current_elements().push_back(filled_rect_t{
                         params.left_mm, cursor.y_mm,
                         params.width_mm, chunk_h,
                         k_code_bg
@@ -717,7 +735,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                     for (int ci = 0; ci < chunk; ci++) {
                         cursor.current_elements().push_back(Text_span{
                             params.left_mm + k_code_pad_mm, code_y,
-                            code_lines[li + ci], Font_id::mono,
+                            code_lines[li + ci], Font_id::MONO,
                             code_size_pt, params.body_color
                         });
                         code_y += line_h_mm;

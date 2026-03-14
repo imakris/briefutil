@@ -2,17 +2,17 @@
 // Full pipeline test — profile loading + letter builder + renderer
 // ============================================================================
 
-#include "sender_profile.h"
+#include "default_profiles.h"
 #include "letter_builder.h"
 #include "pdf_renderer_haru.h"
-#include "default_profiles.h"
+#include "sender_profile.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 
-#include <cstdio>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <variant>
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
                          p.id.c_str());
             return 1;
         }
-        if (p.style != Profile_style::simple) {
+        if (p.style != Profile_style::SIMPLE) {
             std::fprintf(stderr, "FAIL: expected simple style\n");
             return 1;
         }
@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
                          lr.error.c_str());
             return 1;
         }
-        if (lr.profile.style != Profile_style::commercial) {
+        if (lr.profile.style != Profile_style::COMMERCIAL) {
             std::fprintf(stderr, "FAIL: expected commercial style\n");
             return 1;
         }
@@ -332,7 +332,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            if (const auto* line = std::get_if<Line_segment>(&element)) {
+            if (const auto* line = std::get_if<line_segment_t>(&element)) {
                 if (nearly_equal(line->y1_mm, 45.0f) && nearly_equal(line->y2_mm, 45.0f)) {
                     found_top_rule = true;
                     if (!(line->x2_mm > 125.0f && line->x2_mm < 180.0f)) {

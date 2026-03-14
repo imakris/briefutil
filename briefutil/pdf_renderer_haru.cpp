@@ -1,10 +1,11 @@
 #include "pdf_renderer_haru.h"
 
 #include <hpdf.h>
+
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <cmath>
-#include <algorithm>
 
 
 // ============================================================================
@@ -29,35 +30,35 @@ static bool append_win_ansi_byte(std::string& out, unsigned codepoint)
 
     unsigned char mapped = 0;
     switch (codepoint) {
-    case 0x20AC: mapped = 0x80; break; // Euro
-    case 0x201A: mapped = 0x82; break;
-    case 0x0192: mapped = 0x83; break;
-    case 0x201E: mapped = 0x84; break;
-    case 0x2026: mapped = 0x85; break;
-    case 0x2020: mapped = 0x86; break;
-    case 0x2021: mapped = 0x87; break;
-    case 0x02C6: mapped = 0x88; break;
-    case 0x2030: mapped = 0x89; break;
-    case 0x0160: mapped = 0x8A; break;
-    case 0x2039: mapped = 0x8B; break;
-    case 0x0152: mapped = 0x8C; break;
-    case 0x017D: mapped = 0x8E; break;
-    case 0x2018: mapped = 0x91; break;
-    case 0x2019: mapped = 0x92; break;
-    case 0x201C: mapped = 0x93; break;
-    case 0x201D: mapped = 0x94; break;
-    case 0x2022: mapped = 0x95; break;
-    case 0x2013: mapped = 0x96; break;
-    case 0x2014: mapped = 0x97; break;
-    case 0x02DC: mapped = 0x98; break;
-    case 0x2122: mapped = 0x99; break;
-    case 0x0161: mapped = 0x9A; break;
-    case 0x203A: mapped = 0x9B; break;
-    case 0x0153: mapped = 0x9C; break;
-    case 0x017E: mapped = 0x9E; break;
-    case 0x0178: mapped = 0x9F; break;
-    default:
-        return false;
+        case 0x20AC: mapped = 0x80; break; // Euro
+        case 0x201A: mapped = 0x82; break;
+        case 0x0192: mapped = 0x83; break;
+        case 0x201E: mapped = 0x84; break;
+        case 0x2026: mapped = 0x85; break;
+        case 0x2020: mapped = 0x86; break;
+        case 0x2021: mapped = 0x87; break;
+        case 0x02C6: mapped = 0x88; break;
+        case 0x2030: mapped = 0x89; break;
+        case 0x0160: mapped = 0x8A; break;
+        case 0x2039: mapped = 0x8B; break;
+        case 0x0152: mapped = 0x8C; break;
+        case 0x017D: mapped = 0x8E; break;
+        case 0x2018: mapped = 0x91; break;
+        case 0x2019: mapped = 0x92; break;
+        case 0x201C: mapped = 0x93; break;
+        case 0x201D: mapped = 0x94; break;
+        case 0x2022: mapped = 0x95; break;
+        case 0x2013: mapped = 0x96; break;
+        case 0x2014: mapped = 0x97; break;
+        case 0x02DC: mapped = 0x98; break;
+        case 0x2122: mapped = 0x99; break;
+        case 0x0161: mapped = 0x9A; break;
+        case 0x203A: mapped = 0x9B; break;
+        case 0x0153: mapped = 0x9C; break;
+        case 0x017E: mapped = 0x9E; break;
+        case 0x0178: mapped = 0x9F; break;
+        default:
+            return false;
     }
 
     out.push_back((char)mapped);
@@ -76,22 +77,29 @@ static std::string utf8_to_win_ansi(const std::string& text)
 
         if (c < 0x80) {
             codepoint = c;
-        } else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) {
+        }
+        else
+        if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) {
             codepoint = ((unsigned)(c & 0x1F) << 6)
                 | (unsigned)((unsigned char)text[i + 1] & 0x3F);
             advance = 2;
-        } else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
+        }
+        else
+        if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
             codepoint = ((unsigned)(c & 0x0F) << 12)
                 | ((unsigned)((unsigned char)text[i + 1] & 0x3F) << 6)
                 | (unsigned)((unsigned char)text[i + 2] & 0x3F);
             advance = 3;
-        } else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) {
+        }
+        else
+        if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) {
             codepoint = ((unsigned)(c & 0x07) << 18)
                 | ((unsigned)((unsigned char)text[i + 1] & 0x3F) << 12)
                 | ((unsigned)((unsigned char)text[i + 2] & 0x3F) << 6)
                 | (unsigned)((unsigned char)text[i + 3] & 0x3F);
             advance = 4;
-        } else {
+        }
+        else {
             codepoint = '?';
         }
 
@@ -149,11 +157,11 @@ struct Haru_context
     HPDF_Font font_for(Font_id id) const
     {
         switch (id) {
-        case Font_id::sans_bold:        return sans_bold;
-        case Font_id::sans_italic:      return sans_italic;
-        case Font_id::sans_bold_italic: return sans_bold_italic;
-        case Font_id::mono:             return mono;
-        default:                        return sans;
+            case Font_id::SANS_BOLD:        return sans_bold;
+            case Font_id::SANS_ITALIC:      return sans_italic;
+            case Font_id::SANS_BOLD_ITALIC: return sans_bold_italic;
+            case Font_id::MONO:             return mono;
+            default:                        return sans;
         }
     }
 
@@ -244,7 +252,8 @@ static std::vector<std::string> do_wrap(HPDF_Font font, float size_pt,
             if (w > max_width_pt && !current.empty()) {
                 result.push_back(current);
                 current = word;
-            } else {
+            }
+            else {
                 current = candidate;
             }
         }
@@ -271,7 +280,7 @@ static Haru_context& get_measure_context()
     return ctx;
 }
 
-Text_metrics measure_text(const std::string& text, Font_id font_id,
+text_metrics_t measure_text(const std::string& text, Font_id font_id,
                           float size_pt, float leading_pt,
                           float max_width_mm, bool wrap)
 {
@@ -289,7 +298,8 @@ Text_metrics measure_text(const std::string& text, Font_id font_id,
     std::vector<std::string> lines;
     if (wrap) {
         lines = do_wrap(font, size_pt, max_width_pt, text);
-    } else {
+    }
+    else {
         lines = split_lines(text);
     }
 
@@ -328,7 +338,7 @@ std::vector<std::string> wrap_text(const std::string& text, Font_id font_id,
 // Image measurement
 // ============================================================================
 
-Image_dimensions measure_png(const std::string& path)
+image_dimensions_t measure_png(const std::string& path)
 {
     // Use a temporary context to avoid accumulating image objects
     // in the long-lived measurement context.
@@ -341,7 +351,7 @@ Image_dimensions measure_png(const std::string& path)
         return {};
     }
 
-    Image_dimensions dims = {
+    image_dimensions_t dims = {
         (float)HPDF_Image_GetWidth(img),
         (float)HPDF_Image_GetHeight(img),
         true
@@ -376,7 +386,8 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
     std::vector<std::string> lines;
     if (tb.wrap) {
         lines = do_wrap(font, tb.size_pt, mm_to_pt(tb.width_mm), tb.text);
-    } else {
+    }
+    else {
         lines = split_lines(tb.text);
     }
 
@@ -404,7 +415,7 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
 }
 
 static bool render_line_segment(HPDF_Page page, Haru_context& ctx,
-                                const Line_segment& ls, float page_h_mm)
+                                const line_segment_t& ls, float page_h_mm)
 {
     HPDF_Page_SetLineWidth(page, ls.stroke_width_pt);
     HPDF_Page_SetRGBStroke(page, ls.color.r, ls.color.g, ls.color.b);
@@ -426,7 +437,7 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
 
         std::string placeholder = "[Bild nicht gefunden: " + ib.path + "]";
         auto encoded = utf8_to_win_ansi(placeholder);
-        HPDF_Font font = ctx.font_for(Font_id::sans_italic);
+        HPDF_Font font = ctx.font_for(Font_id::SANS_ITALIC);
         if (font) {
             float x_pt = tl_x(ib.x_mm);
             float y_pt = tl_y(ib.y_mm, page_h_mm) - 8.0f;
@@ -458,7 +469,7 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
 
 
 static bool render_filled_rect(HPDF_Page page, Haru_context& ctx,
-                               const Filled_rect& fr, float page_h_mm)
+                               const filled_rect_t& fr, float page_h_mm)
 {
     float x = tl_x(fr.x_mm);
     float y = tl_y(fr.y_mm, page_h_mm);
@@ -524,13 +535,21 @@ Render_result render_pdf(const Document& doc, const std::string& output_path)
                 using T = std::decay_t<decltype(e)>;
                 if constexpr (std::is_same_v<T, Text_block>) {
                     return render_text_block(page, ctx, e, doc.page_height_mm);
-                } else if constexpr (std::is_same_v<T, Line_segment>) {
+                }
+                else
+                if constexpr (std::is_same_v<T, line_segment_t>) {
                     return render_line_segment(page, ctx, e, doc.page_height_mm);
-                } else if constexpr (std::is_same_v<T, Image_block>) {
+                }
+                else
+                if constexpr (std::is_same_v<T, Image_block>) {
                     return render_image_block(page, ctx, e, doc.page_height_mm);
-                } else if constexpr (std::is_same_v<T, Text_span>) {
+                }
+                else
+                if constexpr (std::is_same_v<T, Text_span>) {
                     return render_text_span(page, ctx, e, doc.page_height_mm);
-                } else if constexpr (std::is_same_v<T, Filled_rect>) {
+                }
+                else
+                if constexpr (std::is_same_v<T, filled_rect_t>) {
                     return render_filled_rect(page, ctx, e, doc.page_height_mm);
                 }
                 return false;

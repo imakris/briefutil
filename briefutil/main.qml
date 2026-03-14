@@ -15,13 +15,13 @@ ApplicationWindow {
     property bool isBusy: false
 
     onDarkModeChanged: {
-        proxy.setWindowDarkMode(root, darkMode)
-        proxy.saveDarkMode(darkMode)
+        proxy.set_window_dark_mode(root, darkMode)
+        proxy.save_dark_mode(darkMode)
     }
 
     Component.onCompleted: {
-        darkMode = proxy.loadDarkMode()
-        proxy.setWindowDarkMode(root, darkMode)
+        darkMode = proxy.load_dark_mode()
+        proxy.set_window_dark_mode(root, darkMode)
     }
 
     palette {

@@ -1,10 +1,10 @@
 // Reads a .md file, builds a letter with its content as body, renders to PDF.
 // Usage: test_md_to_pdf <input.md> [output.pdf]
 
-#include "sender_profile.h"
+#include "default_profiles.h"
 #include "letter_builder.h"
 #include "pdf_renderer_haru.h"
-#include "default_profiles.h"
+#include "sender_profile.h"
 
 #include <QCoreApplication>
 #include <QDir>
