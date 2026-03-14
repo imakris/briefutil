@@ -1,5 +1,7 @@
 #include "letter_builder.h"
 #include "pdf_renderer_haru.h"
+#include "markdown_parser.h"
+#include "rich_text_layout.h"
 
 #include <cmath>
 #include <utility>
@@ -140,17 +142,14 @@ static std::string build_sender_text(const Sender_profile& profile)
 // Letter builder
 // ============================================================================
 
-Document build_letter(const Sender_profile& profile,
-                      const Letter_input& input,
-                      const std::string& profile_dir)
+Build_letter_result build_letter(const Sender_profile& profile,
+                                 const Letter_input& input,
+                                 const std::string& profile_dir)
 {
     Document doc;
     doc.page_width_mm  = k_page_width_mm;
     doc.page_height_mm = k_page_height_mm;
 
-    // Wrap body text and compute pagination
-    auto body_lines = wrap_text(input.body, Font_id::sans,
-                                k_body_size_pt, k_body_width_mm);
     auto sender_text = build_sender_text(profile);
 
     auto ret_metrics = measure_text(profile.return_address_line,
@@ -180,97 +179,66 @@ Document build_letter(const Sender_profile& profile,
         k_sender_y_mm + k_info_block_min_h_mm,
         std::max(sender_bottom_mm, date_bottom_mm));
 
-    // DIN 5008 Form B: subject begins below the info block. If there is no
-    // subject, the letter starts directly at the regular content top.
     bool has_subject = !input.subject.empty();
     float subject_y_mm = info_block_bottom_mm + k_subject_gap_mm;
     float body_y_mm = has_subject ? (subject_y_mm + k_subject_to_body_mm)
                                   : subject_y_mm;
 
-    // Compute available height on first page for body content
-    float first_page_body_top_mm = body_y_mm;
-    float first_page_body_bottom_mm = k_footer_y_mm - 5.0f;
-    float first_page_avail_mm = first_page_body_bottom_mm - first_page_body_top_mm;
-
-    // Closing block: "Mit freundlichen Grüßen" + signature + signer name
+    // Closing block height estimate
     // UTF-8: ü = \xc3\xbc, ß = \xc3\x9f
     std::string closing_text = "Mit freundlichen Gr" "\xc3\xbc" "\xc3" "\x9f" "en";
     float closing_height_mm = pt_to_mm(k_closing_skip_baselines * k_body_lead_pt)
-        + pt_to_mm(k_body_lead_pt);   // closing line
+        + pt_to_mm(k_body_lead_pt);
 
-    // Signature image height (estimate)
     float sig_height_mm = 0;
     std::string sig_path;
     if (!profile.signature_image.empty()) {
         sig_path = profile_dir + "/" + profile.signature_image;
-        sig_height_mm = k_sig_width_mm * 0.4f;  // rough aspect ratio estimate
+        sig_height_mm = k_sig_width_mm * 0.4f;
     }
     float signer_height_mm = pt_to_mm(k_body_lead_pt);
+    if (!profile.signer_title.empty())
+        signer_height_mm += pt_to_mm(k_body_lead_pt);
     float total_closing_mm = closing_height_mm + sig_height_mm + signer_height_mm + 5.0f;
 
-    // Split body lines across pages
-    float line_height_mm = pt_to_mm(k_body_lead_pt);
+    // Parse and lay out the body using the markdown-aware layout engine
+    auto body_blocks = parse_markdown(input.body);
 
-    int total_body_lines = (int)body_lines.size();
-    int lines_first_page_with_closing =
-        fit_line_count(first_page_avail_mm - total_closing_mm, line_height_mm);
-    int lines_first_page_without_closing =
-        fit_line_count(first_page_avail_mm, line_height_mm);
+    Layout_params lp;
+    lp.left_mm      = k_margin_left_mm;
+    lp.width_mm     = k_body_width_mm;
+    lp.body_size_pt = k_body_size_pt;
+    lp.body_lead_pt = k_body_lead_pt;
+    lp.body_color   = k_black;
+    lp.profile_dir  = profile_dir;
 
-    // Continuation pages
-    float cont_avail_mm = (k_footer_y_mm - 5.0f) - k_cont_top_mm;
-    int lines_per_cont_with_closing =
-        fit_line_count(cont_avail_mm - total_closing_mm, line_height_mm);
-    int lines_per_cont_without_closing =
-        fit_line_count(cont_avail_mm, line_height_mm);
+    float page_bottom = k_footer_y_mm - 5.0f;
 
-    // Distribute lines across pages
-    struct Page_content
-    {
-        int line_start;
-        int line_count;
-        bool has_closing;
-    };
-    std::vector<Page_content> page_plan;
+    auto body_layout = layout_body(body_blocks, lp,
+                                   body_y_mm, page_bottom,
+                                   k_cont_top_mm, page_bottom);
 
-    if (total_body_lines <= lines_first_page_with_closing) {
-        page_plan.push_back({ 0, total_body_lines, true });
-    } else {
-        int offset = 0;
-        int remaining = total_body_lines;
-
-        int first_take = std::min(remaining, lines_first_page_without_closing);
-        page_plan.push_back({ offset, first_take, false });
-        offset += first_take;
-        remaining -= first_take;
-
-        while (remaining > 0) {
-            if (remaining <= lines_per_cont_with_closing) {
-                page_plan.push_back({ offset, remaining, true });
-                break;
-            }
-
-            int take = std::min(remaining, lines_per_cont_without_closing);
-            page_plan.push_back({ offset, take, false });
-            offset += take;
-            remaining -= take;
-        }
+    if (!body_layout.error.empty()) {
+        return { {}, body_layout.error };
     }
 
-    int total_pages = (int)page_plan.size();
+    // If closing doesn't fit on the last page, add a continuation page for it
+    if (body_layout.last_page_used_mm + total_closing_mm > page_bottom) {
+        body_layout.pages.push_back({});
+        body_layout.last_page_used_mm = k_cont_top_mm;
+    }
+
+    int total_pages = (int)body_layout.pages.size();
 
     // Build pages
     for (int pi = 0; pi < total_pages; pi++) {
         Page page;
         add_fold_marks(page);
 
-        const auto& pc = page_plan[pi];
-
         if (pi == 0) {
             // -- First page: header elements --
             bool commercial = (profile.style == Profile_style::commercial);
 
-            // Commercial: company name block
             if (commercial && !profile.company_name.empty()) {
                 auto company_metrics = measure_text(profile.company_name,
                                                     Font_id::sans_bold,
@@ -287,7 +255,6 @@ Document build_letter(const Sender_profile& profile,
                     profile.company_name_color, false
                 });
 
-                // Top rule (colored line across the page)
                 page.elements.push_back(Line_segment{
                     k_top_rule_x1_mm, k_top_rule_y_mm,
                     company_right_mm, k_top_rule_y_mm,
@@ -302,7 +269,6 @@ Document build_letter(const Sender_profile& profile,
                 k_black, false
             });
 
-            // Return-address line
             page.elements.push_back(Text_block{
                 k_return_x_mm, k_return_y_mm, k_address_text_w_mm,
                 profile.return_address_line,
@@ -316,7 +282,6 @@ Document build_letter(const Sender_profile& profile,
                 0.5f, k_black
             });
 
-            // Recipient
             page.elements.push_back(Text_block{
                 k_recip_x_mm, k_recip_y_mm, k_recip_w_mm,
                 input.recipient,
@@ -324,7 +289,6 @@ Document build_letter(const Sender_profile& profile,
                 k_black, false
             });
 
-            // Date
             page.elements.push_back(Text_block{
                 k_date_x_mm, k_date_y_mm, k_sender_w_mm,
                 input.date,
@@ -342,27 +306,15 @@ Document build_letter(const Sender_profile& profile,
             }
         }
 
-        // -- Body lines for this page --
-        float body_top = (pi == 0) ? first_page_body_top_mm : k_cont_top_mm;
-
-        // Reassemble the body lines for this page into a single string
-        std::string page_body;
-        for (int li = 0; li < pc.line_count; li++) {
-            if (li > 0) page_body += '\n';
-            page_body += body_lines[pc.line_start + li];
+        // -- Body elements from the layout engine --
+        for (auto& elem : body_layout.pages[pi]) {
+            page.elements.push_back(std::move(elem));
         }
 
-        page.elements.push_back(Text_block{
-            k_margin_left_mm, body_top, k_body_width_mm,
-            page_body,
-            Font_id::sans, k_body_size_pt, k_body_lead_pt,
-            k_black, false
-        });
-
         // -- Closing (on last page) --
-        if (pc.has_closing) {
-            float closing_y = body_top
-                + (float)pc.line_count * line_height_mm
+        bool is_last_page = (pi == total_pages - 1);
+        if (is_last_page) {
+            float closing_y = body_layout.last_page_used_mm
                 + pt_to_mm(k_closing_skip_baselines * k_body_lead_pt);
 
             page.elements.push_back(Text_block{
@@ -374,7 +326,6 @@ Document build_letter(const Sender_profile& profile,
 
             float after_closing = closing_y + pt_to_mm(k_body_lead_pt) + 2.0f;
 
-            // Signature image
             if (!sig_path.empty()) {
                 page.elements.push_back(Image_block{
                     k_margin_left_mm, after_closing, k_sig_width_mm,
@@ -383,7 +334,6 @@ Document build_letter(const Sender_profile& profile,
                 after_closing += sig_height_mm + 2.0f;
             }
 
-            // Signer name
             page.elements.push_back(Text_block{
                 k_margin_left_mm, after_closing, k_body_width_mm,
                 profile.signer_name,
@@ -391,7 +341,6 @@ Document build_letter(const Sender_profile& profile,
                 k_black, false
             });
 
-            // Signer title (commercial only)
             if (!profile.signer_title.empty()) {
                 after_closing += pt_to_mm(k_body_lead_pt);
                 page.elements.push_back(Text_block{
@@ -440,5 +389,5 @@ Document build_letter(const Sender_profile& profile,
         doc.pages.push_back(std::move(page));
     }
 
-    return doc;
+    return { std::move(doc), "" };
 }

@@ -23,6 +23,9 @@ enum class Font_id
 {
     sans,
     sans_bold,
+    sans_italic,
+    sans_bold_italic,
+    mono,
 };
 
 struct Text_block
@@ -56,7 +59,26 @@ struct Image_block
     std::string path;
 };
 
-using Page_element = std::variant<Text_block, Line_segment, Image_block>;
+struct Text_span
+{
+    float       x_mm;
+    float       y_mm;
+    std::string text;
+    Font_id     font    = Font_id::sans;
+    float       size_pt = 10.0f;
+    Color       color;
+};
+
+struct Filled_rect
+{
+    float x_mm;
+    float y_mm;
+    float width_mm;
+    float height_mm;
+    Color color;
+};
+
+using Page_element = std::variant<Text_block, Line_segment, Image_block, Text_span, Filled_rect>;
 
 struct Page
 {

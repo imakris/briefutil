@@ -114,6 +114,9 @@ struct Haru_context
     HPDF_Doc  pdf  = nullptr;
     HPDF_Font sans = nullptr;
     HPDF_Font sans_bold = nullptr;
+    HPDF_Font sans_italic = nullptr;
+    HPDF_Font sans_bold_italic = nullptr;
+    HPDF_Font mono = nullptr;
 
     bool init()
     {
@@ -122,9 +125,12 @@ struct Haru_context
         if (!pdf) return false;
         HPDF_SetCurrentEncoder(pdf, "WinAnsiEncoding");
         HPDF_UseUTFEncodings(pdf);
-        sans      = HPDF_GetFont(pdf, "Helvetica",      "WinAnsiEncoding");
-        sans_bold = HPDF_GetFont(pdf, "Helvetica-Bold",  "WinAnsiEncoding");
-        return sans && sans_bold;
+        sans             = HPDF_GetFont(pdf, "Helvetica",             "WinAnsiEncoding");
+        sans_bold        = HPDF_GetFont(pdf, "Helvetica-Bold",        "WinAnsiEncoding");
+        sans_italic      = HPDF_GetFont(pdf, "Helvetica-Oblique",     "WinAnsiEncoding");
+        sans_bold_italic = HPDF_GetFont(pdf, "Helvetica-BoldOblique", "WinAnsiEncoding");
+        mono             = HPDF_GetFont(pdf, "Courier",               "WinAnsiEncoding");
+        return sans && sans_bold && sans_italic && sans_bold_italic && mono;
     }
 
     void destroy()
@@ -135,11 +141,20 @@ struct Haru_context
         }
         sans = nullptr;
         sans_bold = nullptr;
+        sans_italic = nullptr;
+        sans_bold_italic = nullptr;
+        mono = nullptr;
     }
 
     HPDF_Font font_for(Font_id id) const
     {
-        return id == Font_id::sans_bold ? sans_bold : sans;
+        switch (id) {
+        case Font_id::sans_bold:        return sans_bold;
+        case Font_id::sans_italic:      return sans_italic;
+        case Font_id::sans_bold_italic: return sans_bold_italic;
+        case Font_id::mono:             return mono;
+        default:                        return sans;
+        }
     }
 
     std::string last_error;
@@ -158,7 +173,7 @@ struct Haru_context
 
     bool ready() const
     {
-        return pdf && sans && sans_bold;
+        return pdf && sans && sans_bold && sans_italic && sans_bold_italic && mono;
     }
 };
 
@@ -310,6 +325,33 @@ std::vector<std::string> wrap_text(const std::string& text, Font_id font_id,
 
 
 // ============================================================================
+// Image measurement
+// ============================================================================
+
+Image_dimensions measure_png(const std::string& path)
+{
+    // Use a temporary context to avoid accumulating image objects
+    // in the long-lived measurement context.
+    Haru_context tmp;
+    if (!tmp.init()) return {};
+
+    HPDF_Image img = HPDF_LoadPngImageFromFile(tmp.pdf, path.c_str());
+    if (!img) {
+        tmp.destroy();
+        return {};
+    }
+
+    Image_dimensions dims = {
+        (float)HPDF_Image_GetWidth(img),
+        (float)HPDF_Image_GetHeight(img),
+        true
+    };
+    tmp.destroy();
+    return dims;
+}
+
+
+// ============================================================================
 // Renderer — draws a Document to PDF
 // ============================================================================
 
@@ -377,11 +419,25 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
 {
     HPDF_Image img = HPDF_LoadPngImageFromFile(ctx.pdf, ib.path.c_str());
     if (!img) {
-        if (ctx.last_error.empty()) {
-            ctx.last_error = "Image rendering failed: could not load PNG \"" +
-                             ib.path + "\".";
+        // Image could not be loaded. Reset libHaru's error state and render
+        // a visible placeholder so the user knows an image is missing.
+        ctx.last_error.clear();
+        HPDF_ResetError(ctx.pdf);
+
+        std::string placeholder = "[Bild nicht gefunden: " + ib.path + "]";
+        auto encoded = utf8_to_win_ansi(placeholder);
+        HPDF_Font font = ctx.font_for(Font_id::sans_italic);
+        if (font) {
+            float x_pt = tl_x(ib.x_mm);
+            float y_pt = tl_y(ib.y_mm, page_h_mm) - 8.0f;
+            HPDF_Page_BeginText(page);
+            HPDF_Page_SetFontAndSize(page, font, 8.0f);
+            HPDF_Page_SetRGBFill(page, 0.6f, 0.0f, 0.0f);
+            HPDF_Page_MoveTextPos(page, x_pt, y_pt);
+            HPDF_Page_ShowText(page, encoded.c_str());
+            HPDF_Page_EndText(page);
         }
-        return false;
+        return true;
     }
 
     float target_w = mm_to_pt(ib.width_mm);
@@ -397,6 +453,42 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
     float y_pt = tl_y(ib.y_mm, page_h_mm) - target_h;
 
     HPDF_Page_DrawImage(page, img, x_pt, y_pt, target_w, target_h);
+    return ctx.last_error.empty();
+}
+
+
+static bool render_filled_rect(HPDF_Page page, Haru_context& ctx,
+                               const Filled_rect& fr, float page_h_mm)
+{
+    float x = tl_x(fr.x_mm);
+    float y = tl_y(fr.y_mm, page_h_mm);
+    float w = mm_to_pt(fr.width_mm);
+    float h = mm_to_pt(fr.height_mm);
+
+    HPDF_Page_SetRGBFill(page, fr.color.r, fr.color.g, fr.color.b);
+    HPDF_Page_Rectangle(page, x, y - h, w, h);
+    HPDF_Page_Fill(page);
+    return ctx.last_error.empty();
+}
+
+static bool render_text_span(HPDF_Page page, Haru_context& ctx,
+                             const Text_span& ts, float page_h_mm)
+{
+    HPDF_Font font = ctx.font_for(ts.font);
+    if (!font) {
+        ctx.last_error = "Text span rendering failed: font handle unavailable.";
+        return false;
+    }
+
+    auto encoded = utf8_to_win_ansi(ts.text);
+
+    HPDF_Page_BeginText(page);
+    HPDF_Page_SetFontAndSize(page, font, ts.size_pt);
+    HPDF_Page_SetRGBFill(page, ts.color.r, ts.color.g, ts.color.b);
+    HPDF_Page_MoveTextPos(page, tl_x(ts.x_mm),
+                          tl_y(ts.y_mm, page_h_mm) - ts.size_pt);
+    HPDF_Page_ShowText(page, encoded.c_str());
+    HPDF_Page_EndText(page);
     return ctx.last_error.empty();
 }
 
@@ -436,6 +528,10 @@ Render_result render_pdf(const Document& doc, const std::string& output_path)
                     return render_line_segment(page, ctx, e, doc.page_height_mm);
                 } else if constexpr (std::is_same_v<T, Image_block>) {
                     return render_image_block(page, ctx, e, doc.page_height_mm);
+                } else if constexpr (std::is_same_v<T, Text_span>) {
+                    return render_text_span(page, ctx, e, doc.page_height_mm);
+                } else if constexpr (std::is_same_v<T, Filled_rect>) {
+                    return render_filled_rect(page, ctx, e, doc.page_height_mm);
                 }
                 return false;
             }, elem);

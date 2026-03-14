@@ -103,6 +103,8 @@ set(PROJECT_SOURCES
     pdf_renderer_haru.cpp
     sender_profile.cpp
     letter_builder.cpp
+    markdown_parser.cpp
+    rich_text_layout.cpp
     qml.qrc
 )
 
@@ -203,6 +205,8 @@ add_executable(test_letter_builder EXCLUDE_FROM_ALL
     pdf_renderer_haru.cpp
     sender_profile.cpp
     letter_builder.cpp
+    markdown_parser.cpp
+    rich_text_layout.cpp
 )
 
 target_include_directories(test_letter_builder PRIVATE
@@ -234,6 +238,69 @@ if(WIN32)
         COMMAND_EXPAND_LISTS
         VERBATIM
     )
+endif()
+
+# ============================================================================
+# Markdown-to-PDF test tool (not installed, development only)
+# ============================================================================
+
+add_executable(test_md_to_pdf EXCLUDE_FROM_ALL
+    test_md_to_pdf.cpp
+    pdf_renderer_haru.cpp
+    sender_profile.cpp
+    letter_builder.cpp
+    markdown_parser.cpp
+    rich_text_layout.cpp
+)
+
+target_include_directories(test_md_to_pdf PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${libharu_SOURCE_DIR}/include
+    ${libharu_BINARY_DIR}/include
+)
+
+target_link_libraries(test_md_to_pdf PRIVATE
+    hpdf
+    Qt6::Core
+)
+
+if(WIN32)
+    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            add_custom_command(TARGET test_md_to_pdf POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_cxx_compiler_dir}/${_runtime_dll}"
+                    "$<TARGET_FILE_DIR:test_md_to_pdf>"
+                VERBATIM
+            )
+        endif()
+    endforeach()
+endif()
+
+# ============================================================================
+# Markdown parser test (not installed, development only)
+# ============================================================================
+
+add_executable(test_markdown_parser EXCLUDE_FROM_ALL
+    test_markdown_parser.cpp
+    markdown_parser.cpp
+)
+
+target_include_directories(test_markdown_parser PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+if(WIN32)
+    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            add_custom_command(TARGET test_markdown_parser POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_cxx_compiler_dir}/${_runtime_dll}"
+                    "$<TARGET_FILE_DIR:test_markdown_parser>"
+                VERBATIM
+            )
+        endif()
+    endforeach()
 endif()
 
 # ============================================================================

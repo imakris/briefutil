@@ -35,3 +35,18 @@ Text_metrics measure_text(const std::string& text, Font_id font,
 // Wrap text into lines that fit within max_width_mm at the given font/size.
 std::vector<std::string> wrap_text(const std::string& text, Font_id font,
                                    float size_pt, float max_width_mm);
+
+
+// ============================================================================
+// Image measurement
+// ============================================================================
+
+struct Image_dimensions
+{
+    float width_px  = 0;
+    float height_px = 0;
+    bool  valid     = false;
+};
+
+// Read the pixel dimensions of a PNG file without rendering it.
+Image_dimensions measure_png(const std::string& path);

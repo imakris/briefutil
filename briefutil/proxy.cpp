@@ -158,11 +158,17 @@ void Proxy::make_pdf(int from, const QString& to,
     input.body      = body.toStdString();
     input.date      = date_str.toStdString();
 
-    auto doc = build_letter(profile, input,
-                            m_sender_template_dir.toStdString());
+    auto build_result = build_letter(profile, input,
+                                     m_sender_template_dir.toStdString());
+
+    if (!build_result.error.empty()) {
+        emit pdf_generated(false,
+            QString::fromStdString(build_result.error));
+        return;
+    }
 
     // Render
-    auto result = render_pdf(doc, pdf_path.toStdString());
+    auto result = render_pdf(build_result.doc, pdf_path.toStdString());
 
     if (!result.ok) {
         emit pdf_generated(false,

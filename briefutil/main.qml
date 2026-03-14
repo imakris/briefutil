@@ -114,7 +114,7 @@ ApplicationWindow {
         }
 
         Label {
-            text: "Body"
+            text: "Body (supports Markdown)"
             Layout.topMargin: 10
         }
         ScrollView {

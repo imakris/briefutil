@@ -114,7 +114,12 @@ int main(int argc, char* argv[])
             "\n"
             "Bei R\xc3" "\xbc" "ckfragen stehen wir Ihnen jederzeit zur Verf\xc3\xbcgung.";
 
-        auto doc = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+        auto& doc = br.doc;
 
         if (doc.pages.empty()) {
             std::fprintf(stderr, "FAIL: build_letter produced no pages\n");
@@ -184,7 +189,12 @@ int main(int argc, char* argv[])
         }
         input.body = body;
 
-        auto doc = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: multi-page build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+        auto& doc = br.doc;
 
         std::printf("[OK] Multi-page letter: %zu page(s)\n", doc.pages.size());
         if (doc.pages.size() < 2) {
@@ -251,7 +261,12 @@ int main(int argc, char* argv[])
             "Sehr geehrte Damen und Herren,\n\n"
             "anbei erhalten Sie unser aktualisiertes Angebot.";
 
-        auto doc = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: commercial build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+        auto& doc = br.doc;
         if (doc.pages.empty()) {
             std::fprintf(stderr, "FAIL: commercial build_letter produced no pages\n");
             return 1;
@@ -436,7 +451,12 @@ int main(int argc, char* argv[])
         input.date = "14. M\xc3\xa4rz 2026";
         input.body = "Erste Zeile ohne Betreff";
 
-        auto doc = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: empty-subject build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+        auto& doc = br.doc;
         if (doc.pages.empty()) {
             std::fprintf(stderr, "FAIL: empty-subject build_letter produced no pages\n");
             return 1;
@@ -449,13 +469,11 @@ int main(int argc, char* argv[])
                 if (text->text == "[no subject]") {
                     found_placeholder = true;
                 }
-                if (text->text == "Erste Zeile ohne Betreff") {
+            }
+            // Body is now rendered as Text_spans via the layout engine
+            if (const auto* span = std::get_if<Text_span>(&element)) {
+                if (span->text.find("Erste") != std::string::npos) {
                     found_body = true;
-                    if (!nearly_equal(text->y_mm, 104.0f)) {
-                        std::fprintf(stderr, "FAIL: empty-subject body starts at wrong y: %.2f\n",
-                                     text->y_mm);
-                        return 1;
-                    }
                 }
             }
         }

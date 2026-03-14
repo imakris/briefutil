@@ -17,6 +17,12 @@ struct Letter_input
     std::string date;          // pre-formatted date string
 };
 
-Document build_letter(const Sender_profile& profile,
-                      const Letter_input& input,
-                      const std::string& profile_dir);
+struct Build_letter_result
+{
+    Document    doc;
+    std::string error;   // non-empty if generation failed
+};
+
+Build_letter_result build_letter(const Sender_profile& profile,
+                                 const Letter_input& input,
+                                 const std::string& profile_dir);
