@@ -1,6 +1,7 @@
 #pragma once
 
 #include "document_model.h"
+#include "typography_config.h"
 #include <string>
 
 
@@ -12,7 +13,8 @@
 // happens internally.
 // ============================================================================
 
-Render_result render_pdf(const Document& doc, const std::string& output_path);
+Render_result render_pdf(const Document& doc, const std::string& output_path,
+                         const Font_family_config& fonts = default_font_family());
 
 
 // ============================================================================
@@ -30,11 +32,13 @@ struct text_metrics_t
 // Does not draw anything. Uses Helvetica / Helvetica-Bold at the given size.
 text_metrics_t measure_text(const std::string& text, Font_id font,
                           float size_pt, float leading_pt,
-                          float max_width_mm, bool wrap);
+                          float max_width_mm, bool wrap,
+                          const Font_family_config& fonts = default_font_family());
 
 // Wrap text into lines that fit within max_width_mm at the given font/size.
 std::vector<std::string> wrap_text(const std::string& text, Font_id font,
-                                   float size_pt, float max_width_mm);
+                                   float size_pt, float max_width_mm,
+                                   const Font_family_config& fonts = default_font_family());
 
 
 // ============================================================================

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "document_model.h"
+#include "letter_layout_spec.h"
 #include "sender_profile.h"
+#include "typography_config.h"
 #include <string>
 
 
@@ -25,4 +27,14 @@ struct Build_letter_result
 
 Build_letter_result build_letter(const Sender_profile& profile,
                                  const Letter_input& input,
-                                 const std::string& profile_dir);
+                                 const std::string& profile_dir,
+                                 const Theme_config& theme = default_theme(),
+                                 const Letter_layout_spec& layout = din_5008_form_b());
+
+// Convenience: build + render in one call.
+Render_result generate_letter_pdf(const Sender_profile& profile,
+                                  const Letter_input& input,
+                                  const std::string& profile_dir,
+                                  const std::string& output_path,
+                                  const Theme_config& theme = default_theme(),
+                                  const Letter_layout_spec& layout = din_5008_form_b());

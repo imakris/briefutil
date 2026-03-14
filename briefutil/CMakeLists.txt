@@ -96,44 +96,55 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 get_filename_component(_qt_bin_dir "${Qt6_DIR}/../../../bin" ABSOLUTE)
 set(_windeployqt "${_qt_bin_dir}/windeployqt.exe")
+get_filename_component(_cxx_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
 
-set(PROJECT_SOURCES
-    main.cpp
-    proxy.cpp
+# ============================================================================
+# briefutil_core — reusable PDF generation library
+# ============================================================================
+
+add_library(briefutil_core STATIC
     pdf_renderer_haru.cpp
     sender_profile.cpp
     letter_builder.cpp
     markdown_parser.cpp
     rich_text_layout.cpp
-    qml.qrc
 )
 
-qt_add_executable(briefutil
-    WIN32
-    MANUAL_FINALIZATION
-    ${PROJECT_SOURCES}
-)
-
-target_include_directories(briefutil PRIVATE
+target_include_directories(briefutil_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${libharu_SOURCE_DIR}/include
     ${libharu_BINARY_DIR}/include
 )
 
+target_link_libraries(briefutil_core PUBLIC
+    hpdf
+    Qt6::Core
+)
+
+# ============================================================================
+# briefutil — Qt Quick application
+# ============================================================================
+
+qt_add_executable(briefutil
+    WIN32
+    MANUAL_FINALIZATION
+    main.cpp
+    proxy.cpp
+    qml.qrc
+)
+
 target_link_libraries(briefutil
     PRIVATE
-        Qt6::Core
+        briefutil_core
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
-        hpdf
 )
 
 if (WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
     target_sources(briefutil PRIVATE briefutil.rc)
-    get_filename_component(_cxx_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
     foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
         if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
             add_custom_command(TARGET briefutil POST_BUILD
@@ -167,141 +178,51 @@ qt_import_qml_plugins(briefutil)
 qt_finalize_executable(briefutil)
 
 # ============================================================================
-# Renderer smoke test (not installed, development only)
+# Helper: copy runtime DLLs for a test target
 # ============================================================================
 
-add_executable(test_renderer EXCLUDE_FROM_ALL
-    test_renderer.cpp
-    pdf_renderer_haru.cpp
-)
-
-target_include_directories(test_renderer PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${libharu_SOURCE_DIR}/include
-    ${libharu_BINARY_DIR}/include
-)
-
-target_link_libraries(test_renderer PRIVATE hpdf)
-
-if(WIN32)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
-            add_custom_command(TARGET test_renderer POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_cxx_compiler_dir}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:test_renderer>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-endif()
+function(briefutil_copy_runtime_dlls target)
+    if(WIN32)
+        foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+            if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_cxx_compiler_dir}/${_runtime_dll}"
+                        "$<TARGET_FILE_DIR:${target}>"
+                    VERBATIM
+                )
+            endif()
+        endforeach()
+        # Copy Qt and other runtime DLLs needed by the target
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:${target}>
+                $<TARGET_FILE_DIR:${target}>
+            COMMAND_EXPAND_LISTS
+            VERBATIM
+        )
+    endif()
+endfunction()
 
 # ============================================================================
-# Letter builder test (not installed, development only)
+# Test targets (not installed, development only)
 # ============================================================================
 
-add_executable(test_letter_builder EXCLUDE_FROM_ALL
-    test_letter_builder.cpp
-    pdf_renderer_haru.cpp
-    sender_profile.cpp
-    letter_builder.cpp
-    markdown_parser.cpp
-    rich_text_layout.cpp
-)
+add_executable(test_renderer EXCLUDE_FROM_ALL test_renderer.cpp)
+target_link_libraries(test_renderer PRIVATE briefutil_core)
+briefutil_copy_runtime_dlls(test_renderer)
 
-target_include_directories(test_letter_builder PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${libharu_SOURCE_DIR}/include
-    ${libharu_BINARY_DIR}/include
-)
+add_executable(test_letter_builder EXCLUDE_FROM_ALL test_letter_builder.cpp)
+target_link_libraries(test_letter_builder PRIVATE briefutil_core)
+briefutil_copy_runtime_dlls(test_letter_builder)
 
-target_link_libraries(test_letter_builder PRIVATE
-    hpdf
-    Qt6::Core
-)
+add_executable(test_md_to_pdf EXCLUDE_FROM_ALL test_md_to_pdf.cpp)
+target_link_libraries(test_md_to_pdf PRIVATE briefutil_core)
+briefutil_copy_runtime_dlls(test_md_to_pdf)
 
-if(WIN32)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
-            add_custom_command(TARGET test_letter_builder POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_cxx_compiler_dir}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:test_letter_builder>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-    add_custom_command(TARGET test_letter_builder POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:test_letter_builder>
-            $<TARGET_FILE_DIR:test_letter_builder>
-        COMMAND_EXPAND_LISTS
-        VERBATIM
-    )
-endif()
-
-# ============================================================================
-# Markdown-to-PDF test tool (not installed, development only)
-# ============================================================================
-
-add_executable(test_md_to_pdf EXCLUDE_FROM_ALL
-    test_md_to_pdf.cpp
-    pdf_renderer_haru.cpp
-    sender_profile.cpp
-    letter_builder.cpp
-    markdown_parser.cpp
-    rich_text_layout.cpp
-)
-
-target_include_directories(test_md_to_pdf PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${libharu_SOURCE_DIR}/include
-    ${libharu_BINARY_DIR}/include
-)
-
-target_link_libraries(test_md_to_pdf PRIVATE
-    hpdf
-    Qt6::Core
-)
-
-if(WIN32)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
-            add_custom_command(TARGET test_md_to_pdf POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_cxx_compiler_dir}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:test_md_to_pdf>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-endif()
-
-# ============================================================================
-# Markdown parser test (not installed, development only)
-# ============================================================================
-
-add_executable(test_markdown_parser EXCLUDE_FROM_ALL
-    test_markdown_parser.cpp
-    markdown_parser.cpp
-)
-
-target_include_directories(test_markdown_parser PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-if(WIN32)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
-            add_custom_command(TARGET test_markdown_parser POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_cxx_compiler_dir}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:test_markdown_parser>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-endif()
+add_executable(test_markdown_parser EXCLUDE_FROM_ALL test_markdown_parser.cpp)
+target_link_libraries(test_markdown_parser PRIVATE briefutil_core)
+briefutil_copy_runtime_dlls(test_markdown_parser)
 
 # ============================================================================
 # Install

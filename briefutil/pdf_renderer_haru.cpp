@@ -126,18 +126,36 @@ struct Haru_context
     HPDF_Font sans_bold_italic = nullptr;
     HPDF_Font mono = nullptr;
 
-    bool init()
+    bool init(const Font_family_config& fc = default_font_family())
     {
         last_error.clear();
         pdf = HPDF_New(error_handler, this);
         if (!pdf) return false;
         HPDF_SetCurrentEncoder(pdf, "WinAnsiEncoding");
         HPDF_UseUTFEncodings(pdf);
-        sans             = HPDF_GetFont(pdf, "Helvetica",             "WinAnsiEncoding");
-        sans_bold        = HPDF_GetFont(pdf, "Helvetica-Bold",        "WinAnsiEncoding");
-        sans_italic      = HPDF_GetFont(pdf, "Helvetica-Oblique",     "WinAnsiEncoding");
-        sans_bold_italic = HPDF_GetFont(pdf, "Helvetica-BoldOblique", "WinAnsiEncoding");
-        mono             = HPDF_GetFont(pdf, "Courier",               "WinAnsiEncoding");
+
+        if (fc.kind == Font_source_kind::FILE_TTF) {
+            // Load TTF fonts from file paths
+            auto load_ttf = [&](const std::string& path) -> HPDF_Font {
+                if (path.empty()) return nullptr;
+                const char* name = HPDF_LoadTTFontFromFile(pdf, path.c_str(), HPDF_TRUE);
+                if (!name) return nullptr;
+                return HPDF_GetFont(pdf, name, "WinAnsiEncoding");
+            };
+            sans             = load_ttf(fc.sans);
+            sans_bold        = load_ttf(fc.sans_bold);
+            sans_italic      = load_ttf(fc.sans_italic);
+            sans_bold_italic = load_ttf(fc.sans_bold_italic);
+            mono             = load_ttf(fc.mono);
+        }
+        else {
+            // Base-14 PDF fonts by name
+            sans             = HPDF_GetFont(pdf, fc.sans.c_str(),             "WinAnsiEncoding");
+            sans_bold        = HPDF_GetFont(pdf, fc.sans_bold.c_str(),        "WinAnsiEncoding");
+            sans_italic      = HPDF_GetFont(pdf, fc.sans_italic.c_str(),      "WinAnsiEncoding");
+            sans_bold_italic = HPDF_GetFont(pdf, fc.sans_bold_italic.c_str(), "WinAnsiEncoding");
+            mono             = HPDF_GetFont(pdf, fc.mono.c_str(),             "WinAnsiEncoding");
+        }
         return sans && sans_bold && sans_italic && sans_bold_italic && mono;
     }
 
@@ -270,21 +288,34 @@ static std::vector<std::string> do_wrap(HPDF_Font font, float size_pt,
 // Public text measurement
 // ============================================================================
 
-// Thread-local measurement context — avoids creating a PDF doc per call
-static Haru_context& get_measure_context()
+// Measurement context — reinitializes when the font config changes.
+static Haru_context& get_measure_context(const Font_family_config& fc = default_font_family())
 {
     static Haru_context ctx;
-    if (!ctx.ready()) {
-        ctx.init();
+    static Font_family_config current_fc;
+    bool need_init = !ctx.ready();
+    if (!need_init && (fc.kind           != current_fc.kind ||
+                       fc.sans           != current_fc.sans ||
+                       fc.sans_bold      != current_fc.sans_bold ||
+                       fc.sans_italic    != current_fc.sans_italic ||
+                       fc.sans_bold_italic != current_fc.sans_bold_italic ||
+                       fc.mono           != current_fc.mono)) {
+        ctx.destroy();
+        need_init = true;
+    }
+    if (need_init) {
+        ctx.init(fc);
+        current_fc = fc;
     }
     return ctx;
 }
 
 text_metrics_t measure_text(const std::string& text, Font_id font_id,
                           float size_pt, float leading_pt,
-                          float max_width_mm, bool wrap)
+                          float max_width_mm, bool wrap,
+                          const Font_family_config& fonts)
 {
-    auto& ctx = get_measure_context();
+    auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {
         return {};
     }
@@ -316,9 +347,10 @@ text_metrics_t measure_text(const std::string& text, Font_id font_id,
 }
 
 std::vector<std::string> wrap_text(const std::string& text, Font_id font_id,
-                                   float size_pt, float max_width_mm)
+                                   float size_pt, float max_width_mm,
+                                   const Font_family_config& fonts)
 {
-    auto& ctx = get_measure_context();
+    auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {
         return {};
     }
@@ -508,10 +540,11 @@ static bool render_text_span(HPDF_Page page, Haru_context& ctx,
 // Public render entry point
 // ============================================================================
 
-Render_result render_pdf(const Document& doc, const std::string& output_path)
+Render_result render_pdf(const Document& doc, const std::string& output_path,
+                         const Font_family_config& fonts)
 {
     Haru_context ctx;
-    if (!ctx.init()) {
+    if (!ctx.init(fonts)) {
         return { false, "", "PDF-Erstellung fehlgeschlagen.",
                  ctx.last_error.empty()
                      ? "Failed to initialize libHaru"

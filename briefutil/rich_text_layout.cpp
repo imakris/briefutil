@@ -13,18 +13,16 @@ static constexpr float k_pts_per_mm = 72.0f / 25.4f;
 
 static float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
 
-// Heading sizes relative to body size
-static float heading_size(float body_pt, int level)
+static float heading_size(const Typography_config& typo, float body_pt, int level)
 {
     switch (level) {
-        case 1:  return body_pt * 1.6f;
-        case 2:  return body_pt * 1.3f;
-        case 3:  return body_pt * 1.1f;
+        case 1:  return body_pt * typo.heading1_scale;
+        case 2:  return body_pt * typo.heading2_scale;
+        case 3:  return body_pt * typo.heading3_scale;
         default: return body_pt;
     }
 }
 
-// Spacing before/after headings (mm)
 static float heading_space_before(int level)
 {
     switch (level) {
@@ -34,14 +32,8 @@ static float heading_space_before(int level)
     }
 }
 
-static constexpr float k_heading_space_after_mm = 2.0f;
-static constexpr float k_paragraph_space_mm     = 3.0f;
-static constexpr float k_list_indent_mm         = 8.0f;
-static constexpr float k_list_item_space_mm     = 1.0f;
-static constexpr float k_bullet_offset_mm       = 4.0f;
-static constexpr float k_table_cell_pad_mm      = 2.0f;
-static constexpr float k_table_border_width_pt  = 0.5f;
-static constexpr float k_table_space_mm         = 3.0f;
+static constexpr float k_bullet_offset_mm      = 4.0f;
+static constexpr float k_table_border_width_pt = 0.5f;
 
 
 // ============================================================================
@@ -90,7 +82,8 @@ struct Laid_out_line
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<Text_run>& runs,
     float left_mm, float max_width_mm,
-    float size_pt, float lead_pt, color_t color)
+    float size_pt, float lead_pt, color_t color,
+    const Font_family_config& fonts = default_font_family())
 {
     std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
@@ -145,12 +138,12 @@ static std::vector<Laid_out_line> layout_runs(
                     if (wend == std::string::npos) wend = segment.size();
                     std::string word = segment.substr(wi, wend - wi);
 
-                    auto word_m = measure_text(word, fid, size_pt, 0, 1000, false);
+                    auto word_m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
                     float word_w_mm = pt_to_mm(word_m.width_pt);
 
                     float space_w_mm = 0;
                     if (cursor_x_mm > left_mm) {
-                        auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false);
+                        auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
                         space_w_mm = pt_to_mm(sp_m.width_pt);
                     }
 
@@ -274,7 +267,8 @@ struct Page_cursor
 
 // Measure the minimum width of a cell: the widest single unbreakable token
 static float cell_min_width(const std::vector<Text_run>& runs,
-                            float size_pt)
+                            float size_pt,
+                            const Font_family_config& fonts)
 {
     float max_word = 0;
     for (const auto& run : runs) {
@@ -286,7 +280,7 @@ static float cell_min_width(const std::vector<Text_run>& runs,
             size_t end = run.text.find(' ', pos);
             if (end == std::string::npos) end = run.text.size();
             std::string word = run.text.substr(pos, end - pos);
-            auto m = measure_text(word, fid, size_pt, 0, 1000, false);
+            auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
             max_word = std::max(max_word, pt_to_mm(m.width_pt));
             pos = end;
         }
@@ -294,14 +288,14 @@ static float cell_min_width(const std::vector<Text_run>& runs,
     return max_word;
 }
 
-// Measure the preferred width of a cell: unwrapped content width
 static float cell_preferred_width(const std::vector<Text_run>& runs,
-                                  float size_pt)
+                                  float size_pt,
+                                  const Font_family_config& fonts)
 {
     float total = 0;
     for (const auto& run : runs) {
         Font_id fid = font_for_style(run.style);
-        auto m = measure_text(run.text, fid, size_pt, 0, 1000, false);
+        auto m = measure_text(run.text, fid, size_pt, 0, 1000, false, fonts);
         total += pt_to_mm(m.width_pt);
     }
     return total;
@@ -316,7 +310,9 @@ struct Table_layout_info
 
 static Table_layout_info compute_table_columns(const Table_block& tb,
                                                float available_mm,
-                                               float size_pt)
+                                               float size_pt,
+                                               float cell_pad_mm,
+                                               const Font_family_config& fonts)
 {
     if (tb.rows.empty()) return {};
 
@@ -326,14 +322,14 @@ static Table_layout_info compute_table_columns(const Table_block& tb,
     }
     if (num_cols == 0) return {};
 
-    float pad = 2 * k_table_cell_pad_mm;
+    float pad = 2 * cell_pad_mm;
     std::vector<float> min_widths(num_cols, 0);
     std::vector<float> pref_widths(num_cols, 0);
 
     for (const auto& row : tb.rows) {
         for (int c = 0; c < (int)row.cells.size() && c < num_cols; c++) {
-            float cmin = cell_min_width(row.cells[c].runs, size_pt) + pad;
-            float cpref = cell_preferred_width(row.cells[c].runs, size_pt) + pad;
+            float cmin = cell_min_width(row.cells[c].runs, size_pt, fonts) + pad;
+            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, fonts) + pad;
             min_widths[c] = std::max(min_widths[c], cmin);
             pref_widths[c] = std::max(pref_widths[c], cpref);
         }
@@ -379,7 +375,8 @@ static float layout_table_row(const Table_row& row,
                               const Table_layout_info& tl,
                               float left_mm, float y_mm,
                               float size_pt, float lead_pt, color_t color,
-                              bool is_header,
+                              float cell_pad_mm, bool is_header,
+                              const Font_family_config& fonts,
                               std::vector<Page_element>& elements)
 {
     float row_height = pt_to_mm(lead_pt);
@@ -395,7 +392,7 @@ static float layout_table_row(const Table_row& row,
 
     for (int c = 0; c < tl.num_cols; c++) {
         Cell_layout cl;
-        float cell_content_w = tl.col_widths_mm[c] - 2 * k_table_cell_pad_mm;
+        float cell_content_w = tl.col_widths_mm[c] - 2 * cell_pad_mm;
 
         std::vector<Text_run> runs;
         if (c < (int)row.cells.size()) {
@@ -413,20 +410,20 @@ static float layout_table_row(const Table_row& row,
         }
 
         cl.lines = layout_runs(runs, 0, cell_content_w,
-                               size_pt, lead_pt, color);
+                               size_pt, lead_pt, color, fonts);
         cl.height_mm = 0;
         for (const auto& line : cl.lines) {
             cl.height_mm += line.height_mm;
         }
-        row_height = std::max(row_height, cl.height_mm + 2 * k_table_cell_pad_mm);
+        row_height = std::max(row_height, cl.height_mm + 2 * cell_pad_mm);
         cell_layouts.push_back(std::move(cl));
     }
 
     // Second pass: emit cell content and borders
     x = left_mm;
     for (int c = 0; c < tl.num_cols; c++) {
-        float cell_x = x + k_table_cell_pad_mm;
-        float cell_y = y_mm + k_table_cell_pad_mm;
+        float cell_x = x + cell_pad_mm;
+        float cell_y = y_mm + cell_pad_mm;
 
         // Emit cell text spans (offset by cell position)
         for (const auto& line : cell_layouts[c].lines) {
@@ -504,18 +501,18 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
             using T = std::decay_t<decltype(b)>;
 
             if constexpr (std::is_same_v<T, Paragraph_block>) {
-                cursor.ensure_space(pt_to_mm(params.body_lead_pt));
+                cursor.ensure_space(pt_to_mm(params.typo.body_lead_pt));
                 auto lines = layout_runs(b.runs,
                     params.left_mm, params.width_mm,
-                    params.body_size_pt, params.body_lead_pt,
-                    params.body_color);
+                    params.typo.body_size_pt, params.typo.body_lead_pt,
+                    params.body_color, params.fonts);
                 cursor.emit_lines(lines);
-                cursor.y_mm += k_paragraph_space_mm;
+                cursor.y_mm += params.typo.paragraph_space_mm;
 
             }
             else
             if constexpr (std::is_same_v<T, Heading_block>) {
-                float hsize = heading_size(params.body_size_pt, b.level);
+                float hsize = heading_size(params.typo, params.typo.body_size_pt, b.level);
                 float hlead = hsize * 1.2f;
                 float space_before = heading_space_before(b.level);
 
@@ -537,16 +534,16 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 }
 
                 cursor.emit_lines(lines);
-                cursor.y_mm += k_heading_space_after_mm;
+                cursor.y_mm += params.typo.heading_space_after_mm;
 
             }
             else
             if constexpr (std::is_same_v<T, List_block>) {
-                float item_left = params.left_mm + k_list_indent_mm;
-                float item_width = params.width_mm - k_list_indent_mm;
+                float item_left = params.left_mm + params.typo.list_indent_mm;
+                float item_width = params.width_mm - params.typo.list_indent_mm;
 
                 for (int idx = 0; idx < (int)b.items.size(); idx++) {
-                    cursor.ensure_space(pt_to_mm(params.body_lead_pt));
+                    cursor.ensure_space(pt_to_mm(params.typo.body_lead_pt));
 
                     // Bullet or number
                     std::string marker;
@@ -559,19 +556,19 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
 
                     cursor.current_elements().push_back(Text_span{
                         params.left_mm + k_bullet_offset_mm, cursor.y_mm,
-                        marker, Font_id::SANS, params.body_size_pt,
+                        marker, Font_id::SANS, params.typo.body_size_pt,
                         params.body_color
                     });
 
                     // Item content
                     auto lines = layout_runs(b.items[idx].runs,
                         item_left, item_width,
-                        params.body_size_pt, params.body_lead_pt,
-                        params.body_color);
+                        params.typo.body_size_pt, params.typo.body_lead_pt,
+                        params.body_color, params.fonts);
                     cursor.emit_lines(lines);
-                    cursor.y_mm += k_list_item_space_mm;
+                    cursor.y_mm += params.typo.list_item_space_mm;
                 }
-                cursor.y_mm += k_paragraph_space_mm;
+                cursor.y_mm += params.typo.paragraph_space_mm;
 
             }
             else
@@ -628,7 +625,9 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
             else
             if constexpr (std::is_same_v<T, Table_block>) {
                 auto tl = compute_table_columns(b, params.width_mm,
-                                                params.body_size_pt);
+                                                params.typo.body_size_pt,
+                                                params.typo.table_cell_pad_mm,
+                                                params.fonts);
                 if (!tl.valid) {
                     result.error = "Eine Tabelle ist zu breit f\xc3\xbcr "
                                    "den verf\xc3\xbcgbaren Seitenbereich.";
@@ -646,9 +645,9 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                         float row_h = layout_table_row(
                             b.rows[ri], tl,
                             params.left_mm, cursor.y_mm,
-                            params.body_size_pt, params.body_lead_pt,
-                            params.body_color, is_header,
-                            row_elements);
+                            params.typo.body_size_pt, params.typo.body_lead_pt,
+                            params.body_color, params.typo.table_cell_pad_mm, is_header,
+                            params.fonts, row_elements);
 
                         // If the row doesn't fit, move to the next page
                         // and re-layout at the new position.
@@ -658,9 +657,9 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                             row_h = layout_table_row(
                                 b.rows[ri], tl,
                                 params.left_mm, cursor.y_mm,
-                                params.body_size_pt, params.body_lead_pt,
-                                params.body_color, is_header,
-                                row_elements);
+                                params.typo.body_size_pt, params.typo.body_lead_pt,
+                                params.body_color, params.typo.table_cell_pad_mm, is_header,
+                                params.fonts, row_elements);
                         }
 
                         // If the row still doesn't fit (taller than
@@ -672,7 +671,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                         cursor.y_mm += row_h;
                     }
                 }
-                cursor.y_mm += k_table_space_mm;
+                cursor.y_mm += params.typo.paragraph_space_mm;
 
             }
             else
@@ -681,7 +680,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 // Split across pages line-by-line if needed.
                 static constexpr float k_code_pad_mm = 3.0f;
                 static constexpr color_t k_code_bg = { 0.94f, 0.94f, 0.94f };
-                float code_size_pt = params.body_size_pt * 0.85f;
+                float code_size_pt = params.typo.body_size_pt * params.typo.code_scale;
                 float code_lead_pt = code_size_pt * 1.3f;
 
                 // Split code into lines (preserve all whitespace)
@@ -744,7 +743,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                     cursor.y_mm += chunk_h;
                     li += chunk;
                 }
-                cursor.y_mm += k_paragraph_space_mm;
+                cursor.y_mm += params.typo.paragraph_space_mm;
             }
         }, block);
     }

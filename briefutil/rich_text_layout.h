@@ -2,6 +2,7 @@
 
 #include "body_content_model.h"
 #include "document_model.h"
+#include "typography_config.h"
 #include <string>
 #include <vector>
 
@@ -17,10 +18,10 @@ struct Layout_params
 {
     float       left_mm;
     float       width_mm;
-    float       body_size_pt   = 10.0f;
-    float       body_lead_pt   = 12.0f;
     color_t     body_color     = { 0, 0, 0 };
-    std::string profile_dir;   // for resolving image paths
+    std::string profile_dir;
+    Typography_config typo;
+    Font_family_config fonts = default_font_family();
 };
 
 struct Layout_result

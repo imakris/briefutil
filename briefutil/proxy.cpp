@@ -2,7 +2,6 @@
 #include "default_profiles.h"
 #include "letter_builder.h"
 #include "mustermann_signature.png.h"
-#include "pdf_renderer_haru.h"
 #include "sender_profile.h"
 
 #include <QDateTime>
@@ -153,24 +152,15 @@ void Proxy::make_pdf(int from, const QString& to,
     QElapsedTimer timer;
     timer.start();
 
-    // Build the letter
     Letter_input input;
     input.recipient = to.toStdString();
     input.subject   = subject.toStdString();
     input.body      = body.toStdString();
     input.date      = date_str.toStdString();
 
-    auto build_result = build_letter(profile, input,
-                                     m_sender_template_dir.toStdString());
-
-    if (!build_result.error.empty()) {
-        emit pdf_generated(false,
-            QString::fromStdString(build_result.error));
-        return;
-    }
-
-    // Render
-    auto result = render_pdf(build_result.doc, pdf_path.toStdString());
+    auto result = generate_letter_pdf(profile, input,
+                                      m_sender_template_dir.toStdString(),
+                                      pdf_path.toStdString());
 
     if (!result.ok) {
         emit pdf_generated(false,
