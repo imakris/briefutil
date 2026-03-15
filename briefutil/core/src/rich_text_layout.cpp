@@ -1,5 +1,5 @@
 #include "rich_text_layout.h"
-#include "pdf_renderer_haru.h"
+#include "briefutil/pdf_renderer_haru.h"
 
 #include <algorithm>
 #include <cmath>

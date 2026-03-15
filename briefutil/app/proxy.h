@@ -1,7 +1,7 @@
 #pragma once
 
-#include "sender_profile.h"
-#include "typography_config.h"
+#include "briefutil/sender_profile.h"
+#include "briefutil/typography_config.h"
 
 #include <QList>
 #include <QObject>

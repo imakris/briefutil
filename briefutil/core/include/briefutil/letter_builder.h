@@ -1,9 +1,9 @@
 #pragma once
 
-#include "document_model.h"
-#include "letter_layout_spec.h"
-#include "sender_profile.h"
-#include "typography_config.h"
+#include "briefutil/document_model.h"
+#include "briefutil/letter_layout_spec.h"
+#include "briefutil/sender_profile.h"
+#include "briefutil/typography_config.h"
 #include <string>
 
 

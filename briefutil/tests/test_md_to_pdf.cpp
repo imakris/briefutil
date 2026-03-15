@@ -2,9 +2,9 @@
 // Usage: test_md_to_pdf <input.md> [output.pdf]
 
 #include "default_profiles.h"
-#include "letter_builder.h"
-#include "pdf_renderer_haru.h"
-#include "sender_profile.h"
+#include "briefutil/letter_builder.h"
+#include "briefutil/pdf_renderer_haru.h"
+#include "briefutil/sender_profile.h"
 
 #include <QCoreApplication>
 #include <QDir>

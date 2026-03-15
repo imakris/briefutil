@@ -5,8 +5,8 @@
 // Run: test_renderer [output.pdf]
 // ============================================================================
 
-#include "document_model.h"
-#include "pdf_renderer_haru.h"
+#include "briefutil/document_model.h"
+#include "briefutil/pdf_renderer_haru.h"
 
 #include <cstdio>
 #include <cstring>

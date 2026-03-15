@@ -1,7 +1,7 @@
 #pragma once
 
-#include "document_model.h"
-#include "typography_config.h"
+#include "briefutil/document_model.h"
+#include "briefutil/typography_config.h"
 #include <string>
 
 

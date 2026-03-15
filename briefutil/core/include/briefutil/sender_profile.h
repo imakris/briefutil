@@ -1,6 +1,6 @@
 #pragma once
 
-#include "document_model.h"
+#include "briefutil/document_model.h"
 #include <string>
 #include <vector>
 

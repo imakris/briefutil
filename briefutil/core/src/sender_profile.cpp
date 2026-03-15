@@ -1,4 +1,4 @@
-#include "sender_profile.h"
+#include "briefutil/sender_profile.h"
 
 #include <QFile>
 #include <QJsonDocument>

@@ -23,8 +23,6 @@ FetchContent_Declare(zlib
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(zlib)
 
-# Expose zlibstatic as ZLIB::ZLIB imported target so that find_package(ZLIB)
-# in downstream deps (libpng, libHaru) finds it without searching the system.
 if(NOT TARGET ZLIB::ZLIB)
     add_library(ZLIB::ZLIB INTERFACE IMPORTED)
     target_link_libraries(ZLIB::ZLIB INTERFACE zlibstatic)
@@ -47,16 +45,15 @@ set(PNG_TOOLS     OFF CACHE BOOL "" FORCE)
 set(PNG_FRAMEWORK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(libpng)
 
-# Expose png_static as PNG::PNG for libHaru
 if(NOT TARGET PNG::PNG)
     add_library(PNG::PNG INTERFACE IMPORTED)
     target_link_libraries(PNG::PNG INTERFACE png_static)
     target_include_directories(PNG::PNG INTERFACE
         "${libpng_SOURCE_DIR}" "${libpng_BINARY_DIR}")
 endif()
-set(PNG_FOUND          TRUE CACHE BOOL "" FORCE)
+set(PNG_FOUND           TRUE CACHE BOOL "" FORCE)
 set(PNG_PNG_INCLUDE_DIR "${libpng_SOURCE_DIR}" CACHE PATH "" FORCE)
-set(PNG_LIBRARY        "png_static" CACHE STRING "" FORCE)
+set(PNG_LIBRARY         "png_static" CACHE STRING "" FORCE)
 
 # -- libHaru --
 FetchContent_Declare(libharu
@@ -77,8 +74,6 @@ else()
 endif()
 unset(_briefutil_saved_skip_install_rules_defined)
 unset(_briefutil_saved_skip_install_rules)
-# CMake still emits a parent include() for the fetched subproject install
-# script, so provide an explicit no-op file to keep app installs self-contained.
 file(WRITE "${libharu_BINARY_DIR}/cmake_install.cmake"
     "# libharu install rules are intentionally suppressed for briefutil.\n")
 
@@ -94,106 +89,26 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
-get_filename_component(_qt_bin_dir "${Qt6_DIR}/../../../bin" ABSOLUTE)
-set(_windeployqt "${_qt_bin_dir}/windeployqt.exe")
-get_filename_component(_cxx_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+get_filename_component(BRIEFUTIL_QT_BIN_DIR "${Qt6_DIR}/../../../bin" ABSOLUTE)
+set(BRIEFUTIL_WINDEPLOYQT "${BRIEFUTIL_QT_BIN_DIR}/windeployqt.exe")
+get_filename_component(BRIEFUTIL_CXX_COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
 
 # ============================================================================
-# briefutil_core — reusable PDF generation library
-# ============================================================================
-
-add_library(briefutil_core STATIC
-    pdf_renderer_haru.cpp
-    sender_profile.cpp
-    letter_builder.cpp
-    markdown_parser.cpp
-    rich_text_layout.cpp
-)
-
-target_include_directories(briefutil_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${libharu_SOURCE_DIR}/include
-    ${libharu_BINARY_DIR}/include
-)
-
-target_link_libraries(briefutil_core PUBLIC
-    hpdf
-    Qt6::Core
-)
-
-# ============================================================================
-# briefutil — Qt Quick application
-# ============================================================================
-
-qt_add_executable(briefutil
-    WIN32
-    MANUAL_FINALIZATION
-    main.cpp
-    proxy.cpp
-    qml.qrc
-)
-
-target_link_libraries(briefutil
-    PRIVATE
-        briefutil_core
-        Qt6::Gui
-        Qt6::Qml
-        Qt6::Quick
-        Qt6::QuickControls2
-)
-
-if (WIN32)
-    target_link_libraries(briefutil PRIVATE dwmapi)
-    target_sources(briefutil PRIVATE briefutil.rc)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
-            add_custom_command(TARGET briefutil POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_cxx_compiler_dir}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:briefutil>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-    add_custom_command(TARGET briefutil POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:briefutil>
-            $<TARGET_FILE_DIR:briefutil>
-        COMMAND_EXPAND_LISTS
-        VERBATIM
-    )
-    if(EXISTS "${_windeployqt}")
-        add_custom_command(TARGET briefutil POST_BUILD
-            COMMAND "${_windeployqt}"
-                --dir "$<TARGET_FILE_DIR:briefutil>"
-                --qmldir "${CMAKE_CURRENT_SOURCE_DIR}"
-                --no-translations
-                "$<TARGET_FILE:briefutil>"
-            VERBATIM
-        )
-    endif()
-endif()
-
-qt_import_qml_plugins(briefutil)
-qt_finalize_executable(briefutil)
-
-# ============================================================================
-# Helper: copy runtime DLLs for a test target
+# Shared helper: copy runtime DLLs for an executable target
 # ============================================================================
 
 function(briefutil_copy_runtime_dlls target)
     if(WIN32)
         foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-            if(EXISTS "${_cxx_compiler_dir}/${_runtime_dll}")
+            if(EXISTS "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}")
                 add_custom_command(TARGET ${target} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${_cxx_compiler_dir}/${_runtime_dll}"
+                        "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}"
                         "$<TARGET_FILE_DIR:${target}>"
                     VERBATIM
                 )
             endif()
         endforeach()
-        # Copy Qt and other runtime DLLs needed by the target
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${target}>
@@ -204,50 +119,20 @@ function(briefutil_copy_runtime_dlls target)
     endif()
 endfunction()
 
-# ============================================================================
-# Test targets (not installed, development only)
-# ============================================================================
-
-add_executable(test_renderer EXCLUDE_FROM_ALL test_renderer.cpp)
-target_link_libraries(test_renderer PRIVATE briefutil_core)
-briefutil_copy_runtime_dlls(test_renderer)
-
-add_executable(test_letter_builder EXCLUDE_FROM_ALL test_letter_builder.cpp)
-target_link_libraries(test_letter_builder PRIVATE briefutil_core)
-briefutil_copy_runtime_dlls(test_letter_builder)
-
-add_executable(test_md_to_pdf EXCLUDE_FROM_ALL test_md_to_pdf.cpp)
-target_link_libraries(test_md_to_pdf PRIVATE briefutil_core)
-briefutil_copy_runtime_dlls(test_md_to_pdf)
-
-add_executable(test_markdown_parser EXCLUDE_FROM_ALL test_markdown_parser.cpp)
-target_link_libraries(test_markdown_parser PRIVATE briefutil_core)
-briefutil_copy_runtime_dlls(test_markdown_parser)
+add_subdirectory(core)
+add_subdirectory(app)
+add_subdirectory(tests)
 
 # ============================================================================
-# Install
+# Packaging
 # ============================================================================
-
-install(TARGETS briefutil
-    RUNTIME DESTINATION bin
-    BUNDLE DESTINATION .
-)
-
-if (WIN32)
-    qt_generate_deploy_app_script(
-        TARGET briefutil
-        OUTPUT_SCRIPT briefutil_deploy_qt
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
-    install(SCRIPT ${briefutil_deploy_qt})
-endif()
 
 set(CPACK_PACKAGE_NAME "briefutil")
 set(CPACK_PACKAGE_VENDOR "briefutil")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility for generating PDF letters with Qt Quick.")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 
-if (WIN32)
+if(WIN32)
     set(CPACK_GENERATOR "NSIS")
     set(CPACK_NSIS_DISPLAY_NAME "briefutil")
     set(CPACK_NSIS_CONTACT "noreply@example.com")

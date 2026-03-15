@@ -29,7 +29,7 @@ The default sender profiles cover two letter styles:
 
 ```text
 .
-|- briefutil/              # Application, PDF core, tests, and CMake project
+|- briefutil/              # CMake project root
 |- example.png             # README screenshot
 |- sample_screenshot.png   # README screenshot
 |- LICENSE.txt
@@ -39,10 +39,10 @@ The default sender profiles cover two letter styles:
 The project root for the application code is [`briefutil/`](briefutil/).
 That directory contains:
 
-- the Qt Quick application
-- the reusable `briefutil_core` C++ library target
-- the markdown parser, layout engine, and libHaru renderer
-- test executables used during development
+- `app/` for the Qt Quick application, QML, and app resources
+- `core/` for the reusable `briefutil_core` library
+- `tests/` for development test executables and test data
+- the top-level CMake build entry point
 
 ## Requirements
 
@@ -71,10 +71,11 @@ cmake --build briefutil/build --config Release
 Adjust `CMAKE_PREFIX_PATH` to your local Qt installation, for example
 `msvc2022_64` or `llvm-mingw_64`.
 
-The main executable will be built as:
+With multi-config generators such as Visual Studio, the main executable will be
+built as:
 
 ```text
-briefutil/build/Release/briefutil.exe
+briefutil/build/app/Release/briefutil.exe
 ```
 
 ## Run
@@ -82,7 +83,7 @@ briefutil/build/Release/briefutil.exe
 After building:
 
 ```powershell
-briefutil/build/Release/briefutil.exe
+briefutil/build/app/Release/briefutil.exe
 ```
 
 On Windows, the CMake build also runs Qt deployment steps so the build output
@@ -189,9 +190,9 @@ The CMake project also defines a few development-only test executables:
 Typical examples:
 
 ```powershell
-briefutil/build/Release/test_markdown_parser.exe
-briefutil/build/Release/test_letter_builder.exe briefutil/build/Release/sample.pdf
-briefutil/build/Release/test_md_to_pdf.exe briefutil/test_sample.md briefutil/build/Release/md.pdf
+briefutil/build/tests/Release/test_markdown_parser.exe
+briefutil/build/tests/Release/test_letter_builder.exe briefutil/build/tests/Release/sample.pdf
+briefutil/build/tests/Release/test_md_to_pdf.exe briefutil/tests/data/test_sample.md briefutil/build/tests/Release/md.pdf
 ```
 
 ## Install / package

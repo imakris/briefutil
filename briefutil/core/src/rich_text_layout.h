@@ -1,8 +1,8 @@
 #pragma once
 
-#include "body_content_model.h"
-#include "document_model.h"
-#include "typography_config.h"
+#include "briefutil/body_content_model.h"
+#include "briefutil/document_model.h"
+#include "briefutil/typography_config.h"
 #include <string>
 #include <vector>
 

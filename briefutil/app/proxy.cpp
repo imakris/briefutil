@@ -1,8 +1,8 @@
 #include "proxy.h"
 #include "default_profiles.h"
-#include "letter_builder.h"
+#include "briefutil/letter_builder.h"
 #include "mustermann_signature.png.h"
-#include "sender_profile.h"
+#include "briefutil/sender_profile.h"
 
 #include <QDateTime>
 #include <QDebug>

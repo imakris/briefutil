@@ -1,6 +1,6 @@
 #pragma once
 
-#include "body_content_model.h"
+#include "briefutil/body_content_model.h"
 #include <string>
 #include <vector>
 
