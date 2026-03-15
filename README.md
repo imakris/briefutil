@@ -3,8 +3,8 @@
 `briefutil` is a small Qt Quick desktop utility for turning short letters into
 PDF files.
 
-It no longer uses LaTeX or MiKTeX. Letter layout, markdown body parsing, and
-PDF rendering are all handled natively in C++ with Qt 6 and libHaru.
+Letter layout, markdown body parsing, and PDF rendering are handled natively in
+C++ with Qt 6 and libHaru.
 
 <p align="center">
   <img src="example.png" alt="Example PDF output" width="946" height="1678" style="max-width: 100%; height: auto;">
