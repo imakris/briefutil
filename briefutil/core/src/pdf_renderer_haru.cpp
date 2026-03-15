@@ -134,28 +134,21 @@ struct Haru_context
         HPDF_SetCurrentEncoder(pdf, "WinAnsiEncoding");
         HPDF_UseUTFEncodings(pdf);
 
-        if (fc.kind == Font_source_kind::FILE_TTF) {
-            // Load TTF fonts from file paths
-            auto load_ttf = [&](const std::string& path) -> HPDF_Font {
-                if (path.empty()) return nullptr;
-                const char* name = HPDF_LoadTTFontFromFile(pdf, path.c_str(), HPDF_TRUE);
+        auto load_font = [&](const std::string& value) -> HPDF_Font {
+            if (value.empty()) return nullptr;
+            if (looks_like_font_file(value)) {
+                const char* name = HPDF_LoadTTFontFromFile(pdf, value.c_str(), HPDF_TRUE);
                 if (!name) return nullptr;
                 return HPDF_GetFont(pdf, name, "WinAnsiEncoding");
-            };
-            sans             = load_ttf(fc.sans);
-            sans_bold        = load_ttf(fc.sans_bold);
-            sans_italic      = load_ttf(fc.sans_italic);
-            sans_bold_italic = load_ttf(fc.sans_bold_italic);
-            mono             = load_ttf(fc.mono);
-        }
-        else {
-            // Base-14 PDF fonts by name
-            sans             = HPDF_GetFont(pdf, fc.sans.c_str(),             "WinAnsiEncoding");
-            sans_bold        = HPDF_GetFont(pdf, fc.sans_bold.c_str(),        "WinAnsiEncoding");
-            sans_italic      = HPDF_GetFont(pdf, fc.sans_italic.c_str(),      "WinAnsiEncoding");
-            sans_bold_italic = HPDF_GetFont(pdf, fc.sans_bold_italic.c_str(), "WinAnsiEncoding");
-            mono             = HPDF_GetFont(pdf, fc.mono.c_str(),             "WinAnsiEncoding");
-        }
+            }
+            return HPDF_GetFont(pdf, value.c_str(), "WinAnsiEncoding");
+        };
+
+        sans             = load_font(fc.sans);
+        sans_bold        = load_font(fc.sans_bold);
+        sans_italic      = load_font(fc.sans_italic);
+        sans_bold_italic = load_font(fc.sans_bold_italic);
+        mono             = load_font(fc.mono);
         return sans && sans_bold && sans_italic && sans_bold_italic && mono;
     }
 
@@ -294,8 +287,7 @@ static Haru_context& get_measure_context(const Font_family_config& fc = default_
     static Haru_context ctx;
     static Font_family_config current_fc;
     bool need_init = !ctx.ready();
-    if (!need_init && (fc.kind           != current_fc.kind ||
-                       fc.sans           != current_fc.sans ||
+    if (!need_init && (fc.sans           != current_fc.sans ||
                        fc.sans_bold      != current_fc.sans_bold ||
                        fc.sans_italic    != current_fc.sans_italic ||
                        fc.sans_bold_italic != current_fc.sans_bold_italic ||

@@ -272,9 +272,7 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        bool found_company = false;
         bool found_sender = false;
-        bool found_top_rule = false;
         bool found_return_line = false;
         bool found_return_underline = false;
         bool found_recipient = false;
@@ -284,15 +282,6 @@ int main(int argc, char* argv[])
         bool found_punch = false;
         for (const auto& element : doc.pages[0].elements) {
             if (const auto* text = std::get_if<Text_block>(&element)) {
-                if (text->text == "Muster AG") {
-                    found_company = true;
-                    if (!nearly_equal(text->x_mm, 125.0f) || !nearly_equal(text->y_mm, 33.0f)) {
-                        std::fprintf(stderr, "FAIL: commercial company text layout is incorrect: x=%.2f y=%.2f\n",
-                                     text->x_mm, text->y_mm);
-                        return 1;
-                    }
-                }
-
                 if (text->text == "Musterstr. 6\n12345 Musterstadt\n\nkontakt@muster-ag.de") {
                     found_sender = true;
                     if (!nearly_equal(text->x_mm, 125.0f) || !nearly_equal(text->size_pt, 10.0f)) {
@@ -333,15 +322,6 @@ int main(int argc, char* argv[])
             }
 
             if (const auto* line = std::get_if<line_segment_t>(&element)) {
-                if (nearly_equal(line->y1_mm, 45.0f) && nearly_equal(line->y2_mm, 45.0f)) {
-                    found_top_rule = true;
-                    if (!(line->x2_mm > 125.0f && line->x2_mm < 180.0f)) {
-                        std::fprintf(stderr, "FAIL: commercial top rule length is incorrect: x2=%.2f\n",
-                                     line->x2_mm);
-                        return 1;
-                    }
-                }
-
                 if (nearly_equal(line->y1_mm, 62.3f) && nearly_equal(line->y2_mm, 62.3f)) {
                     found_return_underline = true;
                     if (!(line->x2_mm > 25.0f && line->x2_mm < 110.0f)) {
@@ -377,16 +357,8 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        if (!found_company) {
-            std::fprintf(stderr, "FAIL: commercial company block not found\n");
-            return 1;
-        }
         if (!found_sender) {
             std::fprintf(stderr, "FAIL: commercial sender block not found\n");
-            return 1;
-        }
-        if (!found_top_rule) {
-            std::fprintf(stderr, "FAIL: commercial top rule not found at DIN header position\n");
             return 1;
         }
         if (!found_return_line) {

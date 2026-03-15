@@ -164,27 +164,20 @@ Build_letter_result build_letter(const Sender_profile& profile,
             // -- First page: header elements --
             bool commercial = (profile.style == Profile_style::COMMERCIAL);
 
-            if (commercial && !profile.company_name.empty()) {
-                auto company_metrics = measure_text(profile.company_name,
-                                                    Font_id::SANS_BOLD,
-                                                    typo.company_size_pt,
-                                                    0,
-                                                    L.company_w_mm,
-                                                    false, theme.fonts);
-                float company_right_mm = L.company_x_mm + pt_to_mm(company_metrics.width_pt);
+            if (commercial && !profile.logo_image.empty()) {
+                auto logo_path = profile_dir + "/" + profile.logo_image;
+                auto logo_dims = measure_png(logo_path);
+                if (logo_dims.valid) {
+                    page.elements.push_back(line_segment_t{
+                        L.top_rule_x1_mm, L.top_rule_y_mm,
+                        L.company_x_mm + L.company_w_mm, L.top_rule_y_mm,
+                        L.top_rule_width_pt, profile.top_rule_color
+                    });
 
-                page.elements.push_back(Text_block{
-                    L.company_x_mm, L.company_y_mm, L.company_w_mm,
-                    profile.company_name,
-                    Font_id::SANS_BOLD, typo.company_size_pt, 0,
-                    profile.company_name_color, false
-                });
-
-                page.elements.push_back(line_segment_t{
-                    L.top_rule_x1_mm, L.top_rule_y_mm,
-                    company_right_mm, L.top_rule_y_mm,
-                    L.top_rule_width_pt, profile.top_rule_color
-                });
+                    page.elements.push_back(Image_block{
+                        L.company_x_mm, L.company_y_mm, L.company_w_mm, logo_path
+                    });
+                }
             }
 
             page.elements.push_back(Text_block{

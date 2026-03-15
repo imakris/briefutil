@@ -7,18 +7,18 @@
 // Font family configuration
 // ============================================================================
 
-enum class Font_source_kind
+inline bool looks_like_font_file(const std::string& s)
 {
-    BASE14,      // libHaru built-in base-14 PDF fonts (default)
-    FILE_TTF,    // TTF/OTF loaded from file paths
-};
+    if (s.size() < 4) return false;
+    auto ext = s.substr(s.size() - 4);
+    return ext == ".ttf" || ext == ".otf" || ext == ".TTF" || ext == ".OTF";
+}
 
 struct Font_family_config
 {
-    Font_source_kind kind = Font_source_kind::BASE14;
-
-    // For BASE14: libHaru font names (e.g. "Helvetica", "Courier")
-    // For FILE_TTF: file paths to .ttf/.otf files
+    // Each slot holds either a libHaru base-14 name (e.g. "Helvetica")
+    // or a .ttf/.otf file path. The renderer infers the loading method
+    // per slot via looks_like_font_file().
     std::string sans;
     std::string sans_bold;
     std::string sans_italic;
@@ -29,7 +29,6 @@ struct Font_family_config
 inline Font_family_config default_font_family()
 {
     return {
-        Font_source_kind::BASE14,
         "Helvetica",
         "Helvetica-Bold",
         "Helvetica-Oblique",
@@ -66,8 +65,6 @@ struct Typography_config
     float date_size_pt    = 10.0f;
     float footer_size_pt  = 9.0f;
     float footer_text_size_pt = 8.0f;
-    float company_size_pt = 24.0f;
-
     // Spacing
     float heading_space_after_mm = 2.0f;
     float paragraph_space_mm     = 3.0f;

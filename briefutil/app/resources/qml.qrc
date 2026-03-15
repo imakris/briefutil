@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file alias="main.qml">../qml/main.qml</file>
+        <file alias="SenderProfileWindow.qml">../qml/SenderProfileWindow.qml</file>
         <file alias="SettingsWindow.qml">../qml/SettingsWindow.qml</file>
     </qresource>
 </RCC>

@@ -2,12 +2,13 @@ import QtQuick 2.15
 import QtQuick.Layouts 1.12
 import QtQuick.Controls 2.12
 import QtQuick.Window 2.15
+import QtQuick.Dialogs
 
 Window {
     id: settingsWin
 
     width: 520
-    height: 530
+    height: 500
     title: "Settings"
 
     required property var proxyObj
@@ -16,7 +17,15 @@ Window {
     signal darkModeToggled(bool dark)
     signal windowClosed()
 
+    property bool _initialized: false
+
     onClosing: {
+        if (_initialized && proxyObj) {
+            tryApplyFonts()
+            if (templateDirOk) {
+                proxyObj.set_template_dir(templateDir)
+            }
+        }
         windowClosed()
     }
 
@@ -28,12 +37,13 @@ Window {
 
     color: darkMode ? "#2d2d2d" : "#eeeeee"
 
-    property color textColor: darkMode ? "#ffffff" : "#000000"
-    property color dimTextColor: darkMode ? "#cccccc" : "#333333"
-    property color fieldBg: darkMode ? "#1e1e1e" : "#ffffff"
-    property color fieldBorder: darkMode ? "#555555" : "#c0c0c0"
-    property color buttonBg: darkMode ? "#3d3d3d" : "#e0e0e0"
-    property color buttonPressed: darkMode ? "#505050" : "#c0c0c0"
+    property color textColor:      darkMode ? "#ffffff" : "#000000"
+    property color dimTextColor:    darkMode ? "#cccccc" : "#333333"
+    property color fieldBg:         darkMode ? "#1e1e1e" : "#ffffff"
+    property color fieldBorder:     darkMode ? "#555555" : "#c0c0c0"
+    property color buttonBg:        darkMode ? "#3d3d3d" : "#e0e0e0"
+    property color buttonPressed:   darkMode ? "#505050" : "#c0c0c0"
+    property color invalidFieldBg:  darkMode ? "#3d2020" : "#ffcccc"
 
     property string fontSans: ""
     property string fontSansBold: ""
@@ -44,10 +54,53 @@ Window {
     property double bodyLeading: 12
     property string templateDir: ""
 
+    // ====================================================================
+    // Font validation
+    // ====================================================================
+
+    readonly property bool fontSansOk:           proxyObj ? proxyObj.validate_font_value(fontSans, "sans") : true
+    readonly property bool fontSansBoldOk:       proxyObj ? proxyObj.validate_font_value(fontSansBold, "sans_bold") : true
+    readonly property bool fontSansItalicOk:     proxyObj ? proxyObj.validate_font_value(fontSansItalic, "sans_italic") : true
+    readonly property bool fontSansBoldItalicOk: proxyObj ? proxyObj.validate_font_value(fontSansBoldItalic, "sans_bold_italic") : true
+    readonly property bool fontMonoOk:           proxyObj ? proxyObj.validate_font_value(fontMono, "mono") : true
+
+    readonly property bool fontsCanApply: fontSansOk && fontSansBoldOk && fontSansItalicOk
+                                        && fontSansBoldItalicOk && fontMonoOk
+
+    function tryApplyFonts() {
+        if (!_initialized || !proxyObj || !fontsCanApply) return
+        proxyObj.set_font_sans(fontSans)
+        proxyObj.set_font_sans_bold(fontSansBold)
+        proxyObj.set_font_sans_italic(fontSansItalic)
+        proxyObj.set_font_sans_bold_italic(fontSansBoldItalic)
+        proxyObj.set_font_mono(fontMono)
+    }
+
+    onFontSansChanged:           tryApplyFonts()
+    onFontSansBoldChanged:       tryApplyFonts()
+    onFontSansItalicChanged:     tryApplyFonts()
+    onFontSansBoldItalicChanged: tryApplyFonts()
+    onFontMonoChanged:           tryApplyFonts()
+
+    // ====================================================================
+    // Template dir validation
+    // ====================================================================
+
+    readonly property bool templateDirOk: proxyObj ? proxyObj.validate_directory(templateDir) : true
+
+    // ====================================================================
+    // Spinbox values (always valid — range-clamped)
+    // ====================================================================
+
+    onBodySizeChanged: {
+        if (_initialized && proxyObj) proxyObj.set_body_size(bodySize)
+    }
+    onBodyLeadingChanged: {
+        if (_initialized && proxyObj) proxyObj.set_body_leading(bodyLeading)
+    }
+
     Component.onCompleted: {
-        if (!proxyObj) {
-            return
-        }
+        if (!proxyObj) return
         proxyObj.set_window_dark_mode(settingsWin, darkMode)
         fontSans           = proxyObj.get_font_sans()
         fontSansBold       = proxyObj.get_font_sans_bold()
@@ -57,39 +110,21 @@ Window {
         bodySize           = proxyObj.get_body_size()
         bodyLeading        = proxyObj.get_body_leading()
         templateDir        = proxyObj.get_template_dir()
+        _initialized = true
     }
 
-    function applySettings() {
-        if (!proxyObj) {
-            return
-        }
-        proxyObj.set_font_sans(fontSans)
-        proxyObj.set_font_sans_bold(fontSansBold)
-        proxyObj.set_font_sans_italic(fontSansItalic)
-        proxyObj.set_font_sans_bold_italic(fontSansBoldItalic)
-        proxyObj.set_font_mono(fontMono)
-        proxyObj.set_body_size(bodySize)
-        proxyObj.set_body_leading(bodyLeading)
-        proxyObj.set_template_dir(templateDir)
-        settingsWin.close()
-    }
-
-    // Styled button matching dark/light mode
-    component StyledButton: Button {
-        id: styledBtn
-        background: Rectangle {
-            implicitWidth: 80
-            implicitHeight: 28
-            color: styledBtn.pressed ? settingsWin.buttonPressed : settingsWin.buttonBg
-            border.width: 1
-            border.color: settingsWin.fieldBorder
-            radius: 3
-        }
-        contentItem: Text {
-            text: styledBtn.text
-            color: settingsWin.textColor
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+    FolderDialog {
+        id: folderDialog
+        title: "Select template directory"
+        onAccepted: {
+            var path = selectedFolder.toString()
+            path = path.replace(/^file:\/\/\//, "")
+            path = decodeURIComponent(path)
+            if (path.length > 0 && !path.endsWith("/")) path += "/"
+            settingsWin.templateDir = path
+            if (settingsWin._initialized && settingsWin.proxyObj) {
+                settingsWin.proxyObj.set_template_dir(path)
+            }
         }
     }
 
@@ -205,8 +240,10 @@ Window {
         }
 
         component FontRow: RowLayout {
+            id: fontRow
             property alias label: lbl.text
             property alias value: field.text
+            property bool valid: true
             spacing: 8
             Layout.fillWidth: true
 
@@ -219,24 +256,25 @@ Window {
                 id: field
                 Layout.fillWidth: true
                 selectByMouse: true
-                placeholderText: "Font name or .ttf/.otf path"
+                placeholderText: "Built-in PDF font, installed font, or .ttf/.otf path"
                 background: Rectangle {
-                    color: settingsWin.fieldBg
+                    color: fontRow.valid ? settingsWin.fieldBg : settingsWin.invalidFieldBg
                     border.width: 1
                     border.color: settingsWin.fieldBorder
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 color: settingsWin.textColor
             }
         }
 
-        FontRow { label: "Sans";             value: settingsWin.fontSans;           onValueChanged: settingsWin.fontSans = value }
-        FontRow { label: "Sans Bold";        value: settingsWin.fontSansBold;       onValueChanged: settingsWin.fontSansBold = value }
-        FontRow { label: "Sans Italic";      value: settingsWin.fontSansItalic;     onValueChanged: settingsWin.fontSansItalic = value }
-        FontRow { label: "Sans Bold Italic"; value: settingsWin.fontSansBoldItalic; onValueChanged: settingsWin.fontSansBoldItalic = value }
-        FontRow { label: "Mono";             value: settingsWin.fontMono;           onValueChanged: settingsWin.fontMono = value }
+        FontRow { label: "Sans";             value: settingsWin.fontSans;           valid: settingsWin.fontSansOk;           onValueChanged: settingsWin.fontSans = value }
+        FontRow { label: "Sans Bold";        value: settingsWin.fontSansBold;       valid: settingsWin.fontSansBoldOk;       onValueChanged: settingsWin.fontSansBold = value }
+        FontRow { label: "Sans Italic";      value: settingsWin.fontSansItalic;     valid: settingsWin.fontSansItalicOk;     onValueChanged: settingsWin.fontSansItalic = value }
+        FontRow { label: "Sans Bold Italic"; value: settingsWin.fontSansBoldItalic; valid: settingsWin.fontSansBoldItalicOk; onValueChanged: settingsWin.fontSansBoldItalic = value }
+        FontRow { label: "Mono";             value: settingsWin.fontMono;           valid: settingsWin.fontMonoOk;           onValueChanged: settingsWin.fontMono = value }
 
         Label {
-            text: "Use either built-in font names for all fields or .ttf/.otf file paths for all fields."
+            text: "You can use a built-in PDF font such as Helvetica or Courier, an installed font such as Noto Sans, or an explicit .ttf/.otf font file."
             wrapMode: Text.WordWrap
             color: settingsWin.dimTextColor
             Layout.fillWidth: true
@@ -294,29 +332,41 @@ Window {
                 text: settingsWin.templateDir
                 selectByMouse: true
                 onTextChanged: settingsWin.templateDir = text
+                onEditingFinished: {
+                    if (settingsWin._initialized && settingsWin.proxyObj && settingsWin.templateDirOk) {
+                        settingsWin.proxyObj.set_template_dir(settingsWin.templateDir)
+                    }
+                }
                 background: Rectangle {
-                    color: settingsWin.fieldBg
+                    color: settingsWin.templateDirOk ? settingsWin.fieldBg : settingsWin.invalidFieldBg
                     border.width: 1
                     border.color: settingsWin.fieldBorder
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 color: settingsWin.textColor
             }
-        }
-
-        Item { Layout.fillHeight: true }
-
-        RowLayout {
-            Layout.fillWidth: true
-
-            Item { Layout.fillWidth: true }
-
-            StyledButton {
-                text: "Cancel"
-                onClicked: settingsWin.close()
-            }
-            StyledButton {
-                text: "Apply"
-                onClicked: settingsWin.applySettings()
+            Button {
+                id: browseBtn
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                background: Rectangle {
+                    color: browseBtn.pressed ? settingsWin.buttonPressed : settingsWin.buttonBg
+                    border.width: 1
+                    border.color: settingsWin.fieldBorder
+                    radius: 2
+                }
+                contentItem: Text {
+                    text: "\uD83D\uDCC1"
+                    font.pixelSize: 14
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: {
+                    if (settingsWin.templateDir.length > 0) {
+                        folderDialog.currentFolder = "file:///" + settingsWin.templateDir.replace(/\\/g, "/")
+                    }
+                    folderDialog.open()
+                }
             }
         }
     }

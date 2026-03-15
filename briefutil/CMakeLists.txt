@@ -88,7 +88,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickDialogs2)
 get_filename_component(BRIEFUTIL_QT_BIN_DIR "${Qt6_DIR}/../../../bin" ABSOLUTE)
 set(BRIEFUTIL_WINDEPLOYQT "${BRIEFUTIL_QT_BIN_DIR}/windeployqt.exe")
 get_filename_component(BRIEFUTIL_CXX_COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)

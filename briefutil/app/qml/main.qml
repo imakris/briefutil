@@ -18,6 +18,9 @@ ApplicationWindow {
     onDarkModeChanged: {
         proxy.set_window_dark_mode(root, darkMode)
         proxy.save_dark_mode(darkMode)
+        if (profileEditorBtn.profileWindow) {
+            profileEditorBtn.profileWindow.darkMode = darkMode
+        }
     }
 
     Component.onCompleted: {
@@ -60,6 +63,7 @@ ApplicationWindow {
     }
 
     function refreshSenderTemplates() {
+        var currentIndex = w_from.currentIndex
         var currentText = w_from.currentText
         var options = proxy.get_sender_templates()
         w_from.model.clear()
@@ -68,10 +72,14 @@ ApplicationWindow {
         }
 
         var newIndex = -1
-        for (var j = 0; j < options.length; j++) {
-            if (options[j] === currentText) {
-                newIndex = j
-                break
+        if (currentIndex >= 0 && currentIndex < options.length) {
+            newIndex = currentIndex
+        } else {
+            for (var j = 0; j < options.length; j++) {
+                if (options[j] === currentText) {
+                    newIndex = j
+                    break
+                }
             }
         }
         if (newIndex < 0 && options.length > 0) {
@@ -89,18 +97,86 @@ ApplicationWindow {
         Label {
             text: "From"
         }
-        ComboBox {
-            id: w_from
-            background: Rectangle {
-                color: root.palette.base
-            }
+
+        RowLayout {
             Layout.fillWidth: true
+            spacing: 8
 
-            model: ListModel {
+            ComboBox {
+                id: w_from
+                background: Rectangle {
+                    color: root.palette.base
+                }
+                Layout.fillWidth: true
+
+                model: ListModel {
+                }
+
+                Component.onCompleted: {
+                    root.refreshSenderTemplates()
+                }
+
+                onCurrentIndexChanged: {
+                    if (profileEditorBtn.profileWindow) {
+                        profileEditorBtn.profileWindow.profileIndex = currentIndex
+                    }
+                }
             }
 
-            Component.onCompleted: {
-                root.refreshSenderTemplates()
+            Button {
+                id: profileEditorBtn
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                enabled: root.hasTemplates && w_from.currentIndex >= 0
+
+                property var profileWindow: null
+
+                background: Rectangle {
+                    color: !profileEditorBtn.enabled ? (root.darkMode ? "#2a2a2a" : "#cccccc")
+                         : profileEditorBtn.pressed ? (root.darkMode ? "#505050" : "#c0c0c0")
+                         :                           (root.darkMode ? "#3d3d3d" : "#e0e0e0")
+                    border.width: 1
+                    border.color: root.darkMode ? "#555555" : "#c0c0c0"
+                    radius: 3
+                }
+                contentItem: Text {
+                    text: "\u270E"
+                    font.pixelSize: 14
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: !profileEditorBtn.enabled ? (root.darkMode ? "#666666" : "#999999")
+                                                     : (root.darkMode ? "#ffffff" : "#333333")
+                }
+
+                onClicked: {
+                    if (!enabled) {
+                        return
+                    }
+                    if (profileWindow) {
+                        profileWindow.profileIndex = w_from.currentIndex
+                        profileWindow.show()
+                        profileWindow.raise()
+                        profileWindow.requestActivate()
+                        return
+                    }
+
+                    var component = Qt.createComponent("qrc:/SenderProfileWindow.qml")
+                    if (component.status === Component.Ready) {
+                        profileWindow = component.createObject(root, {
+                            proxyObj: root.appProxy,
+                            darkMode: root.darkMode,
+                            profileIndex: w_from.currentIndex
+                        })
+                        if (!profileWindow) {
+                            console.warn("Failed to create SenderProfileWindow")
+                            return
+                        }
+                        profileWindow.windowClosed.connect(function() {
+                            profileEditorBtn.profileWindow = null
+                        })
+                        profileWindow.show()
+                    }
+                }
             }
         }
 

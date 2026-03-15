@@ -28,8 +28,7 @@ inline const char* k_default_profile_commercial_json = R"({
     "signer_name": "Max Mustermann",
     "signer_title": "Gesch\u00e4ftsleitung der Muster AG",
     "signature_image": "mustermann_signature.png",
-    "company_name": "Muster AG",
-    "company_name_color": [49, 132, 155],
+    "logo_image": "",
     "top_rule_color": [200, 200, 200],
     "footer_lines": [
         "Muster AG \u2022 Musterstr. 6 \u2022 12345 Musterstadt \u2022 kontakt@muster-ag.de",

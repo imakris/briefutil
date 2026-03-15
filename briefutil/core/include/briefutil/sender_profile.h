@@ -32,8 +32,7 @@ struct Sender_profile
     std::string              signature_image;     // filename relative to profile directory
 
     // Commercial-only fields
-    std::string              company_name;
-    color_t                  company_name_color = {  49/255.0f, 132/255.0f, 155/255.0f };
+    std::string              logo_image;          // PNG filename relative to profile directory
     color_t                  top_rule_color     = { 200/255.0f, 200/255.0f, 200/255.0f };
     std::vector<std::string> footer_lines;
     std::string              signer_title;
@@ -52,3 +51,5 @@ struct Profile_load_result
 };
 
 Profile_load_result load_sender_profile(const std::string& json_path);
+bool save_sender_profile(const Sender_profile& profile, const std::string& json_path,
+                         std::string* error = nullptr);

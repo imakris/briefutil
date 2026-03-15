@@ -1,9 +1,10 @@
 #include "briefutil/sender_profile.h"
 
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
+#include <QSaveFile>
 
 // Use Qt's JSON parser — already available since the app links Qt6::Core.
 
@@ -30,6 +31,24 @@ static color_t json_color(const QJsonObject& obj, const char* key,
         (float)arr[0].toInt() / 255.0f,
         (float)arr[1].toInt() / 255.0f,
         (float)arr[2].toInt() / 255.0f,
+    };
+}
+
+static QJsonArray json_string_array(const std::vector<std::string>& lines)
+{
+    QJsonArray result;
+    for (const auto& line : lines) {
+        result.push_back(QString::fromStdString(line));
+    }
+    return result;
+}
+
+static QJsonArray json_color_array(color_t color)
+{
+    return {
+        qRound(color.r * 255.0f),
+        qRound(color.g * 255.0f),
+        qRound(color.b * 255.0f),
     };
 }
 
@@ -64,8 +83,7 @@ Profile_load_result load_sender_profile(const std::string& json_path)
         ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
 
     // Commercial fields
-    p.company_name        = qs(obj.value("company_name").toString());
-    p.company_name_color  = json_color(obj, "company_name_color",  p.company_name_color);
+    p.logo_image          = qs(obj.value("logo_image").toString());
     p.top_rule_color      = json_color(obj, "top_rule_color",      p.top_rule_color);
     p.footer_lines        = json_string_array(obj, "footer_lines");
     p.signer_title        = qs(obj.value("signer_title").toString());
@@ -75,4 +93,41 @@ Profile_load_result load_sender_profile(const std::string& json_path)
     }
 
     return { true, std::move(p), "" };
+}
+
+bool save_sender_profile(const Sender_profile& profile, const std::string& json_path,
+                         std::string* error)
+{
+    QJsonObject obj;
+    obj.insert("id", QString::fromStdString(profile.id));
+    obj.insert("style", profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
+    obj.insert("sender_lines", json_string_array(profile.sender_lines));
+    obj.insert("email", QString::fromStdString(profile.email));
+    obj.insert("return_address_line", QString::fromStdString(profile.return_address_line));
+    obj.insert("signer_name", QString::fromStdString(profile.signer_name));
+    obj.insert("signature_image", QString::fromStdString(profile.signature_image));
+    obj.insert("logo_image", QString::fromStdString(profile.logo_image));
+    obj.insert("top_rule_color", json_color_array(profile.top_rule_color));
+    obj.insert("footer_lines", json_string_array(profile.footer_lines));
+    obj.insert("signer_title", QString::fromStdString(profile.signer_title));
+
+    QSaveFile file(QString::fromStdString(json_path));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (error) *error = "Cannot open profile for writing: " + json_path;
+        return false;
+    }
+
+    auto payload = QJsonDocument(obj).toJson(QJsonDocument::Indented);
+    if (file.write(payload) != payload.size()) {
+        if (error) *error = "Failed to write profile: " + json_path;
+        return false;
+    }
+
+    if (!file.commit()) {
+        if (error) *error = "Failed to finalize profile write: " + json_path;
+        return false;
+    }
+
+    if (error) error->clear();
+    return true;
 }
