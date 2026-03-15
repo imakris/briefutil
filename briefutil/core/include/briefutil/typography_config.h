@@ -24,6 +24,8 @@ struct Font_family_config
     std::string sans_italic;
     std::string sans_bold_italic;
     std::string mono;
+
+    bool operator==(const Font_family_config&) const = default;
 };
 
 inline Font_family_config default_font_family()

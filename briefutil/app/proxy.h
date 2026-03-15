@@ -66,6 +66,7 @@ private:
     void load_settings();
     void save_settings() const;
     void discover_profiles();
+    void update_font_and_save(QString& slot, const QString& v);
 
     QString m_sender_template_dir;
     QString m_output_dir;

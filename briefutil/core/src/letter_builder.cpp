@@ -3,29 +3,15 @@
 #include "briefutil/pdf_renderer_haru.h"
 #include "rich_text_layout.h"
 
-#include <cmath>
 #include <utility>
 
 
 static constexpr color_t k_black = { 0, 0, 0 };
 
-static constexpr float k_pts_per_mm      = 72.0f / 25.4f;
-
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-static float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
-
-static int fit_line_count(float available_height_mm, float line_height_mm)
-{
-    if (available_height_mm <= 0.0f) {
-        return 1;
-    }
-
-    return std::max(1, (int)std::floor(available_height_mm / line_height_mm));
-}
 
 static void add_fold_marks(Page& page, const Letter_layout_spec& L)
 {

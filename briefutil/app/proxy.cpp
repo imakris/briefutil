@@ -82,20 +82,6 @@ static void ensure_template_dir_ready(const QString& dir_path)
                           true);
 }
 
-static Font_family_config font_config_from_strings(
-    const std::string& sans, const std::string& sans_bold,
-    const std::string& sans_italic, const std::string& sans_bold_italic,
-    const std::string& mono)
-{
-    Font_family_config fc;
-    fc.sans             = sans;
-    fc.sans_bold        = sans_bold;
-    fc.sans_italic      = sans_italic;
-    fc.sans_bold_italic = sans_bold_italic;
-    fc.mono             = mono;
-    return fc;
-}
-
 static QString join_lines(const std::vector<std::string>& lines)
 {
     QStringList result;
@@ -390,18 +376,13 @@ static Font_family_config font_config_from_inputs(const QString& sans, const QSt
                                                   const QString& sans_italic, const QString& sans_bold_italic,
                                                   const QString& mono)
 {
-    auto resolved_sans = resolve_font_value(sans, Font_role::SANS);
-    auto resolved_sans_bold = resolve_font_value(sans_bold, Font_role::SANS_BOLD);
-    auto resolved_sans_italic = resolve_font_value(sans_italic, Font_role::SANS_ITALIC);
-    auto resolved_sans_bold_italic = resolve_font_value(sans_bold_italic, Font_role::SANS_BOLD_ITALIC);
-    auto resolved_mono = resolve_font_value(mono, Font_role::MONO);
-
-    return font_config_from_strings(
-        resolved_sans.toStdString(),
-        resolved_sans_bold.toStdString(),
-        resolved_sans_italic.toStdString(),
-        resolved_sans_bold_italic.toStdString(),
-        resolved_mono.toStdString());
+    return {
+        resolve_font_value(sans,             Font_role::SANS).toStdString(),
+        resolve_font_value(sans_bold,        Font_role::SANS_BOLD).toStdString(),
+        resolve_font_value(sans_italic,      Font_role::SANS_ITALIC).toStdString(),
+        resolve_font_value(sans_bold_italic, Font_role::SANS_BOLD_ITALIC).toStdString(),
+        resolve_font_value(mono,             Font_role::MONO).toStdString(),
+    };
 }
 
 void Proxy::load_settings()
@@ -600,50 +581,20 @@ double  Proxy::get_body_size() const             { return m_theme.typo.body_size
 double  Proxy::get_body_leading() const          { return m_theme.typo.body_lead_pt; }
 QString Proxy::get_template_dir() const          { return m_sender_template_dir; }
 
-void Proxy::set_font_sans(const QString& v)
+void Proxy::update_font_and_save(QString& slot, const QString& v)
 {
-    m_font_sans_input = v.trimmed();
+    slot = v.trimmed();
     m_theme.fonts = font_config_from_inputs(
         m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
         m_font_sans_bold_italic_input, m_font_mono_input);
     save_settings();
 }
 
-void Proxy::set_font_sans_bold(const QString& v)
-{
-    m_font_sans_bold_input = v.trimmed();
-    m_theme.fonts = font_config_from_inputs(
-        m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
-        m_font_sans_bold_italic_input, m_font_mono_input);
-    save_settings();
-}
-
-void Proxy::set_font_sans_italic(const QString& v)
-{
-    m_font_sans_italic_input = v.trimmed();
-    m_theme.fonts = font_config_from_inputs(
-        m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
-        m_font_sans_bold_italic_input, m_font_mono_input);
-    save_settings();
-}
-
-void Proxy::set_font_sans_bold_italic(const QString& v)
-{
-    m_font_sans_bold_italic_input = v.trimmed();
-    m_theme.fonts = font_config_from_inputs(
-        m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
-        m_font_sans_bold_italic_input, m_font_mono_input);
-    save_settings();
-}
-
-void Proxy::set_font_mono(const QString& v)
-{
-    m_font_mono_input = v.trimmed();
-    m_theme.fonts = font_config_from_inputs(
-        m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
-        m_font_sans_bold_italic_input, m_font_mono_input);
-    save_settings();
-}
+void Proxy::set_font_sans(const QString& v)             { update_font_and_save(m_font_sans_input, v); }
+void Proxy::set_font_sans_bold(const QString& v)        { update_font_and_save(m_font_sans_bold_input, v); }
+void Proxy::set_font_sans_italic(const QString& v)      { update_font_and_save(m_font_sans_italic_input, v); }
+void Proxy::set_font_sans_bold_italic(const QString& v)  { update_font_and_save(m_font_sans_bold_italic_input, v); }
+void Proxy::set_font_mono(const QString& v)             { update_font_and_save(m_font_mono_input, v); }
 
 void Proxy::set_body_size(double v)
 {

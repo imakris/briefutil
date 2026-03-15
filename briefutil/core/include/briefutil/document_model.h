@@ -12,6 +12,31 @@
 // The renderer converts to libHaru's bottom-left point system internally.
 // ============================================================================
 
+// -- Unit conversion utilities (mm ↔ pt) --
+
+inline constexpr float k_pts_per_mm = 72.0f / 25.4f;
+
+inline float mm_to_pt(float mm) { return mm * k_pts_per_mm; }
+inline float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
+
+// Split text on newline boundaries, preserving empty segments.
+inline std::vector<std::string> split_lines(const std::string& text)
+{
+    std::vector<std::string> lines;
+    size_t pos = 0;
+    while (pos <= text.size()) {
+        size_t nl = text.find('\n', pos);
+        if (nl == std::string::npos) {
+            lines.push_back(text.substr(pos));
+            break;
+        }
+        lines.push_back(text.substr(pos, nl - pos));
+        pos = nl + 1;
+    }
+    return lines;
+}
+
+
 struct color_t
 {
     float r = 0.0f;

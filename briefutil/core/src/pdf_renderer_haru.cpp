@@ -8,14 +8,6 @@
 #include <cstring>
 
 
-// ============================================================================
-// Unit conversion
-// ============================================================================
-
-static constexpr float k_points_per_mm = 72.0f / 25.4f;
-
-static float mm_to_pt(float mm) { return mm * k_points_per_mm; }
-
 static bool append_win_ansi_byte(std::string& out, unsigned codepoint)
 {
     if (codepoint <= 0x7F) {
@@ -201,22 +193,6 @@ struct Haru_context
 // Text wrapping (greedy, with explicit newline support)
 // ============================================================================
 
-static std::vector<std::string> split_lines(const std::string& text)
-{
-    std::vector<std::string> lines;
-    size_t pos = 0;
-    while (pos <= text.size()) {
-        size_t nl = text.find('\n', pos);
-        if (nl == std::string::npos) {
-            lines.push_back(text.substr(pos));
-            break;
-        }
-        lines.push_back(text.substr(pos, nl - pos));
-        pos = nl + 1;
-    }
-    return lines;
-}
-
 static float measure_string_width(HPDF_Font font, float size_pt,
                                   const char* str, size_t len)
 {
@@ -287,11 +263,7 @@ static Haru_context& get_measure_context(const Font_family_config& fc = default_
     static Haru_context ctx;
     static Font_family_config current_fc;
     bool need_init = !ctx.ready();
-    if (!need_init && (fc.sans           != current_fc.sans ||
-                       fc.sans_bold      != current_fc.sans_bold ||
-                       fc.sans_italic    != current_fc.sans_italic ||
-                       fc.sans_bold_italic != current_fc.sans_bold_italic ||
-                       fc.mono           != current_fc.mono)) {
+    if (!need_init && fc != current_fc) {
         ctx.destroy();
         need_init = true;
     }
@@ -536,21 +508,22 @@ Render_result render_pdf(const Document& doc, const std::string& output_path,
                          const Font_family_config& fonts)
 {
     Haru_context ctx;
+
+    auto fail = [&](const char* message, const char* fallback_detail) {
+        auto detail = ctx.last_error.empty()
+            ? std::string(fallback_detail) : ctx.last_error;
+        ctx.destroy();
+        return Render_result{ false, "", message, detail };
+    };
+
     if (!ctx.init(fonts)) {
-        return { false, "", "PDF-Erstellung fehlgeschlagen.",
-                 ctx.last_error.empty()
-                     ? "Failed to initialize libHaru"
-                     : ctx.last_error };
+        return fail("PDF-Erstellung fehlgeschlagen.", "Failed to initialize libHaru");
     }
 
     for (const auto& page_def : doc.pages) {
         HPDF_Page page = HPDF_AddPage(ctx.pdf);
         if (!page) {
-            auto detail = ctx.last_error.empty()
-                ? std::string("HPDF_AddPage failed")
-                : ctx.last_error;
-            ctx.destroy();
-            return { false, "", "PDF-Erstellung fehlgeschlagen.", detail };
+            return fail("PDF-Erstellung fehlgeschlagen.", "HPDF_AddPage failed");
         }
         HPDF_Page_SetWidth(page, mm_to_pt(doc.page_width_mm));
         HPDF_Page_SetHeight(page, mm_to_pt(doc.page_height_mm));
@@ -558,50 +531,35 @@ Render_result render_pdf(const Document& doc, const std::string& output_path,
         for (const auto& elem : page_def.elements) {
             bool ok = std::visit([&](const auto& e) {
                 using T = std::decay_t<decltype(e)>;
-                if constexpr (std::is_same_v<T, Text_block>) {
+                if constexpr (std::is_same_v<T, Text_block>)
                     return render_text_block(page, ctx, e, doc.page_height_mm);
-                }
-                else
-                if constexpr (std::is_same_v<T, line_segment_t>) {
+                else if constexpr (std::is_same_v<T, line_segment_t>)
                     return render_line_segment(page, ctx, e, doc.page_height_mm);
-                }
-                else
-                if constexpr (std::is_same_v<T, Image_block>) {
+                else if constexpr (std::is_same_v<T, Image_block>)
                     return render_image_block(page, ctx, e, doc.page_height_mm);
-                }
-                else
-                if constexpr (std::is_same_v<T, Text_span>) {
+                else if constexpr (std::is_same_v<T, Text_span>)
                     return render_text_span(page, ctx, e, doc.page_height_mm);
-                }
-                else
-                if constexpr (std::is_same_v<T, filled_rect_t>) {
+                else if constexpr (std::is_same_v<T, filled_rect_t>)
                     return render_filled_rect(page, ctx, e, doc.page_height_mm);
-                }
                 return false;
             }, elem);
             if (!ok) {
-                auto detail = ctx.last_error.empty()
-                    ? std::string("PDF rendering failed")
-                    : ctx.last_error;
-                ctx.destroy();
-                return { false, "", "PDF-Erstellung fehlgeschlagen.", detail };
+                return fail("PDF-Erstellung fehlgeschlagen.", "PDF rendering failed");
             }
         }
     }
 
     HPDF_STATUS status = HPDF_SaveToFile(ctx.pdf, output_path.c_str());
-    ctx.destroy();
-
     if (status != HPDF_OK || !ctx.last_error.empty()) {
-        std::string detail = ctx.last_error;
-        if (detail.empty()) {
+        if (ctx.last_error.empty()) {
             char buf[128];
             std::snprintf(buf, sizeof(buf),
                           "HPDF_SaveToFile failed (status 0x%04X)", (unsigned)status);
-            detail = buf;
+            ctx.last_error = buf;
         }
-        return { false, "", "PDF konnte nicht gespeichert werden.", detail };
+        return fail("PDF konnte nicht gespeichert werden.", "");
     }
+    ctx.destroy();
 
     return { true, output_path, "", "" };
 }

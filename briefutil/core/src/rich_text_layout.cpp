@@ -2,16 +2,11 @@
 #include "briefutil/pdf_renderer_haru.h"
 
 #include <algorithm>
-#include <cmath>
 
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-static constexpr float k_pts_per_mm = 72.0f / 25.4f;
-
-static float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
 
 static float heading_size(const Typography_config& typo, float body_pt, int level)
 {
@@ -684,19 +679,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 float code_lead_pt = code_size_pt * 1.3f;
 
                 // Split code into lines (preserve all whitespace)
-                std::vector<std::string> code_lines;
-                {
-                    size_t pos = 0;
-                    while (pos <= b.text.size()) {
-                        size_t nl = b.text.find('\n', pos);
-                        if (nl == std::string::npos) {
-                            code_lines.push_back(b.text.substr(pos));
-                            break;
-                        }
-                        code_lines.push_back(b.text.substr(pos, nl - pos));
-                        pos = nl + 1;
-                    }
-                }
+                auto code_lines = split_lines(b.text);
 
                 float line_h_mm = pt_to_mm(code_lead_pt);
 

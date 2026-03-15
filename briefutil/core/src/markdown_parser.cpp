@@ -1,4 +1,5 @@
 #include "briefutil/markdown_parser.h"
+#include "briefutil/document_model.h"
 
 #include <cstring>
 
@@ -224,21 +225,7 @@ static Classified_line classify_line(const std::string& line)
 // Block-level parsing helpers
 // ============================================================================
 
-static std::vector<std::string> split_input_lines(const std::string& input)
-{
-    std::vector<std::string> lines;
-    size_t pos = 0;
-    while (pos <= input.size()) {
-        size_t nl = input.find('\n', pos);
-        if (nl == std::string::npos) {
-            lines.push_back(input.substr(pos));
-            break;
-        }
-        lines.push_back(input.substr(pos, nl - pos));
-        pos = nl + 1;
-    }
-    return lines;
-}
+// split_lines() from document_model.h is used instead of a local copy
 
 static Image_content_block parse_image_line(const std::string& line)
 {
@@ -278,7 +265,7 @@ static std::vector<std::string> split_table_cells(const std::string& row)
 std::vector<Body_block> parse_markdown(const std::string& input)
 {
     std::vector<Body_block> blocks;
-    auto lines = split_input_lines(input);
+    auto lines = split_lines(input);
     size_t i = 0;
 
     // Accumulate consecutive text lines into a paragraph
