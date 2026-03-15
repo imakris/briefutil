@@ -260,7 +260,7 @@ ApplicationWindow {
                     var component = Qt.createComponent("qrc:/SettingsWindow.qml")
                     if (component.status === Component.Ready) {
                         settingsWindow = component.createObject(root, {
-                            proxy: root.appProxy,
+                            proxyObj: root.appProxy,
                             darkMode: root.darkMode
                         })
                         if (!settingsWindow) {

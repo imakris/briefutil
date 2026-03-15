@@ -10,7 +10,7 @@ Window {
     height: 530
     title: "Settings"
 
-    required property var proxy
+    required property var proxyObj
     required property bool darkMode
 
     signal darkModeToggled(bool dark)
@@ -21,7 +21,9 @@ Window {
     }
 
     onDarkModeChanged: {
-        proxy.set_window_dark_mode(settingsWin, darkMode)
+        if (proxyObj) {
+            proxyObj.set_window_dark_mode(settingsWin, darkMode)
+        }
     }
 
     color: darkMode ? "#2d2d2d" : "#eeeeee"
@@ -43,26 +45,32 @@ Window {
     property string templateDir: ""
 
     Component.onCompleted: {
-        proxy.set_window_dark_mode(settingsWin, darkMode)
-        fontSans           = proxy.get_font_sans()
-        fontSansBold       = proxy.get_font_sans_bold()
-        fontSansItalic     = proxy.get_font_sans_italic()
-        fontSansBoldItalic = proxy.get_font_sans_bold_italic()
-        fontMono           = proxy.get_font_mono()
-        bodySize           = proxy.get_body_size()
-        bodyLeading        = proxy.get_body_leading()
-        templateDir        = proxy.get_template_dir()
+        if (!proxyObj) {
+            return
+        }
+        proxyObj.set_window_dark_mode(settingsWin, darkMode)
+        fontSans           = proxyObj.get_font_sans()
+        fontSansBold       = proxyObj.get_font_sans_bold()
+        fontSansItalic     = proxyObj.get_font_sans_italic()
+        fontSansBoldItalic = proxyObj.get_font_sans_bold_italic()
+        fontMono           = proxyObj.get_font_mono()
+        bodySize           = proxyObj.get_body_size()
+        bodyLeading        = proxyObj.get_body_leading()
+        templateDir        = proxyObj.get_template_dir()
     }
 
     function applySettings() {
-        proxy.set_font_sans(fontSans)
-        proxy.set_font_sans_bold(fontSansBold)
-        proxy.set_font_sans_italic(fontSansItalic)
-        proxy.set_font_sans_bold_italic(fontSansBoldItalic)
-        proxy.set_font_mono(fontMono)
-        proxy.set_body_size(bodySize)
-        proxy.set_body_leading(bodyLeading)
-        proxy.set_template_dir(templateDir)
+        if (!proxyObj) {
+            return
+        }
+        proxyObj.set_font_sans(fontSans)
+        proxyObj.set_font_sans_bold(fontSansBold)
+        proxyObj.set_font_sans_italic(fontSansItalic)
+        proxyObj.set_font_sans_bold_italic(fontSansBoldItalic)
+        proxyObj.set_font_mono(fontMono)
+        proxyObj.set_body_size(bodySize)
+        proxyObj.set_body_leading(bodyLeading)
+        proxyObj.set_template_dir(templateDir)
         settingsWin.close()
     }
 
