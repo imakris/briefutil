@@ -1,48 +1,216 @@
 # briefutil
 
-Small Qt Quick utility I use to turn ad-hoc letter text into nicely formatted PDFs. It now renders letters natively with Qt 6, CMake, and libHaru; there is no LaTeX or MiKTeX runtime in the repo anymore.
+`briefutil` is a small Qt Quick desktop utility for turning short letters into
+PDF files.
+
+It no longer uses LaTeX or MiKTeX. Letter layout, markdown body parsing, and
+PDF rendering are all handled natively in C++ with Qt 6 and libHaru.
 
 <p align="center">
-  <img src="example.png" alt="Example UI" width="946" height="1678" style="max-width: 100%; height: auto;">
+  <img src="example.png" alt="Example PDF output" width="946" height="1678" style="max-width: 100%; height: auto;">
   <br>
-  <img src="sample_screenshot.png" alt="Sample UI" width="786" height="660" style="max-width: 100%; height: auto;">
+  <img src="sample_screenshot.png" alt="Application screenshot" width="786" height="660" style="max-width: 100%; height: auto;">
 </p>
 
+## What it does
+
+- lets you pick a sender profile from JSON files
+- collects recipient, subject, and body text in a small desktop UI
+- supports Markdown in the letter body
+- generates DIN-style PDF letters
+- can use either built-in PDF fonts or custom `.ttf` / `.otf` font files
+
+The current application ships with two built-in letter styles through the
+default sender profiles:
+
+- `simple`
+- `commercial`
+
 ## Repository layout
-```
+
+```text
 .
-|- briefutil/         # Application sources, templates, and build files
-|- example.png        # Screenshot used in the README
-|- sample_screenshot.png
+|- briefutil/              # Application, PDF core, tests, and CMake project
+|- example.png             # README screenshot
+|- sample_screenshot.png   # README screenshot
 |- LICENSE.txt
 \- README.md
 ```
-The `briefutil` directory contains the Qt 6 / CMake application sources, JSON sender-profile defaults, and build configuration.
 
-## Build requirements
+The real project root is [`briefutil/`](/C:/plms/imakris/briefutil_upstream/briefutil).
+That directory contains:
+
+- the Qt Quick application
+- the reusable `briefutil_core` C++ library target
+- the markdown parser, layout engine, and libHaru renderer
+- test executables used during development
+
+## Requirements
+
 - CMake 3.24 or newer
-- A C++17 compiler with `std::filesystem`
-- Qt 6 with the Core, Gui, Qml, Quick, and QuickControls2 modules
-- Network access on first configure to fetch libHaru, zlib, and libpng
+- a C++17 compiler
+- Qt 6 with:
+  - `Core`
+  - `Gui`
+  - `Qml`
+  - `Quick`
+  - `QuickControls2`
+- network access on first configure, because CMake fetches:
+  - `libHaru`
+  - `zlib`
+  - `libpng`
 
-## Configure and build
-```bash
-cmake -S briefutil -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.10.1/llvm-mingw_64"
-cmake --build build --config Release
+## Build
+
+From the repository root:
+
+```powershell
+cmake -S briefutil -B briefutil/build -DCMAKE_PREFIX_PATH="C:/Qt/6.10.1/msvc2022_64"
+cmake --build briefutil/build --config Release
 ```
-Adjust `CMAKE_PREFIX_PATH` to point at your local Qt installation.
 
-## Install and package
-```bash
-cmake --install build --config Release --prefix C:/apps/briefutil
-cpack -C Release --config build/CPackConfig.cmake
+Adjust `CMAKE_PREFIX_PATH` to your local Qt installation.
+
+The main executable will be built as:
+
+```text
+briefutil/build/Release/briefutil.exe
 ```
 
-## Runtime notes
-- On first launch the executable creates `~/briefutil/templates/` and populates it with anonymized JSON sender profiles plus a synthetic signature image. Replace those files with your own stationery as needed.
-- Output is written under `~/briefutil/output/` by default. Override via `output_dir.conf` if you prefer a different location.
-- Leftover `.tex` templates from older versions are ignored by the active path. The app logs a warning so you can convert them to JSON sender profiles.
-- The bundled example profiles are intentionally lightweight and tailored to the two shipped letter styles: simple and commercial.
+## Run
+
+After building:
+
+```powershell
+briefutil/build/Release/briefutil.exe
+```
+
+On Windows, the CMake build also runs Qt deployment steps so the build output
+contains the required Qt DLLs, plugins, and QML modules.
+
+## Runtime data
+
+On first launch, the app creates and seeds:
+
+```text
+%USERPROFILE%/briefutil/templates/
+```
+
+This folder contains default sender profiles such as:
+
+- `Max Mustermann.json`
+- `Max Mustermann, Mustermann AG.json`
+- `mustermann_signature.png`
+
+Generated PDFs are written by default to:
+
+```text
+%USERPROFILE%/briefutil/output/
+```
+
+The app also stores UI and typography settings with `QSettings`, including:
+
+- dark mode
+- selected template directory
+- font configuration
+- body size and leading
+
+An optional `output_dir.conf` file in the current working directory can
+override the default output directory.
+
+## Sender profiles
+
+Sender profiles are JSON files loaded from the active template directory.
+
+The important fields are:
+
+- `id`
+- `style`
+- `sender_lines`
+- `email`
+- `return_address_line`
+- `signer_name`
+- `signature_image`
+
+Commercial profiles can additionally define:
+
+- `company_name`
+- `company_name_color`
+- `top_rule_color`
+- `footer_lines`
+- `signer_title`
+
+The `signature_image` path is interpreted relative to the profile directory.
+
+## Markdown support
+
+The body field supports Markdown. The implemented subset includes:
+
+- paragraphs
+- bold
+- italic
+- headings
+- bullet lists
+- ordered lists
+- images
+- tables
+
+Plain text without Markdown syntax also works.
+
+## Font configuration
+
+The settings window allows changing the fonts used for PDF generation.
+
+There are two supported modes:
+
+- built-in PDF base-14 font names for all configured faces
+- `.ttf` / `.otf` file paths for all configured faces
+
+Do not mix the two modes in one configuration. If you do, PDF generation is
+rejected with an error.
+
+The current font configuration covers:
+
+- sans regular
+- sans bold
+- sans italic
+- sans bold italic
+- monospace
+
+## Development targets
+
+The CMake project also defines a few development-only test executables:
+
+- `test_renderer`
+- `test_letter_builder`
+- `test_markdown_parser`
+- `test_md_to_pdf`
+
+Typical examples:
+
+```powershell
+briefutil/build/Release/test_markdown_parser.exe
+briefutil/build/Release/test_letter_builder.exe briefutil/build/Release/sample.pdf
+briefutil/build/Release/test_md_to_pdf.exe briefutil/test_sample.md briefutil/build/Release/md.pdf
+```
+
+## Install / package
+
+Install:
+
+```powershell
+cmake --install briefutil/build --config Release --prefix C:/apps/briefutil
+```
+
+Package:
+
+```powershell
+cpack -C Release --config briefutil/build/CPackConfig.cmake
+```
+
+The current Windows packaging path is NSIS-based.
 
 ## License
-Source code is provided under the Simplified BSD License (see `LICENSE.txt`). The included templates and signature use generic "Max Mustermann" placeholder data so that nothing personal is shipped with the repository.
+
+Source code is provided under the Simplified BSD License. See
+[`LICENSE.txt`](/C:/plms/imakris/briefutil_upstream/LICENSE.txt).
