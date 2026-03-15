@@ -71,9 +71,6 @@ cmake --build briefutil/build --config Release
 Adjust `CMAKE_PREFIX_PATH` to your local Qt installation, for example
 `msvc2022_64` or `llvm-mingw_64`.
 
-The project now requires C++20. Use a toolchain and compiler version that
-fully support that standard.
-
 With multi-config generators such as Visual Studio, the main executable will be
 built as:
 
