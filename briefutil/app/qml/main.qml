@@ -13,6 +13,7 @@ ApplicationWindow {
     property bool darkMode: false
     property bool hasTemplates: false
     property bool isBusy: false
+    property var appProxy: proxy
 
     onDarkModeChanged: {
         proxy.set_window_dark_mode(root, darkMode)
@@ -259,14 +260,19 @@ ApplicationWindow {
                     var component = Qt.createComponent("qrc:/SettingsWindow.qml")
                     if (component.status === Component.Ready) {
                         settingsWindow = component.createObject(root, {
-                            proxy: proxy,
-                            darkMode: Qt.binding(function() { return root.darkMode })
+                            proxy: root.appProxy,
+                            darkMode: root.darkMode
                         })
-                        settingsWindow.destroyed.connect(function() {
+                        if (!settingsWindow) {
+                            console.warn("Failed to create SettingsWindow")
+                            return
+                        }
+                        settingsWindow.windowClosed.connect(function() {
                             settingsBtn.settingsWindow = null
                         })
                         settingsWindow.darkModeToggled.connect(function(dark) {
                             root.darkMode = dark
+                            settingsWindow.darkMode = dark
                         })
                         settingsWindow.show()
                     }

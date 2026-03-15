@@ -14,6 +14,11 @@ Window {
     required property bool darkMode
 
     signal darkModeToggled(bool dark)
+    signal windowClosed()
+
+    onClosing: {
+        windowClosed()
+    }
 
     onDarkModeChanged: {
         proxy.set_window_dark_mode(settingsWin, darkMode)
