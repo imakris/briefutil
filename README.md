@@ -7,9 +7,9 @@ Letter layout, markdown body parsing, and PDF rendering are handled natively in
 C++ with Qt 6 and libHaru.
 
 <p align="center">
-  <img src="example.png" alt="Example PDF output" width="946" height="1678" style="max-width: 100%; height: auto;">
+  <img src="example.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
   <br>
-  <img src="sample_screenshot.png" alt="Application screenshot" width="786" height="660" style="max-width: 100%; height: auto;">
+  <img src="sample_screenshot.png" alt="Application screenshot" style="max-width: 100%; height: auto;">
 </p>
 
 ## What it does
@@ -17,11 +17,10 @@ C++ with Qt 6 and libHaru.
 - lets you pick a sender profile from JSON files
 - collects recipient, subject, and body text in a small desktop UI
 - supports Markdown in the letter body
-- generates DIN-style PDF letters
+- generates DIN 5008 PDF letters
 - can use either built-in PDF fonts or custom `.ttf` / `.otf` font files
 
-The current application ships with two built-in letter styles through the
-default sender profiles:
+The default sender profiles cover two letter styles:
 
 - `simple`
 - `commercial`
@@ -37,7 +36,7 @@ default sender profiles:
 \- README.md
 ```
 
-The real project root is [`briefutil/`](/C:/plms/imakris/briefutil_upstream/briefutil).
+The project root for the application code is [`briefutil/`](briefutil/).
 That directory contains:
 
 - the Qt Quick application
@@ -65,11 +64,12 @@ That directory contains:
 From the repository root:
 
 ```powershell
-cmake -S briefutil -B briefutil/build -DCMAKE_PREFIX_PATH="C:/Qt/6.10.1/msvc2022_64"
+cmake -S briefutil -B briefutil/build -DCMAKE_PREFIX_PATH="C:/Qt/6.x/<toolchain>"
 cmake --build briefutil/build --config Release
 ```
 
-Adjust `CMAKE_PREFIX_PATH` to your local Qt installation.
+Adjust `CMAKE_PREFIX_PATH` to your local Qt installation, for example
+`msvc2022_64` or `llvm-mingw_64`.
 
 The main executable will be built as:
 
@@ -169,7 +169,7 @@ There are two supported modes:
 Do not mix the two modes in one configuration. If you do, PDF generation is
 rejected with an error.
 
-The current font configuration covers:
+The font configuration covers:
 
 - sans regular
 - sans bold
@@ -208,9 +208,9 @@ Package:
 cpack -C Release --config briefutil/build/CPackConfig.cmake
 ```
 
-The current Windows packaging path is NSIS-based.
+The Windows packaging path is NSIS-based.
 
 ## License
 
 Source code is provided under the Simplified BSD License. See
-[`LICENSE.txt`](/C:/plms/imakris/briefutil_upstream/LICENSE.txt).
+[`LICENSE.txt`](LICENSE.txt).
