@@ -13,11 +13,12 @@ Window {
 
     required property var proxyObj
     required property bool darkMode
-    required property int profileIndex
+    property int profileIndex: -1
 
     signal windowClosed()
 
     property bool _initialized: false
+    property int _newProfileIndex: -1
 
     property color textColor:      darkMode ? "#ffffff" : "#000000"
     property color dimTextColor:   darkMode ? "#cccccc" : "#333333"
@@ -41,6 +42,7 @@ Window {
 
     readonly property bool isCommercial: profileStyle === "commercial"
     readonly property bool profileIdOk: profileId.trim().length > 0
+        && !(proxyObj && proxyObj.profile_name_exists(profileId.trim(), profileIndex))
     readonly property bool signatureImageOk: proxyObj ? proxyObj.validate_profile_image_name(signatureImage) : true
     readonly property bool logoImageOk: proxyObj ? proxyObj.validate_profile_image_name(logoImage) : true
     readonly property bool topRuleColorOk: proxyObj ? proxyObj.validate_hex_color(topRuleColor) : true
@@ -54,11 +56,23 @@ Window {
         }
     }
 
-    onProfileIndexChanged: loadProfile()
+    onProfileIndexChanged: {
+        if (profileCombo && profileCombo.currentIndex !== profileIndex) {
+            profileCombo.currentIndex = profileIndex
+        }
+        loadProfile()
+    }
+
+    function switchToProfile(index) {
+        saveTimer.stop()
+        saveProfile()
+        profileIndex = index
+    }
 
     onClosing: {
         saveTimer.stop()
         saveProfile()
+        cleanupNewProfile()
         windowClosed()
     }
 
@@ -66,7 +80,41 @@ Window {
         if (proxyObj) {
             proxyObj.set_window_dark_mode(editorWin, darkMode)
         }
+        refreshProfileList()
+        if (profileCombo && profileIndex >= 0) {
+            profileCombo.currentIndex = profileIndex
+        }
         loadProfile()
+    }
+
+    Connections {
+        target: proxyObj
+        function onSender_templates_changed() {
+            editorWin.refreshProfileList()
+        }
+    }
+
+    function refreshProfileList() {
+        if (!proxyObj || !profileCombo) return
+        var templates = proxyObj.get_sender_templates()
+        var items = []
+        for (var i = 0; i < templates.length; i++) {
+            items.push(templates[i].length > 0 ? templates[i] : "(new profile)")
+        }
+        var savedIndex = profileCombo.currentIndex
+        profileCombo.model = items
+        if (savedIndex >= 0 && savedIndex < items.length) {
+            profileCombo.currentIndex = savedIndex
+        }
+    }
+
+    function cleanupNewProfile() {
+        if (_newProfileIndex < 0 || !proxyObj) return
+        var p = proxyObj.get_sender_profile(_newProfileIndex)
+        if (!p || !p.id || p.id.trim().length === 0) {
+            proxyObj.delete_sender_profile(_newProfileIndex)
+        }
+        _newProfileIndex = -1
     }
 
     function loadProfile() {
@@ -282,6 +330,52 @@ Window {
                 text: "Sender profile"
                 font.bold: true
                 color: editorWin.textColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                StyledComboBox {
+                    id: profileCombo
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: idField.implicitHeight
+                    model: []
+                    onActivated: function(index) {
+                        saveTimer.stop()
+                        editorWin.saveProfile()
+                        editorWin.profileIndex = index
+                    }
+                }
+
+                Button {
+                    id: newProfileBtn
+                    Layout.preferredHeight: idField.implicitHeight
+                    background: Rectangle {
+                        color: newProfileBtn.pressed ? editorWin.buttonPressed : editorWin.buttonBg
+                        border.width: 1
+                        border.color: editorWin.fieldBorder
+                        radius: 2
+                    }
+                    contentItem: Text {
+                        text: "New profile"
+                        color: editorWin.textColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    onClicked: {
+                        saveTimer.stop()
+                        editorWin.saveProfile()
+                        editorWin.cleanupNewProfile()
+
+                        var newIndex = proxyObj.create_new_profile()
+                        editorWin._newProfileIndex = newIndex
+                        editorWin.profileIndex = newIndex
+                        profileCombo.currentIndex = newIndex
+                    }
+                }
             }
 
             Label {

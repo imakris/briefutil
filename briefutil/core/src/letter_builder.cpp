@@ -160,8 +160,19 @@ Build_letter_result build_letter(const Sender_profile& profile,
                         L.top_rule_width_pt, profile.top_rule_color
                     });
 
+                    float logo_w = L.company_w_mm;
+                    float aspect = logo_dims.height_px / logo_dims.width_px;
+                    float logo_h = logo_w * aspect;
+                    float max_h = L.top_rule_y_mm - L.logo_rule_gap_mm - L.logo_top_mm;
+                    if (max_h > 0 && logo_h > max_h) {
+                        float scale = max_h / logo_h;
+                        logo_w *= scale;
+                        logo_h = max_h;
+                    }
+                    float logo_y = L.top_rule_y_mm - L.logo_rule_gap_mm - logo_h;
+
                     page.elements.push_back(Image_block{
-                        L.company_x_mm, L.company_y_mm, L.company_w_mm, logo_path
+                        L.company_x_mm, logo_y, logo_w, logo_path
                     });
                 }
             }

@@ -736,6 +736,50 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     return true;
 }
 
+int Proxy::create_new_profile()
+{
+    QString base_name = "New Profile";
+    QString file_name = base_name + ".json";
+    QDir dir(m_sender_template_dir);
+    int counter = 2;
+    while (dir.exists(file_name)) {
+        file_name = base_name + " " + QString::number(counter++) + ".json";
+    }
+
+    Sender_profile_entry entry;
+    entry.path = dir.filePath(file_name);
+    m_profiles.push_back(std::move(entry));
+
+    emit sender_templates_changed();
+    return (int)m_profiles.size() - 1;
+}
+
+bool Proxy::delete_sender_profile(int index)
+{
+    if (index < 0 || index >= (int)m_profiles.size()) {
+        return false;
+    }
+
+    QFile::remove(m_profiles[index].path);
+    m_profiles.erase(m_profiles.begin() + index);
+    emit sender_templates_changed();
+    return true;
+}
+
+bool Proxy::profile_name_exists(const QString& name, int exclude_index) const
+{
+    auto trimmed = name.trimmed();
+    if (trimmed.isEmpty()) return false;
+
+    for (int i = 0; i < (int)m_profiles.size(); ++i) {
+        if (i == exclude_index) continue;
+        if (QString::fromStdString(m_profiles[i].profile.id) == trimmed) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Proxy::validate_profile_image_name(const QString& v) const
 {
     auto trimmed = normalize_asset_name(v);

@@ -116,11 +116,6 @@ ApplicationWindow {
                     root.refreshSenderTemplates()
                 }
 
-                onCurrentIndexChanged: {
-                    if (profileEditorBtn.profileWindow) {
-                        profileEditorBtn.profileWindow.profileIndex = currentIndex
-                    }
-                }
             }
 
             Button {
@@ -153,7 +148,7 @@ ApplicationWindow {
                         return
                     }
                     if (profileWindow) {
-                        profileWindow.profileIndex = w_from.currentIndex
+                        profileWindow.switchToProfile(w_from.currentIndex)
                         profileWindow.show()
                         profileWindow.raise()
                         profileWindow.requestActivate()

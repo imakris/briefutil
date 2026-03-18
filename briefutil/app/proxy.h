@@ -52,6 +52,9 @@ public:
     Q_INVOKABLE bool validate_directory(const QString& v) const;
     Q_INVOKABLE QVariantMap get_sender_profile(int index) const;
     Q_INVOKABLE bool save_sender_profile(int index, const QVariantMap& profile);
+    Q_INVOKABLE int  create_new_profile();
+    Q_INVOKABLE bool delete_sender_profile(int index);
+    Q_INVOKABLE bool profile_name_exists(const QString& name, int exclude_index) const;
     Q_INVOKABLE bool validate_profile_image_name(const QString& v) const;
     Q_INVOKABLE bool validate_hex_color(const QString& v) const;
     Q_INVOKABLE QString import_template_image(const QUrl& source_url) const;
