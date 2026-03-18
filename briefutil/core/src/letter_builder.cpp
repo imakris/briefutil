@@ -153,7 +153,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
             if (commercial && !profile.logo_image.empty()) {
                 auto logo_path = profile_dir + "/" + profile.logo_image;
                 auto logo_dims = measure_png(logo_path);
-                if (logo_dims.valid) {
+                if (logo_dims.valid && logo_dims.width_px > 0) {
                     page.elements.push_back(line_segment_t{
                         L.top_rule_x1_mm, L.top_rule_y_mm,
                         L.company_x_mm + L.company_w_mm, L.top_rule_y_mm,
@@ -169,10 +169,11 @@ Build_letter_result build_letter(const Sender_profile& profile,
                         logo_w *= scale;
                         logo_h = max_h;
                     }
+                    float logo_x = L.company_x_mm + (L.company_w_mm - logo_w) / 2;
                     float logo_y = L.top_rule_y_mm - L.logo_rule_gap_mm - logo_h;
 
                     page.elements.push_back(Image_block{
-                        L.company_x_mm, logo_y, logo_w, logo_path
+                        logo_x, logo_y, logo_w, logo_path
                     });
                 }
             }

@@ -61,7 +61,6 @@ struct Letter_layout_spec
 
     // Commercial decorative elements
     float company_x_mm        = 125.0f;
-    float company_y_mm        = 33.0f;
     float company_w_mm        = 65.0f;
     float logo_top_mm         = 5.0f;    // logo top edge must not go above this
     float logo_rule_gap_mm    = 2.0f;    // gap between logo bottom and top rule

@@ -6,20 +6,29 @@ REM
 REM Creates a self-contained portable directory under dist/ containing the
 REM briefutil executable and all required Qt/MinGW runtime dependencies.
 REM
-REM Prerequisites:
-REM   - Qt 6.10.1 with MinGW kit installed at C:\Qt\6.10.1\mingw_64
-REM   - MinGW toolchain at C:\Qt\Tools\mingw1310_64
-REM   - CMake at C:\Qt\Tools\CMake_64
-REM   - Ninja at C:\Qt\Tools\Ninja
+REM Requires a build_config.bat file with local tool paths.
+REM See build_config.bat.example for a template.
 REM
 REM ========================================================================
 
 cd /d %~dp0
 
-set QT_PREFIX=C:\Qt\6.10.1\mingw_64
-set MINGW_BIN=C:\Qt\Tools\mingw1310_64\bin
-set CMAKE=C:\Qt\Tools\CMake_64\bin\cmake.exe
-set NINJA=C:\Qt\Tools\Ninja\ninja.exe
+REM -- Load local build configuration --
+if not exist "%~dp0build_config.bat" (
+    echo ERROR: build_config.bat not found.
+    echo.
+    echo Copy build_config.bat.example to build_config.bat and set the paths
+    echo for your local Qt / MinGW installation.  For example:
+    echo.
+    echo   set QT_PREFIX=C:\Qt\6.10.1\mingw_64
+    echo   set MINGW_BIN=C:\Qt\Tools\mingw1310_64\bin
+    echo   set CMAKE=C:\Qt\Tools\CMake_64\bin\cmake.exe
+    echo   set NINJA=C:\Qt\Tools\Ninja\ninja.exe
+    echo.
+    exit /b 1
+)
+call "%~dp0build_config.bat"
+
 set WINDEPLOYQT=%QT_PREFIX%\bin\windeployqt.exe
 set QML_DIR=%~dp0briefutil\app\qml
 
@@ -79,9 +88,24 @@ REM The POST_BUILD steps in CMakeLists already ran windeployqt and copied
 REM runtime DLLs into the build/app/ directory.  Copy only the distributable
 REM files, not build artefacts (CMakeFiles, autogen, .obj, etc.).
 copy /y "%BUILD_DIR%\app\briefutil.exe" "%PORTABLE_DIR%\" >nul
-copy /y "%BUILD_DIR%\app\*.dll"         "%PORTABLE_DIR%\" >nul
+if errorlevel 1 (
+    echo ERROR: briefutil.exe not found in build output.
+    exit /b 1
+)
+copy /y "%BUILD_DIR%\app\*.dll" "%PORTABLE_DIR%\" >nul
+
+set MISSING_DIRS=
 for %%D in (platforms imageformats iconengines tls networkinformation generic qml qmltooling) do (
-    if exist "%BUILD_DIR%\app\%%D" xcopy /e /i /q /y "%BUILD_DIR%\app\%%D" "%PORTABLE_DIR%\%%D" >nul
+    if exist "%BUILD_DIR%\app\%%D" (
+        xcopy /e /i /q /y "%BUILD_DIR%\app\%%D" "%PORTABLE_DIR%\%%D" >nul
+        if errorlevel 1 (
+            echo WARNING: Failed to copy plugin directory %%D
+        )
+    )
+)
+if not exist "%PORTABLE_DIR%\platforms" (
+    echo ERROR: Critical plugin directory 'platforms' is missing.
+    exit /b 1
 )
 
 REM -- Build info --
@@ -90,7 +114,7 @@ echo [4/5] Writing build info ...
 
 for /f %%i in ('git rev-parse --short HEAD 2^>nul') do set GIT_COMMIT=%%i
 for /f %%i in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set GIT_BRANCH=%%i
-set TIMESTAMP=%date% %time%
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH:mm"') do set TIMESTAMP=%%i
 
 (
     echo Build timestamp: %TIMESTAMP%

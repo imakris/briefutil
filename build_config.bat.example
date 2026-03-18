@@ -1,0 +1,15 @@
+@echo off
+REM ========================================================================
+REM build_config.bat - Local build paths for build_portable.bat
+REM ========================================================================
+REM
+REM Copy this file to build_config.bat and adjust the paths below to match
+REM your local Qt / MinGW installation.
+REM
+REM build_config.bat is gitignored and will not be committed.
+REM ========================================================================
+
+set QT_PREFIX=C:\Qt\6.10.1\mingw_64
+set MINGW_BIN=C:\Qt\Tools\mingw1310_64\bin
+set CMAKE=C:\Qt\Tools\CMake_64\bin\cmake.exe
+set NINJA=C:\Qt\Tools\Ninja\ninja.exe

@@ -1,5 +1,6 @@
 /prototype/
 **/build*/
 /dist/
+/build_config.bat
 /briefutil/.claude/
 /briefutil/.qtcreator/
