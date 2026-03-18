@@ -708,20 +708,13 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     }
     updated.signature_image = signature_image.toStdString();
 
-    if (updated.style == Profile_style::COMMERCIAL) {
-        auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
-        if (!validate_profile_image_name(logo_image)) {
-            return false;
-        }
-        updated.logo_image = logo_image.toStdString();
-        updated.signer_title = profile_data.value("signerTitle").toString().trimmed().toStdString();
-        updated.footer_lines = split_lines(profile_data.value("footerLines").toString());
+    auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
+    if (!validate_profile_image_name(logo_image)) {
+        return false;
     }
-    else {
-        updated.logo_image.clear();
-        updated.signer_title.clear();
-        updated.footer_lines.clear();
-    }
+    updated.logo_image = logo_image.toStdString();
+    updated.signer_title = profile_data.value("signerTitle").toString().trimmed().toStdString();
+    updated.footer_lines = split_lines(profile_data.value("footerLines").toString());
 
     color_t top_rule_color;
     if (!parse_hex_color(profile_data.value("topRuleColor").toString(), top_rule_color)) {
