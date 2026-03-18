@@ -1,4 +1,5 @@
 /prototype/
 **/build*/
+/dist/
 /briefutil/.claude/
 /briefutil/.qtcreator/
