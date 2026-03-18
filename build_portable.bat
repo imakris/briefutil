@@ -42,7 +42,7 @@ if not exist "%QT_PREFIX%\bin\qmake.exe" (
 
 REM -- Configure --
 echo.
-echo [1/4] Configuring CMake ...
+echo [1/5] Configuring CMake ...
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
 "%CMAKE%" -G Ninja ^
@@ -60,7 +60,7 @@ if errorlevel 1 (
 
 REM -- Build --
 echo.
-echo [2/4] Building ...
+echo [2/5] Building ...
 "%CMAKE%" --build "%BUILD_DIR%" --config Release -j8
 if errorlevel 1 (
     echo ERROR: Build failed.
@@ -69,7 +69,7 @@ if errorlevel 1 (
 
 REM -- Assemble portable directory --
 echo.
-echo [3/4] Assembling portable distribution ...
+echo [3/5] Assembling portable distribution ...
 
 set PORTABLE_DIR=%DIST_DIR%\portable
 if exist "%PORTABLE_DIR%" rmdir /s /q "%PORTABLE_DIR%"
@@ -86,7 +86,7 @@ for %%D in (platforms imageformats iconengines tls networkinformation generic qm
 
 REM -- Build info --
 echo.
-echo [4/4] Writing build info ...
+echo [4/5] Writing build info ...
 
 for /f %%i in ('git rev-parse --short HEAD 2^>nul') do set GIT_COMMIT=%%i
 for /f %%i in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set GIT_BRANCH=%%i
@@ -101,8 +101,25 @@ set TIMESTAMP=%date% %time%
     echo Qt:              %QT_PREFIX%
 ) > "%PORTABLE_DIR%\briefutil_build_info.txt"
 
+REM -- Create ZIP archive --
+echo.
+echo [5/5] Creating ZIP archive ...
+
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy_MMM_dd_HHmm"') do set STAMP=%%i
+set ZIP_NAME=briefutil_%STAMP%_w64.zip
+set ZIP_PATH=%DIST_DIR%\%ZIP_NAME%
+if exist "%ZIP_PATH%" del /q "%ZIP_PATH%"
+
+powershell -NoProfile -Command "Compress-Archive -Path '%PORTABLE_DIR%\*' -DestinationPath '%ZIP_PATH%' -Force"
+if errorlevel 1 (
+    echo WARNING: ZIP creation failed. Portable directory is still available.
+) else (
+    echo Created: %ZIP_PATH%
+)
+
 echo.
 echo ========================================================================
 echo Portable distribution ready at:
 echo   %PORTABLE_DIR%
+echo   %ZIP_PATH%
 echo ========================================================================
