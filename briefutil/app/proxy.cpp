@@ -703,16 +703,25 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     updated.signer_name = profile_data.value("signerName").toString().trimmed().toStdString();
 
     auto signature_image = normalize_asset_name(profile_data.value("signatureImage").toString());
-    auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
-    if (!validate_profile_image_name(signature_image) || !validate_profile_image_name(logo_image)) {
+    if (!validate_profile_image_name(signature_image)) {
         return false;
     }
     updated.signature_image = signature_image.toStdString();
-    updated.logo_image = logo_image.toStdString();
 
-    auto signer_title = profile_data.value("signerTitle").toString().trimmed();
-    updated.signer_title = signer_title.toStdString();
-    updated.footer_lines = split_lines(profile_data.value("footerLines").toString());
+    if (updated.style == Profile_style::COMMERCIAL) {
+        auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
+        if (!validate_profile_image_name(logo_image)) {
+            return false;
+        }
+        updated.logo_image = logo_image.toStdString();
+        updated.signer_title = profile_data.value("signerTitle").toString().trimmed().toStdString();
+        updated.footer_lines = split_lines(profile_data.value("footerLines").toString());
+    }
+    else {
+        updated.logo_image.clear();
+        updated.signer_title.clear();
+        updated.footer_lines.clear();
+    }
 
     color_t top_rule_color;
     if (!parse_hex_color(profile_data.value("topRuleColor").toString(), top_rule_color)) {
