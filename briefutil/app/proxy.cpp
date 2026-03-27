@@ -22,6 +22,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <shellapi.h>
 #include <dwmapi.h>
 #endif
 
@@ -505,6 +506,22 @@ static QString sanitize_filename(const QString& input)
     return sanitized;
 }
 
+static bool open_generated_pdf(const QString& pdf_path)
+{
+#ifdef Q_OS_WIN
+    auto result = reinterpret_cast<qintptr>(ShellExecuteW(
+        nullptr,
+        L"open",
+        reinterpret_cast<LPCWSTR>(pdf_path.utf16()),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL));
+    return result > 32;
+#else
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(pdf_path));
+#endif
+}
+
 void Proxy::make_pdf(int from, const QString& to,
                      const QString& subject, const QString& body)
 {
@@ -545,7 +562,7 @@ void Proxy::make_pdf(int from, const QString& to,
 
     auto result = generate_letter_pdf(profile, input,
                                       m_sender_template_dir.toStdString(),
-                                      pdf_path.toStdString(),
+                                      pdf_path.toUtf8().toStdString(),
                                       m_theme);
 
     if (!result.ok) {
@@ -557,7 +574,7 @@ void Proxy::make_pdf(int from, const QString& to,
 
     qInfo("briefutil: native PDF generated in %lld ms", timer.elapsed());
 
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(pdf_path))) {
+    if (!open_generated_pdf(pdf_path)) {
         emit pdf_generated(false,
             "PDF wurde erstellt, konnte aber nicht automatisch geoeffnet werden: "
             + pdf_path);

@@ -2,6 +2,8 @@
 
 #include <hpdf.h>
 
+#include <QFile>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -504,8 +506,78 @@ static bool render_text_span(HPDF_Page page, Haru_context& ctx,
 // Public render entry point
 // ============================================================================
 
-Render_result render_pdf(const Document& doc, const std::string& output_path,
-                         const Font_family_config& fonts)
+static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
+{
+    HPDF_STATUS status = HPDF_SaveToStream(ctx.pdf);
+    if (status != HPDF_OK || !ctx.last_error.empty()) {
+        if (ctx.last_error.empty()) {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf),
+                          "HPDF_SaveToStream failed (status 0x%04X)", (unsigned)status);
+            ctx.last_error = buf;
+        }
+        return false;
+    }
+
+    QFile file(output_path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        ctx.last_error = ("Cannot open output file for writing: " + output_path).toStdString();
+        return false;
+    }
+
+    status = HPDF_ResetStream(ctx.pdf);
+    if (status != HPDF_OK) {
+        char buf[128];
+        std::snprintf(buf, sizeof(buf),
+                      "HPDF_ResetStream failed (status 0x%04X)", (unsigned)status);
+        ctx.last_error = buf;
+        return false;
+    }
+
+    constexpr HPDF_UINT32 chunk_size = 64 * 1024;
+    QByteArray buffer((int)chunk_size, Qt::Uninitialized);
+
+    HPDF_UINT32 remaining = HPDF_GetStreamSize(ctx.pdf);
+    while (remaining > 0) {
+        HPDF_UINT32 to_read = std::min(remaining, chunk_size);
+        status = HPDF_ReadFromStream(ctx.pdf,
+                                     reinterpret_cast<HPDF_BYTE*>(buffer.data()),
+                                     &to_read);
+        if (status != HPDF_OK && status != HPDF_STREAM_EOF) {
+            char buf[128];
+            std::snprintf(buf, sizeof(buf),
+                          "HPDF_ReadFromStream failed (status 0x%04X)", (unsigned)status);
+            ctx.last_error = buf;
+            return false;
+        }
+
+        if (to_read == 0 || to_read > remaining) {
+            ctx.last_error = "HPDF_ReadFromStream returned an invalid byte count";
+            return false;
+        }
+
+        if (file.write(buffer.constData(), to_read) != to_read) {
+            ctx.last_error = ("Failed to write PDF data to: " + output_path).toStdString();
+            return false;
+        }
+
+        remaining -= to_read;
+        if (status == HPDF_STREAM_EOF && remaining != 0) {
+            ctx.last_error = "HPDF_ReadFromStream reached EOF before the full PDF was read";
+            return false;
+        }
+    }
+
+    if (!file.flush()) {
+        ctx.last_error = ("Failed to flush PDF data to: " + output_path).toStdString();
+        return false;
+    }
+
+    return true;
+}
+
+static Render_result render_pdf_qstring(const Document& doc, const QString& output_path,
+                                        const Font_family_config& fonts)
 {
     Haru_context ctx;
 
@@ -549,17 +621,16 @@ Render_result render_pdf(const Document& doc, const std::string& output_path,
         }
     }
 
-    HPDF_STATUS status = HPDF_SaveToFile(ctx.pdf, output_path.c_str());
-    if (status != HPDF_OK || !ctx.last_error.empty()) {
-        if (ctx.last_error.empty()) {
-            char buf[128];
-            std::snprintf(buf, sizeof(buf),
-                          "HPDF_SaveToFile failed (status 0x%04X)", (unsigned)status);
-            ctx.last_error = buf;
-        }
+    if (!save_pdf_stream(ctx, output_path)) {
         return fail("PDF konnte nicht gespeichert werden.", "");
     }
     ctx.destroy();
 
-    return { true, output_path, "", "" };
+    return { true, output_path.toUtf8().toStdString(), "", "" };
+}
+
+Render_result render_pdf(const Document& doc, const std::string& output_path,
+                         const Font_family_config& fonts)
+{
+    return render_pdf_qstring(doc, QString::fromUtf8(output_path), fonts);
 }
