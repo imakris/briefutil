@@ -53,6 +53,15 @@ static bool is_valid_font_config(const Font_family_config& fc)
         && !fc.mono.empty();
 }
 
+static QString normalize_layout_preset(QString preset)
+{
+    preset = preset.trimmed().toLower();
+    if (preset == "din_5008_form_a" || preset == "us_letter") {
+        return preset;
+    }
+    return "din_5008_form_b";
+}
+
 static void ensure_template_dir_ready(const QString& dir_path)
 {
     QDir templates_dir(dir_path);
@@ -416,6 +425,8 @@ void Proxy::load_settings()
         m_sender_template_dir = saved_dir;
     }
 
+    m_layout_preset = normalize_layout_preset(
+        s.value("layout/preset", m_layout_preset).toString());
     m_dark_mode = s.value("appearance/darkMode", false).toBool();
 }
 
@@ -431,6 +442,7 @@ void Proxy::save_settings() const
     s.setValue("typo/body_size",         (double)m_theme.typo.body_size_pt);
     s.setValue("typo/body_leading",      (double)m_theme.typo.body_lead_pt);
     s.setValue("paths/template_dir",     m_sender_template_dir);
+    s.setValue("layout/preset",          m_layout_preset);
     s.setValue("appearance/darkMode",    m_dark_mode);
 }
 
@@ -442,6 +454,17 @@ Localization Proxy::current_localization() const
         return german_localization();
     }
     return english_localization();
+}
+
+Letter_layout_spec Proxy::current_layout_spec() const
+{
+    if (m_layout_preset == "din_5008_form_a") {
+        return din_5008_form_a();
+    }
+    if (m_layout_preset == "us_letter") {
+        return us_letter();
+    }
+    return din_5008_form_b();
 }
 
 
@@ -617,11 +640,12 @@ void Proxy::make_pdf(int from, const QString& to,
     }
 
     auto loc = current_localization();
+    auto layout = current_layout_spec();
     auto result = generate_letter_pdf(profile, input,
                                       m_sender_template_dir.toStdString(),
                                       pdf_path.toUtf8().toStdString(),
                                       m_theme,
-                                      din_5008_form_b(),
+                                      layout,
                                       loc);
 
     if (!result.ok) {
@@ -635,8 +659,9 @@ void Proxy::make_pdf(int from, const QString& to,
 
     if (!open_generated_pdf(pdf_path)) {
         emit pdf_generated(false,
-            "PDF wurde erstellt, konnte aber nicht automatisch geoeffnet werden: "
-            + pdf_path);
+            QString::fromStdString(
+                format_pdf_open_failed(loc.error_pdf_open_failed_format,
+                                       pdf_path.toUtf8().toStdString())));
         return;
     }
 
@@ -656,6 +681,7 @@ QString Proxy::get_font_mono() const             { return m_font_mono_input; }
 double  Proxy::get_body_size() const             { return m_theme.typo.body_size_pt; }
 double  Proxy::get_body_leading() const          { return m_theme.typo.body_lead_pt; }
 QString Proxy::get_template_dir() const          { return m_sender_template_dir; }
+QString Proxy::get_layout_preset() const         { return m_layout_preset; }
 
 void Proxy::update_font_and_save(QString& slot, const QString& v)
 {
@@ -701,6 +727,12 @@ void Proxy::set_template_dir(const QString& v)
     save_settings();
     install_template_watcher();
     discover_profiles();
+}
+
+void Proxy::set_layout_preset(const QString& v)
+{
+    m_layout_preset = normalize_layout_preset(v);
+    save_settings();
 }
 
 bool Proxy::validate_font_value(const QString& v, const QString& role) const

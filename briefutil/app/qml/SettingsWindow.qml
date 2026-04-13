@@ -8,7 +8,7 @@ Window {
     id: settingsWin
 
     width: 520
-    height: 500
+    height: 560
     title: "Settings"
 
     required property var proxyObj
@@ -54,6 +54,7 @@ Window {
     property double bodySize: 10
     property double bodyLeading: 12
     property string templateDir: ""
+    property string layoutPreset: "din_5008_form_b"
 
     // ====================================================================
     // Font validation
@@ -103,6 +104,23 @@ Window {
 
     readonly property bool templateDirOk: proxyObj ? proxyObj.validate_directory(templateDir) : true
 
+    function syncLayoutPresetCombo() {
+        for (var i = 0; i < layoutPresetModel.count; i++) {
+            if (layoutPresetModel.get(i).value === layoutPreset) {
+                layoutPresetCombo.currentIndex = i
+                return
+            }
+        }
+        layoutPresetCombo.currentIndex = 0
+    }
+
+    onLayoutPresetChanged: {
+        if (_initialized && proxyObj) {
+            proxyObj.set_layout_preset(layoutPreset)
+        }
+        syncLayoutPresetCombo()
+    }
+
     // ====================================================================
     // Spinbox values (always valid — range-clamped)
     // ====================================================================
@@ -125,6 +143,8 @@ Window {
         bodySize           = proxyObj.get_body_size()
         bodyLeading        = proxyObj.get_body_leading()
         templateDir        = proxyObj.get_template_dir()
+        layoutPreset       = proxyObj.get_layout_preset()
+        syncLayoutPresetCombo()
         _initialized = true
     }
 
@@ -200,6 +220,13 @@ Window {
                 anchors.centerIn: parent
             }
         }
+    }
+
+    ListModel {
+        id: layoutPresetModel
+        ListElement { text: "DIN 5008 Form B"; value: "din_5008_form_b" }
+        ListElement { text: "DIN 5008 Form A"; value: "din_5008_form_a" }
+        ListElement { text: "US Letter"; value: "us_letter" }
     }
 
     ColumnLayout {
@@ -322,6 +349,59 @@ Window {
                 value: settingsWin.bodyLeading
                 onValueChanged: settingsWin.bodyLeading = value
             }
+        }
+
+        Item { Layout.preferredHeight: 8 }
+
+        Label {
+            text: "Layout"
+            font.bold: true
+            color: settingsWin.textColor
+        }
+
+        RowLayout {
+            spacing: 8
+            Layout.fillWidth: true
+
+            Label {
+                text: "Page preset"
+                Layout.preferredWidth: 100
+                color: settingsWin.dimTextColor
+            }
+
+            ComboBox {
+                id: layoutPresetCombo
+                Layout.fillWidth: true
+                model: layoutPresetModel
+                textRole: "text"
+
+                background: Rectangle {
+                    color: settingsWin.fieldBg
+                    border.width: 1
+                    border.color: settingsWin.fieldBorder
+                }
+
+                contentItem: Text {
+                    leftPadding: 8
+                    rightPadding: layoutPresetCombo.indicator.width + 8
+                    text: layoutPresetCombo.displayText
+                    color: settingsWin.textColor
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                onActivated: {
+                    settingsWin.layoutPreset =
+                        layoutPresetModel.get(currentIndex).value
+                }
+            }
+        }
+
+        Label {
+            text: "Choose the paper size and envelope layout used for generated letters."
+            wrapMode: Text.WordWrap
+            color: settingsWin.dimTextColor
+            Layout.fillWidth: true
         }
 
         Item { Layout.preferredHeight: 8 }

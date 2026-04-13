@@ -1,5 +1,6 @@
 #pragma once
 
+#include "briefutil/letter_layout_spec.h"
 #include "briefutil/localization.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
@@ -40,6 +41,7 @@ public:
     Q_INVOKABLE double  get_body_size() const;
     Q_INVOKABLE double  get_body_leading() const;
     Q_INVOKABLE QString get_template_dir() const;
+    Q_INVOKABLE QString get_layout_preset() const;
 
     Q_INVOKABLE void set_font_sans(const QString& v);
     Q_INVOKABLE void set_font_sans_bold(const QString& v);
@@ -49,6 +51,7 @@ public:
     Q_INVOKABLE void set_body_size(double v);
     Q_INVOKABLE void set_body_leading(double v);
     Q_INVOKABLE void set_template_dir(const QString& v);
+    Q_INVOKABLE void set_layout_preset(const QString& v);
 
     Q_INVOKABLE bool validate_font_value(const QString& v, const QString& role = QString()) const;
     Q_INVOKABLE bool font_value_is_file_backed(const QString& v, const QString& role = QString()) const;
@@ -75,6 +78,7 @@ private:
     void update_font_and_save(QString& slot, const QString& v);
     void install_template_watcher();
     Localization current_localization() const;
+    Letter_layout_spec current_layout_spec() const;
 
     QString m_sender_template_dir;
     QString m_output_dir;
@@ -84,6 +88,7 @@ private:
     QString m_font_sans_italic_input;
     QString m_font_sans_bold_italic_input;
     QString m_font_mono_input;
+    QString m_layout_preset = "din_5008_form_b";
     Theme_config m_theme;
     bool m_dark_mode = false;
     QFileSystemWatcher* m_template_watcher = nullptr;

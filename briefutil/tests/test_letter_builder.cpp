@@ -504,6 +504,15 @@ int main(int argc, char* argv[])
         Localization custom;
         custom.closing             = "Yours truly,";
         custom.page_number_format  = "Sheet {current}/{total}";
+        custom.error_pdf_open_failed_format = "Open failed for {path}";
+
+        auto open_failed = format_pdf_open_failed(
+            custom.error_pdf_open_failed_format, "C:/tmp/out.pdf");
+        if (open_failed != "Open failed for C:/tmp/out.pdf") {
+            std::fprintf(stderr,
+                "FAIL: localized open-failure format was not expanded correctly\n");
+            return 1;
+        }
 
         auto br = build_letter(lr.profile, input, qs(tmp_dir),
                                default_theme(), din_5008_form_b(), custom);
