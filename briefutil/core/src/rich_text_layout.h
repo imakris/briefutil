@@ -2,6 +2,7 @@
 
 #include "briefutil/body_content_model.h"
 #include "briefutil/document_model.h"
+#include "briefutil/localization.h"
 #include "briefutil/typography_config.h"
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@ struct Layout_params
     std::string profile_dir;
     Typography_config typo;
     Font_family_config fonts = default_font_family();
+    Localization loc;
 };
 
 struct Layout_result

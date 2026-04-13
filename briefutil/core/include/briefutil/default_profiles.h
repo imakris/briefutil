@@ -1,6 +1,11 @@
 #pragma once
 
 // Default sender profile JSON strings embedded at compile time.
+//
+// The app uses these to seed the templates folder on first launch, and the
+// tests use them as fixtures. Keeping them in the core public headers means
+// neither the app's resources directory nor a test fixture directory needs
+// to be on the include path.
 
 inline const char* k_default_profile_simple_json = R"({
     "id": "Max Mustermann",

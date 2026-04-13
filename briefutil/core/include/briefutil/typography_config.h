@@ -10,8 +10,16 @@
 inline bool looks_like_font_file(const std::string& s)
 {
     if (s.size() < 4) return false;
-    auto ext = s.substr(s.size() - 4);
-    return ext == ".ttf" || ext == ".otf" || ext == ".TTF" || ext == ".OTF";
+    auto eq_ci = [&](size_t at, const char* lit) {
+        for (size_t i = 0; i < 4; i++) {
+            char a = s[at + i];
+            if (a >= 'A' && a <= 'Z') a = char(a - 'A' + 'a');
+            if (a != lit[i]) return false;
+        }
+        return true;
+    };
+    size_t at = s.size() - 4;
+    return eq_ci(at, ".ttf") || eq_ci(at, ".otf");
 }
 
 struct Font_family_config

@@ -16,9 +16,12 @@ C++ with Qt 6 and libHaru.
 
 - lets you pick a sender profile from JSON files
 - collects recipient, subject, and body text in a small desktop UI
-- supports Markdown in the letter body
-- generates DIN 5008 PDF letters
+- supports Markdown in the letter body (asterisk and underscore variants)
+- generates DIN 5008 form A/B and US Letter PDFs
 - can use either built-in PDF fonts or custom `.ttf` / `.otf` font files
+  (TTF/OTF fonts use UTF-8 encoding so non-CP1252 scripts render correctly)
+- localizable closing line, page-number footer, and error messages
+  (English by default, German auto-selected when the system locale is `de_*`)
 
 The default sender profiles cover two letter styles:
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "briefutil/document_model.h"
+#include "briefutil/localization.h"
 #include "briefutil/typography_config.h"
 #include <string>
 
@@ -11,10 +12,16 @@
 // Renders a Document to a PDF file. Stateless: each call to render() is
 // independent. All coordinate conversion (mm top-left -> pt bottom-left)
 // happens internally.
+//
+// When a font slot is a TTF/OTF file, the renderer loads it with UTF-8
+// encoding so characters outside CP1252 (e.g. Greek, Cyrillic, CJK) render
+// correctly. Built-in base-14 PDF fonts (Helvetica, Times, Courier, etc.)
+// only support WinAnsi and unmappable characters fall back to '?'.
 // ============================================================================
 
 Render_result render_pdf(const Document& doc, const std::string& output_path,
-                         const Font_family_config& fonts = default_font_family());
+                         const Font_family_config& fonts = default_font_family(),
+                         const Localization& loc = default_localization());
 
 
 // ============================================================================
@@ -29,7 +36,7 @@ struct text_metrics_t
 };
 
 // Measure how a text block would render (wrapping, line count, dimensions).
-// Does not draw anything. Uses Helvetica / Helvetica-Bold at the given size.
+// Does not draw anything.
 text_metrics_t measure_text(const std::string& text, Font_id font,
                           float size_pt, float leading_pt,
                           float max_width_mm, bool wrap,
@@ -52,5 +59,6 @@ struct image_dimensions_t
     bool  valid     = false;
 };
 
-// Read the pixel dimensions of a PNG file without rendering it.
+// Read the pixel dimensions of a PNG file by parsing its IHDR chunk
+// directly. Does not load any fonts and does not depend on libHaru.
 image_dimensions_t measure_png(const std::string& path);

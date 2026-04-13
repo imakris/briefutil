@@ -2,6 +2,7 @@
 
 #include "briefutil/document_model.h"
 #include "briefutil/letter_layout_spec.h"
+#include "briefutil/localization.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
 #include <string>
@@ -29,7 +30,8 @@ Build_letter_result build_letter(const Sender_profile& profile,
                                  const Letter_input& input,
                                  const std::string& profile_dir,
                                  const Theme_config& theme = default_theme(),
-                                 const Letter_layout_spec& layout = din_5008_form_b());
+                                 const Letter_layout_spec& layout = din_5008_form_b(),
+                                 const Localization& loc = default_localization());
 
 // Convenience: build + render in one call.
 Render_result generate_letter_pdf(const Sender_profile& profile,
@@ -37,4 +39,5 @@ Render_result generate_letter_pdf(const Sender_profile& profile,
                                   const std::string& profile_dir,
                                   const std::string& output_path,
                                   const Theme_config& theme = default_theme(),
-                                  const Letter_layout_spec& layout = din_5008_form_b());
+                                  const Letter_layout_spec& layout = din_5008_form_b(),
+                                  const Localization& loc = default_localization());

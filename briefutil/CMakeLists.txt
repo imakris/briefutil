@@ -119,6 +119,8 @@ function(briefutil_copy_runtime_dlls target)
     endif()
 endfunction()
 
+enable_testing()
+
 add_subdirectory(core)
 add_subdirectory(app)
 add_subdirectory(tests)

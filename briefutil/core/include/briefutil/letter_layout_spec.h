@@ -44,9 +44,15 @@ struct Letter_layout_spec
     // Closing
     float closing_skip_baselines = 2.0f;
     float sig_width_mm           = 48.26f;   // 1.9 * 25.4
+    float sig_default_aspect     = 0.4f;     // fallback when PNG can't be read
+    float closing_after_pad_mm   = 2.0f;     // gap after closing line
+    float signature_after_pad_mm = 2.0f;     // gap after signature image
+    float closing_extra_room_mm  = 5.0f;     // safety margin in fit estimate
 
     // Footer
-    float footer_margin_mm = 18.0f;    // distance from page bottom
+    float footer_margin_mm    = 18.0f;    // distance from page bottom
+    float footer_line_gap_mm  = 3.0f;     // gap between footer lines
+    float page_bottom_buffer_mm = 5.0f;   // safety gap above the footer
 
     // Continuation pages
     float cont_top_mm = 25.0f;
@@ -72,4 +78,39 @@ struct Letter_layout_spec
     color_t footer_color = { 9/255.0f, 92/255.0f, 105/255.0f };
 };
 
+
+// ============================================================================
+// Named layouts
+//
+// din_5008_form_b is the default office letter layout used in Germany when
+// the page has a printed letterhead. Form A is for letters without a
+// letterhead and pushes the address field higher up the page. us_letter is
+// the same layout as form B with North American page dimensions.
+// ============================================================================
+
 inline Letter_layout_spec din_5008_form_b() { return {}; }
+
+inline Letter_layout_spec din_5008_form_a()
+{
+    // Form A: address field starts ~18 mm higher than form B (top of address
+    // field at ~27 mm vs. ~45 mm). Fold marks shift accordingly so the
+    // window envelope still aligns with the recipient block.
+    Letter_layout_spec L;
+    L.return_y_mm       = 41.2f;
+    L.return_rule_y_mm  = 44.3f;
+    L.recip_y_mm        = 45.5f;
+    L.sender_y_mm       = 32.0f;
+    L.date_y_mm         = 66.0f;
+    L.top_rule_y_mm     = 27.0f;
+    L.fold1_y_mm        = 87.0f;
+    L.fold2_y_mm        = 192.0f;
+    return L;
+}
+
+inline Letter_layout_spec us_letter()
+{
+    Letter_layout_spec L;
+    L.page_width_mm  = 215.9f;   // 8.5 in
+    L.page_height_mm = 279.4f;   // 11 in
+    return L;
+}

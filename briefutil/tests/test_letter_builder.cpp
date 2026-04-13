@@ -2,7 +2,7 @@
 // Full pipeline test — profile loading + letter builder + renderer
 // ============================================================================
 
-#include "default_profiles.h"
+#include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
 #include "briefutil/pdf_renderer_haru.h"
 #include "briefutil/sender_profile.h"
@@ -457,6 +457,89 @@ int main(int argc, char* argv[])
             std::fprintf(stderr, "FAIL: empty-subject body block not found\n");
             return 1;
         }
+
+        QFile::remove(profile_path);
+        QDir().rmdir(tmp_dir);
+    }
+
+    // -- Test 6: localization is honored (closing line + page numbers) --
+    {
+        QString tmp_dir = QDir::tempPath() + "/briefutil_test_loc";
+        QDir().mkpath(tmp_dir);
+
+        QString profile_path = tmp_dir + "/test_profile.json";
+        QFile f(profile_path);
+        if (!f.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "FAIL: cannot write loc test profile: %s\n",
+                         qs(profile_path).c_str());
+            return 1;
+        }
+        f.write(k_default_profile_simple_json);
+        f.close();
+
+        auto lr = load_sender_profile(qs(profile_path));
+        if (!lr.ok) {
+            std::fprintf(stderr, "FAIL: loc profile load: %s\n", lr.error.c_str());
+            return 1;
+        }
+        lr.profile.signature_image.clear();
+
+        Letter_input input;
+        input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
+        input.subject = "Brief mit Localization";
+        input.date = "13. April 2026";
+
+        // Generate a long body to force multi-page output (so the page
+        // number footer is emitted).
+        std::string body;
+        for (int i = 0; i < 15; i++) {
+            if (i > 0) body += "\n\n";
+            body += "Paragraph " + std::to_string(i + 1)
+                + " is intentionally long enough to force pagination "
+                "across multiple pages so that the page number footer "
+                "is emitted somewhere in the document.";
+        }
+        input.body = body;
+
+        Localization custom;
+        custom.closing             = "Yours truly,";
+        custom.page_number_format  = "Sheet {current}/{total}";
+
+        auto br = build_letter(lr.profile, input, qs(tmp_dir),
+                               default_theme(), din_5008_form_b(), custom);
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: loc build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+        if (br.doc.pages.size() < 2) {
+            std::fprintf(stderr, "FAIL: loc test expected multi-page output\n");
+            return 1;
+        }
+
+        bool found_closing = false;
+        bool found_page_number = false;
+        for (const auto& page : br.doc.pages) {
+            for (const auto& element : page.elements) {
+                if (const auto* text = std::get_if<Text_block>(&element)) {
+                    if (text->text == "Yours truly,") found_closing = true;
+                    if (text->text.find("Sheet ") == 0
+                        && text->text.find("/") != std::string::npos) {
+                        found_page_number = true;
+                    }
+                }
+            }
+        }
+        if (!found_closing) {
+            std::fprintf(stderr,
+                "FAIL: localized closing 'Yours truly,' not found in document\n");
+            return 1;
+        }
+        if (!found_page_number) {
+            std::fprintf(stderr,
+                "FAIL: localized page number 'Sheet X/Y' not found in document\n");
+            return 1;
+        }
+        std::printf("[OK] Localization closing + page number applied\n");
 
         QFile::remove(profile_path);
         QDir().rmdir(tmp_dir);
