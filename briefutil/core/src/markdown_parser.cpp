@@ -28,6 +28,16 @@ static size_t find_closing(const std::string& s, size_t start, const char* delim
     return std::string::npos;
 }
 
+// Word-character test for underscore flanking. We use this rather than
+// CommonMark's full punctuation rules so identifiers like `snake_case` stay
+// as plain text and aren't misread as italic.
+static bool is_word_char(char c)
+{
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9');
+}
+
 static std::vector<Text_run> parse_inline(const std::string& text)
 {
     std::vector<Text_run> runs;
@@ -39,6 +49,32 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             runs.push_back({ current, style });
             current.clear();
         }
+    };
+
+    auto can_open_underscore = [&](size_t pos) -> bool {
+        return pos == 0 || !is_word_char(text[pos - 1]);
+    };
+
+    auto find_closing_underscore = [&](size_t start, size_t delim_len) -> size_t {
+        size_t pos = start;
+        while (pos + delim_len <= text.size()) {
+            if (text[pos] == '\n') return std::string::npos;
+            bool all_underscore = true;
+            for (size_t k = 0; k < delim_len; k++) {
+                if (text[pos + k] != '_') { all_underscore = false; break; }
+            }
+            if (all_underscore) {
+                bool extends = (pos + delim_len < text.size()
+                                && text[pos + delim_len] == '_');
+                char after = (pos + delim_len < text.size())
+                    ? text[pos + delim_len] : ' ';
+                if (!extends && !is_word_char(after)) {
+                    return pos;
+                }
+            }
+            pos++;
+        }
+        return std::string::npos;
     };
 
     while (i < text.size()) {
@@ -78,6 +114,43 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             }
         }
 
+        // Bold+italic: ___text___
+        if (starts_with(text, i, "___") && can_open_underscore(i)) {
+            size_t close = find_closing_underscore(i + 3, 3);
+            if (close != std::string::npos) {
+                flush();
+                runs.push_back({ text.substr(i + 3, close - i - 3),
+                                 Inline_style::BOLD_ITALIC });
+                i = close + 3;
+                continue;
+            }
+        }
+
+        // Bold: __text__
+        if (starts_with(text, i, "__") && can_open_underscore(i)) {
+            size_t close = find_closing_underscore(i + 2, 2);
+            if (close != std::string::npos) {
+                flush();
+                runs.push_back({ text.substr(i + 2, close - i - 2),
+                                 Inline_style::BOLD });
+                i = close + 2;
+                continue;
+            }
+        }
+
+        // Italic: _text_
+        if (text[i] == '_' && !starts_with(text, i, "__")
+            && can_open_underscore(i)) {
+            size_t close = find_closing_underscore(i + 1, 1);
+            if (close != std::string::npos) {
+                flush();
+                runs.push_back({ text.substr(i + 1, close - i - 1),
+                                 Inline_style::ITALIC });
+                i = close + 1;
+                continue;
+            }
+        }
+
         // Inline code: `text`
         if (text[i] == '`') {
             size_t close = text.find('`', i + 1);
@@ -90,14 +163,29 @@ static std::vector<Text_run> parse_inline(const std::string& text)
             }
         }
 
-        // Link: [display text](url) — keep display text, discard URL
+        // Link: [display text](url) — print "display text (url)" so the
+        // URL is not silently lost. If the display text already equals the
+        // URL (autolinks like [http://x](http://x)) we don't duplicate it.
         if (text[i] == '[') {
             size_t bracket_close = text.find("](", i + 1);
             if (bracket_close != std::string::npos) {
                 size_t paren_close = text.find(')', bracket_close + 2);
                 if (paren_close != std::string::npos) {
-                    // Emit the display text as normal text
-                    current += text.substr(i + 1, bracket_close - i - 1);
+                    auto display = text.substr(i + 1, bracket_close - i - 1);
+                    auto url = text.substr(bracket_close + 2,
+                                           paren_close - bracket_close - 2);
+                    if (display.empty()) {
+                        current += url;
+                    }
+                    else if (display == url) {
+                        current += display;
+                    }
+                    else {
+                        current += display;
+                        current += " (";
+                        current += url;
+                        current += ")";
+                    }
                     i = paren_close + 1;
                     continue;
                 }

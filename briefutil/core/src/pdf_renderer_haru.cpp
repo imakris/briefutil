@@ -10,6 +10,14 @@
 #include <cstring>
 
 
+// ============================================================================
+// UTF-8 → WinAnsi (CP1252) fallback for base-14 fonts
+//
+// libHaru's built-in base-14 PDF fonts only support WinAnsi. For TTF/OTF
+// fonts loaded with the UTF-8 encoder we send UTF-8 bytes directly and skip
+// this conversion entirely.
+// ============================================================================
+
 static bool append_win_ansi_byte(std::string& out, unsigned codepoint)
 {
     if (codepoint <= 0x7F) {
@@ -108,42 +116,86 @@ static std::string utf8_to_win_ansi(const std::string& text)
 
 
 // ============================================================================
+// Font handle wrapper
+//
+// Pairs an HPDF_Font with the encoding mode of the slot it was loaded into,
+// so callers can decide whether to feed UTF-8 bytes directly or convert to
+// WinAnsi first.
+// ============================================================================
+
+struct font_handle_t
+{
+    HPDF_Font handle = nullptr;
+    bool      utf8   = false;
+
+    explicit operator bool() const { return handle != nullptr; }
+};
+
+static std::string encode_for_font(const font_handle_t& f, const std::string& text)
+{
+    return f.utf8 ? text : utf8_to_win_ansi(text);
+}
+
+
+// ============================================================================
 // Shared PDF context for font access in measurement and rendering
 // ============================================================================
 
 struct Haru_context
 {
-    HPDF_Doc  pdf  = nullptr;
-    HPDF_Font sans = nullptr;
-    HPDF_Font sans_bold = nullptr;
-    HPDF_Font sans_italic = nullptr;
-    HPDF_Font sans_bold_italic = nullptr;
-    HPDF_Font mono = nullptr;
+    HPDF_Doc      pdf = nullptr;
+    font_handle_t fonts[5] = {};
+    std::string   last_error;
+
+    ~Haru_context() { destroy(); }
 
     bool init(const Font_family_config& fc = default_font_family())
     {
         last_error.clear();
         pdf = HPDF_New(error_handler, this);
         if (!pdf) return false;
-        HPDF_SetCurrentEncoder(pdf, "WinAnsiEncoding");
         HPDF_UseUTFEncodings(pdf);
 
-        auto load_font = [&](const std::string& value) -> HPDF_Font {
-            if (value.empty()) return nullptr;
+        auto load_font = [&](const std::string& value) -> font_handle_t {
+            font_handle_t out;
+            if (value.empty()) return out;
             if (looks_like_font_file(value)) {
                 const char* name = HPDF_LoadTTFontFromFile(pdf, value.c_str(), HPDF_TRUE);
-                if (!name) return nullptr;
-                return HPDF_GetFont(pdf, name, "WinAnsiEncoding");
+                if (!name) return out;
+                HPDF_Font f = HPDF_GetFont(pdf, name, "UTF-8");
+                if (!f) {
+                    // Some libHaru builds (or fonts without a Unicode cmap)
+                    // do not support UTF-8. Fall back to WinAnsi so the
+                    // configuration is still usable.
+                    last_error.clear();
+                    HPDF_ResetError(pdf);
+                    f = HPDF_GetFont(pdf, name, "WinAnsiEncoding");
+                    if (!f) return out;
+                    out.handle = f;
+                    out.utf8 = false;
+                    return out;
+                }
+                out.handle = f;
+                out.utf8 = true;
+                return out;
             }
-            return HPDF_GetFont(pdf, value.c_str(), "WinAnsiEncoding");
+            HPDF_Font f = HPDF_GetFont(pdf, value.c_str(), "WinAnsiEncoding");
+            if (!f) return out;
+            out.handle = f;
+            out.utf8 = false;
+            return out;
         };
 
-        sans             = load_font(fc.sans);
-        sans_bold        = load_font(fc.sans_bold);
-        sans_italic      = load_font(fc.sans_italic);
-        sans_bold_italic = load_font(fc.sans_bold_italic);
-        mono             = load_font(fc.mono);
-        return sans && sans_bold && sans_italic && sans_bold_italic && mono;
+        fonts[(int)Font_id::SANS]             = load_font(fc.sans);
+        fonts[(int)Font_id::SANS_BOLD]        = load_font(fc.sans_bold);
+        fonts[(int)Font_id::SANS_ITALIC]      = load_font(fc.sans_italic);
+        fonts[(int)Font_id::SANS_BOLD_ITALIC] = load_font(fc.sans_bold_italic);
+        fonts[(int)Font_id::MONO]             = load_font(fc.mono);
+
+        for (auto& f : fonts) {
+            if (!f) return false;
+        }
+        return true;
     }
 
     void destroy()
@@ -152,25 +204,15 @@ struct Haru_context
             HPDF_Free(pdf);
             pdf = nullptr;
         }
-        sans = nullptr;
-        sans_bold = nullptr;
-        sans_italic = nullptr;
-        sans_bold_italic = nullptr;
-        mono = nullptr;
-    }
-
-    HPDF_Font font_for(Font_id id) const
-    {
-        switch (id) {
-            case Font_id::SANS_BOLD:        return sans_bold;
-            case Font_id::SANS_ITALIC:      return sans_italic;
-            case Font_id::SANS_BOLD_ITALIC: return sans_bold_italic;
-            case Font_id::MONO:             return mono;
-            default:                        return sans;
+        for (auto& f : fonts) {
+            f = {};
         }
     }
 
-    std::string last_error;
+    font_handle_t font_for(Font_id id) const
+    {
+        return fonts[(int)id];
+    }
 
     static void HPDF_STDCALL error_handler(HPDF_STATUS error_no,
                                            HPDF_STATUS detail_no,
@@ -186,30 +228,36 @@ struct Haru_context
 
     bool ready() const
     {
-        return pdf && sans && sans_bold && sans_italic && sans_bold_italic && mono;
+        if (!pdf) return false;
+        for (auto& f : fonts) {
+            if (!f) return false;
+        }
+        return true;
     }
 };
+
+
+// ============================================================================
+// Text width — works with both UTF-8 and WinAnsi font slots
+// ============================================================================
+
+static float font_text_width_pt(const font_handle_t& font, float size_pt,
+                                const std::string& text)
+{
+    if (!font) return 0;
+    auto encoded = encode_for_font(font, text);
+    auto tw = HPDF_Font_TextWidth(font.handle,
+                                  (const HPDF_BYTE*)encoded.c_str(),
+                                  (HPDF_UINT)encoded.size());
+    return tw.width * size_pt / 1000.0f;
+}
 
 
 // ============================================================================
 // Text wrapping (greedy, with explicit newline support)
 // ============================================================================
 
-static float measure_string_width(HPDF_Font font, float size_pt,
-                                  const char* str, size_t len)
-{
-    auto tw = HPDF_Font_TextWidth(font, (const HPDF_BYTE*)str, (HPDF_UINT)len);
-    return tw.width * size_pt / 1000.0f;
-}
-
-static float measure_text_width_utf8(HPDF_Font font, float size_pt,
-                                     const std::string& text)
-{
-    auto encoded = utf8_to_win_ansi(text);
-    return measure_string_width(font, size_pt, encoded.c_str(), encoded.size());
-}
-
-static std::vector<std::string> do_wrap(HPDF_Font font, float size_pt,
+static std::vector<std::string> do_wrap(const font_handle_t& font, float size_pt,
                                         float max_width_pt,
                                         const std::string& text)
 {
@@ -237,7 +285,7 @@ static std::vector<std::string> do_wrap(HPDF_Font font, float size_pt,
         for (const auto& word : words) {
             std::string candidate = current.empty()
                 ? word : current + " " + word;
-            float w = measure_text_width_utf8(font, size_pt, candidate);
+            float w = font_text_width_pt(font, size_pt, candidate);
             if (w > max_width_pt && !current.empty()) {
                 result.push_back(current);
                 current = word;
@@ -285,7 +333,7 @@ text_metrics_t measure_text(const std::string& text, Font_id font_id,
     if (!ctx.ready()) {
         return {};
     }
-    HPDF_Font font = ctx.font_for(font_id);
+    auto font = ctx.font_for(font_id);
     if (!font) {
         return {};
     }
@@ -302,7 +350,7 @@ text_metrics_t measure_text(const std::string& text, Font_id font_id,
 
     float max_w = 0;
     for (const auto& line : lines) {
-        float w = measure_text_width_utf8(font, size_pt, line);
+        float w = font_text_width_pt(font, size_pt, line);
         max_w = std::max(max_w, w);
     }
 
@@ -320,41 +368,53 @@ std::vector<std::string> wrap_text(const std::string& text, Font_id font_id,
     if (!ctx.ready()) {
         return {};
     }
-    HPDF_Font font = ctx.font_for(font_id);
+    auto font = ctx.font_for(font_id);
     if (!font) {
         return {};
     }
-    // Return UTF-8 lines. Width measurement will be approximate for non-ASCII
-    // (multi-byte chars measured as multiple glyphs), but wrap boundaries are
-    // correct since breaks only happen at spaces. The render path converts to
-    // Latin-1 once at the final rendering step.
     return do_wrap(font, size_pt, mm_to_pt(max_width_mm), text);
 }
 
 
 // ============================================================================
 // Image measurement
+//
+// Reads PNG dimensions by parsing the IHDR chunk directly. Avoids loading
+// any fonts and does not depend on libHaru being initialised. The PNG
+// signature plus the IHDR header is always at the start of a valid PNG file.
 // ============================================================================
 
 image_dimensions_t measure_png(const std::string& path)
 {
-    // Use a temporary context to avoid accumulating image objects
-    // in the long-lived measurement context.
-    Haru_context tmp;
-    if (!tmp.init()) return {};
+    image_dimensions_t empty;
+    if (path.empty()) return empty;
 
-    HPDF_Image img = HPDF_LoadPngImageFromFile(tmp.pdf, path.c_str());
-    if (!img) {
-        tmp.destroy();
-        return {};
-    }
+    // Use QFile so non-ASCII paths work on Windows. The rest of the renderer
+    // already depends on Qt.
+    QFile file(QString::fromUtf8(path.c_str()));
+    if (!file.open(QIODevice::ReadOnly)) return empty;
 
-    image_dimensions_t dims = {
-        (float)HPDF_Image_GetWidth(img),
-        (float)HPDF_Image_GetHeight(img),
-        true
+    QByteArray header = file.read(24);
+    if (header.size() < 24) return empty;
+
+    static const unsigned char k_png_sig[8] = {
+        0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
     };
-    tmp.destroy();
+    auto* d = reinterpret_cast<const unsigned char*>(header.constData());
+    if (std::memcmp(d, k_png_sig, 8) != 0) return empty;
+    if (std::memcmp(d + 12, "IHDR", 4) != 0) return empty;
+
+    auto rd_u32 = [&](int o) -> unsigned {
+        return (unsigned(d[o]) << 24)
+             | (unsigned(d[o + 1]) << 16)
+             | (unsigned(d[o + 2]) << 8)
+             |  unsigned(d[o + 3]);
+    };
+
+    image_dimensions_t dims;
+    dims.width_px  = (float)rd_u32(16);
+    dims.height_px = (float)rd_u32(20);
+    dims.valid     = dims.width_px > 0 && dims.height_px > 0;
     return dims;
 }
 
@@ -374,7 +434,7 @@ static float tl_y(float y_mm, float page_height_mm)
 static bool render_text_block(HPDF_Page page, Haru_context& ctx,
                               const Text_block& tb, float page_h_mm)
 {
-    HPDF_Font font = ctx.font_for(tb.font);
+    auto font = ctx.font_for(tb.font);
     if (!font) {
         ctx.last_error = "Text rendering failed: font handle is unavailable.";
         return false;
@@ -395,7 +455,7 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
     float y_pt = tl_y(tb.y_mm, page_h_mm) - tb.size_pt;
 
     HPDF_Page_BeginText(page);
-    HPDF_Page_SetFontAndSize(page, font, tb.size_pt);
+    HPDF_Page_SetFontAndSize(page, font.handle, tb.size_pt);
     HPDF_Page_SetRGBFill(page, tb.color.r, tb.color.g, tb.color.b);
     HPDF_Page_SetTextLeading(page, lead);
     HPDF_Page_MoveTextPos(page, x_pt, y_pt);
@@ -404,7 +464,7 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
         if (i > 0) {
             HPDF_Page_MoveTextPos(page, 0, -lead);
         }
-        auto encoded_line = utf8_to_win_ansi(lines[i]);
+        auto encoded_line = encode_for_font(font, lines[i]);
         HPDF_Page_ShowText(page, encoded_line.c_str());
     }
 
@@ -424,7 +484,8 @@ static bool render_line_segment(HPDF_Page page, Haru_context& ctx,
 }
 
 static bool render_image_block(HPDF_Page page, Haru_context& ctx,
-                               const Image_block& ib, float page_h_mm)
+                               const Image_block& ib, float page_h_mm,
+                               const Localization& loc)
 {
     HPDF_Image img = HPDF_LoadPngImageFromFile(ctx.pdf, ib.path.c_str());
     if (!img) {
@@ -433,14 +494,15 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
         ctx.last_error.clear();
         HPDF_ResetError(ctx.pdf);
 
-        std::string placeholder = "[Bild nicht gefunden: " + ib.path + "]";
-        auto encoded = utf8_to_win_ansi(placeholder);
-        HPDF_Font font = ctx.font_for(Font_id::SANS_ITALIC);
+        std::string placeholder = format_image_not_found(loc.image_not_found_format,
+                                                          ib.path);
+        auto font = ctx.font_for(Font_id::SANS_ITALIC);
         if (font) {
+            auto encoded = encode_for_font(font, placeholder);
             float x_pt = tl_x(ib.x_mm);
             float y_pt = tl_y(ib.y_mm, page_h_mm) - 8.0f;
             HPDF_Page_BeginText(page);
-            HPDF_Page_SetFontAndSize(page, font, 8.0f);
+            HPDF_Page_SetFontAndSize(page, font.handle, 8.0f);
             HPDF_Page_SetRGBFill(page, 0.6f, 0.0f, 0.0f);
             HPDF_Page_MoveTextPos(page, x_pt, y_pt);
             HPDF_Page_ShowText(page, encoded.c_str());
@@ -483,16 +545,16 @@ static bool render_filled_rect(HPDF_Page page, Haru_context& ctx,
 static bool render_text_span(HPDF_Page page, Haru_context& ctx,
                              const Text_span& ts, float page_h_mm)
 {
-    HPDF_Font font = ctx.font_for(ts.font);
+    auto font = ctx.font_for(ts.font);
     if (!font) {
         ctx.last_error = "Text span rendering failed: font handle unavailable.";
         return false;
     }
 
-    auto encoded = utf8_to_win_ansi(ts.text);
+    auto encoded = encode_for_font(font, ts.text);
 
     HPDF_Page_BeginText(page);
-    HPDF_Page_SetFontAndSize(page, font, ts.size_pt);
+    HPDF_Page_SetFontAndSize(page, font.handle, ts.size_pt);
     HPDF_Page_SetRGBFill(page, ts.color.r, ts.color.g, ts.color.b);
     HPDF_Page_MoveTextPos(page, tl_x(ts.x_mm),
                           tl_y(ts.y_mm, page_h_mm) - ts.size_pt);
@@ -577,25 +639,25 @@ static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
 }
 
 static Render_result render_pdf_qstring(const Document& doc, const QString& output_path,
-                                        const Font_family_config& fonts)
+                                        const Font_family_config& fonts,
+                                        const Localization& loc)
 {
     Haru_context ctx;
 
-    auto fail = [&](const char* message, const char* fallback_detail) {
+    auto fail = [&](const std::string& message, const char* fallback_detail) {
         auto detail = ctx.last_error.empty()
             ? std::string(fallback_detail) : ctx.last_error;
-        ctx.destroy();
         return Render_result{ false, "", message, detail };
     };
 
     if (!ctx.init(fonts)) {
-        return fail("PDF-Erstellung fehlgeschlagen.", "Failed to initialize libHaru");
+        return fail(loc.error_pdf_create_failed, "Failed to initialize libHaru");
     }
 
     for (const auto& page_def : doc.pages) {
         HPDF_Page page = HPDF_AddPage(ctx.pdf);
         if (!page) {
-            return fail("PDF-Erstellung fehlgeschlagen.", "HPDF_AddPage failed");
+            return fail(loc.error_pdf_create_failed, "HPDF_AddPage failed");
         }
         HPDF_Page_SetWidth(page, mm_to_pt(doc.page_width_mm));
         HPDF_Page_SetHeight(page, mm_to_pt(doc.page_height_mm));
@@ -608,7 +670,7 @@ static Render_result render_pdf_qstring(const Document& doc, const QString& outp
                 else if constexpr (std::is_same_v<T, line_segment_t>)
                     return render_line_segment(page, ctx, e, doc.page_height_mm);
                 else if constexpr (std::is_same_v<T, Image_block>)
-                    return render_image_block(page, ctx, e, doc.page_height_mm);
+                    return render_image_block(page, ctx, e, doc.page_height_mm, loc);
                 else if constexpr (std::is_same_v<T, Text_span>)
                     return render_text_span(page, ctx, e, doc.page_height_mm);
                 else if constexpr (std::is_same_v<T, filled_rect_t>)
@@ -616,21 +678,21 @@ static Render_result render_pdf_qstring(const Document& doc, const QString& outp
                 return false;
             }, elem);
             if (!ok) {
-                return fail("PDF-Erstellung fehlgeschlagen.", "PDF rendering failed");
+                return fail(loc.error_pdf_create_failed, "PDF rendering failed");
             }
         }
     }
 
     if (!save_pdf_stream(ctx, output_path)) {
-        return fail("PDF konnte nicht gespeichert werden.", "");
+        return fail(loc.error_pdf_save_failed, "");
     }
-    ctx.destroy();
 
     return { true, output_path.toUtf8().toStdString(), "", "" };
 }
 
 Render_result render_pdf(const Document& doc, const std::string& output_path,
-                         const Font_family_config& fonts)
+                         const Font_family_config& fonts,
+                         const Localization& loc)
 {
-    return render_pdf_qstring(doc, QString::fromUtf8(output_path), fonts);
+    return render_pdf_qstring(doc, QString::fromUtf8(output_path), fonts, loc);
 }

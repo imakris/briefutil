@@ -2,6 +2,7 @@
 #include "briefutil/pdf_renderer_haru.h"
 
 #include <algorithm>
+#include <unordered_map>
 
 
 // ============================================================================
@@ -83,6 +84,19 @@ static std::vector<Laid_out_line> layout_runs(
     std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
 
+    // Cache space widths per Font_id — measure_text(" ", ...) is otherwise
+    // called once per word, and each call walks the libHaru font width
+    // table from scratch.
+    float space_widths_mm[5] = { -1, -1, -1, -1, -1 };
+    auto space_width_mm_for = [&](Font_id fid) -> float {
+        int idx = (int)fid;
+        if (space_widths_mm[idx] < 0) {
+            auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
+            space_widths_mm[idx] = pt_to_mm(sp_m.width_pt);
+        }
+        return space_widths_mm[idx];
+    };
+
     // Current line being built.
     // We accumulate consecutive words of the same style into one span
     // so that spaces are real characters in the PDF, not positional gaps.
@@ -136,11 +150,8 @@ static std::vector<Laid_out_line> layout_runs(
                     auto word_m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
                     float word_w_mm = pt_to_mm(word_m.width_pt);
 
-                    float space_w_mm = 0;
-                    if (cursor_x_mm > left_mm) {
-                        auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
-                        space_w_mm = pt_to_mm(sp_m.width_pt);
-                    }
+                    float space_w_mm = (cursor_x_mm > left_mm)
+                        ? space_width_mm_for(fid) : 0.0f;
 
                     // Line break if word doesn't fit
                     if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm
@@ -624,46 +635,56 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                                                 params.typo.table_cell_pad_mm,
                                                 params.fonts);
                 if (!tl.valid) {
-                    result.error = "Eine Tabelle ist zu breit f\xc3\xbcr "
-                                   "den verf\xc3\xbcgbaren Seitenbereich.";
+                    result.error = params.loc.error_table_too_wide;
                     return;
                 }
                 else {
                     int header_rows = b.has_header ? 1 : 0;
 
+                    auto emit_row = [&](int row_index, bool is_header_row) {
+                        std::vector<Page_element> row_elements;
+                        float row_h = layout_table_row(
+                            b.rows[row_index], tl,
+                            params.left_mm, cursor.y_mm,
+                            params.typo.body_size_pt, params.typo.body_lead_pt,
+                            params.body_color, params.typo.table_cell_pad_mm,
+                            is_header_row, params.fonts, row_elements);
+                        for (auto& elem : row_elements) {
+                            cursor.current_elements().push_back(std::move(elem));
+                        }
+                        cursor.y_mm += row_h;
+                        return row_h;
+                    };
+
                     for (int ri = 0; ri < (int)b.rows.size(); ri++) {
                         bool is_header = (ri < header_rows);
 
-                        // Lay out the row into a temporary buffer to get
-                        // the real height before committing to the page.
-                        std::vector<Page_element> row_elements;
+                        // Lay out the row into a temporary buffer to get the
+                        // real height before committing to the page.
+                        std::vector<Page_element> probe;
                         float row_h = layout_table_row(
                             b.rows[ri], tl,
                             params.left_mm, cursor.y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm, is_header,
-                            params.fonts, row_elements);
+                            params.fonts, probe);
 
-                        // If the row doesn't fit, move to the next page
-                        // and re-layout at the new position.
+                        // If the row doesn't fit, move to the next page,
+                        // re-emit the header rows on the new page, and then
+                        // emit this row at the new position.
                         if (!cursor.fits(row_h)) {
                             cursor.new_page();
-                            row_elements.clear();
-                            row_h = layout_table_row(
-                                b.rows[ri], tl,
-                                params.left_mm, cursor.y_mm,
-                                params.typo.body_size_pt, params.typo.body_lead_pt,
-                                params.body_color, params.typo.table_cell_pad_mm, is_header,
-                                params.fonts, row_elements);
+                            for (int hi = 0; hi < header_rows && hi < ri; hi++) {
+                                emit_row(hi, true);
+                            }
+                            emit_row(ri, is_header);
                         }
-
-                        // If the row still doesn't fit (taller than
-                        // a full page), emit it anyway — truncation is
-                        // preferable to an infinite loop.
-                        for (auto& elem : row_elements) {
-                            cursor.current_elements().push_back(std::move(elem));
+                        else {
+                            for (auto& elem : probe) {
+                                cursor.current_elements().push_back(std::move(elem));
+                            }
+                            cursor.y_mm += row_h;
                         }
-                        cursor.y_mm += row_h;
                     }
                 }
                 cursor.y_mm += params.typo.paragraph_space_mm;

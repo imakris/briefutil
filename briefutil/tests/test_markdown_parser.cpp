@@ -240,6 +240,75 @@ int main()
         std::printf("[OK] Empty input\n");
     }
 
+    // -- Underscore italic --
+    {
+        auto blocks = parse_markdown("Hello _italic_ world");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 3, "underscore italic = 3 runs");
+        ASSERT(p->runs[1].text == "italic", "italic run text");
+        ASSERT(p->runs[1].style == Inline_style::ITALIC, "italic run style");
+        std::printf("[OK] Underscore italic\n");
+    }
+
+    // -- Underscore bold --
+    {
+        auto blocks = parse_markdown("Hello __bold__ world");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 3, "underscore bold = 3 runs");
+        ASSERT(p->runs[1].text == "bold", "bold run text");
+        ASSERT(p->runs[1].style == Inline_style::BOLD, "bold run style");
+        std::printf("[OK] Underscore bold\n");
+    }
+
+    // -- Underscore bold+italic --
+    {
+        auto blocks = parse_markdown("Hello ___both___ world");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 3, "underscore bold+italic = 3 runs");
+        ASSERT(p->runs[1].text == "both", "both run text");
+        ASSERT(p->runs[1].style == Inline_style::BOLD_ITALIC, "both run style");
+        std::printf("[OK] Underscore bold+italic\n");
+    }
+
+    // -- snake_case is NOT italic --
+    {
+        auto blocks = parse_markdown("call function_name() please");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 1, "snake_case = single normal run");
+        ASSERT(p->runs[0].text == "call function_name() please",
+               "snake_case preserved");
+        ASSERT(p->runs[0].style == Inline_style::NORMAL, "snake_case is normal");
+        std::printf("[OK] snake_case is not italicized\n");
+    }
+
+    // -- Mid-word underscore is not bold --
+    {
+        auto blocks = parse_markdown("foo__bar__baz");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 1, "mid-word __ = plain");
+        ASSERT(p->runs[0].text == "foo__bar__baz", "mid-word __ preserved");
+        std::printf("[OK] Mid-word underscore is not bold\n");
+    }
+
+    // -- Link: display text + URL preserved --
+    {
+        auto blocks = parse_markdown("See [briefutil](https://example.org) docs");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs.size() == 1, "link = 1 normal run");
+        ASSERT(p->runs[0].text == "See briefutil (https://example.org) docs",
+               "link prints display + url");
+        std::printf("[OK] Link preserves URL\n");
+    }
+
+    // -- Autolink: display equals URL, not duplicated --
+    {
+        auto blocks = parse_markdown("See [https://example.org](https://example.org)");
+        auto* p = get_block<Paragraph_block>(blocks[0]);
+        ASSERT(p && p->runs[0].text == "See https://example.org",
+               "autolink not duplicated");
+        std::printf("[OK] Autolink not duplicated\n");
+    }
+
     std::printf("\nAll markdown parser tests passed.\n");
     return 0;
 }

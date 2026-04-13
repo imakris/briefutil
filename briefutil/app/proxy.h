@@ -1,5 +1,6 @@
 #pragma once
 
+#include "briefutil/localization.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
 
@@ -9,6 +10,8 @@
 #include <QUrl>
 #include <QVariantMap>
 
+class QFileSystemWatcher;
+class QTimer;
 class QWindow;
 
 class Proxy: public QObject
@@ -70,6 +73,8 @@ private:
     void save_settings() const;
     void discover_profiles();
     void update_font_and_save(QString& slot, const QString& v);
+    void install_template_watcher();
+    Localization current_localization() const;
 
     QString m_sender_template_dir;
     QString m_output_dir;
@@ -80,4 +85,7 @@ private:
     QString m_font_sans_bold_italic_input;
     QString m_font_mono_input;
     Theme_config m_theme;
+    bool m_dark_mode = false;
+    QFileSystemWatcher* m_template_watcher = nullptr;
+    QTimer* m_discover_timer = nullptr;
 };

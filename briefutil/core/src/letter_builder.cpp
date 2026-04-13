@@ -1,4 +1,5 @@
 #include "briefutil/letter_builder.h"
+#include "briefutil/localization.h"
 #include "briefutil/markdown_parser.h"
 #include "briefutil/pdf_renderer_haru.h"
 #include "rich_text_layout.h"
@@ -50,7 +51,8 @@ Build_letter_result build_letter(const Sender_profile& profile,
                                  const Letter_input& input,
                                  const std::string& profile_dir,
                                  const Theme_config& theme,
-                                 const Letter_layout_spec& layout)
+                                 const Letter_layout_spec& layout,
+                                 const Localization& loc)
 {
     const auto& typo = theme.typo;
     const auto& L = layout;
@@ -96,8 +98,6 @@ Build_letter_result build_letter(const Sender_profile& profile,
                                   : subject_y_mm;
 
     // Closing block height estimate
-    // UTF-8: ü = \xc3\xbc, ß = \xc3\x9f
-    std::string closing_text = "Mit freundlichen Gr" "\xc3\xbc" "\xc3" "\x9f" "en";
     float closing_height_mm = pt_to_mm(L.closing_skip_baselines * typo.body_lead_pt)
         + pt_to_mm(typo.body_lead_pt);
 
@@ -105,12 +105,19 @@ Build_letter_result build_letter(const Sender_profile& profile,
     std::string sig_path;
     if (!profile.signature_image.empty()) {
         sig_path = profile_dir + "/" + profile.signature_image;
-        sig_height_mm = L.sig_width_mm * 0.4f;
+        // Use the real PNG aspect ratio when available so the closing-fit
+        // estimate matches what the renderer will actually draw.
+        auto sig_dims = measure_png(sig_path);
+        float aspect = (sig_dims.valid && sig_dims.width_px > 0)
+            ? (sig_dims.height_px / sig_dims.width_px)
+            : L.sig_default_aspect;
+        sig_height_mm = L.sig_width_mm * aspect;
     }
     float signer_height_mm = pt_to_mm(typo.body_lead_pt);
     if (!profile.signer_title.empty())
         signer_height_mm += pt_to_mm(typo.body_lead_pt);
-    float total_closing_mm = closing_height_mm + sig_height_mm + signer_height_mm + 5.0f;
+    float total_closing_mm = closing_height_mm + sig_height_mm
+        + signer_height_mm + L.closing_extra_room_mm;
 
     // Parse and lay out the body using the markdown-aware layout engine
     auto body_blocks = parse_markdown(input.body);
@@ -122,8 +129,9 @@ Build_letter_result build_letter(const Sender_profile& profile,
     lp.profile_dir = profile_dir;
     lp.typo        = typo;
     lp.fonts       = theme.fonts;
+    lp.loc         = loc;
 
-    float page_bottom = footer_y_base - 5.0f;
+    float page_bottom = footer_y_base - L.page_bottom_buffer_mm;
 
     auto body_layout = layout_body(body_blocks, lp,
                                    body_y_mm, page_bottom,
@@ -235,19 +243,20 @@ Build_letter_result build_letter(const Sender_profile& profile,
 
             page.elements.push_back(Text_block{
                 L.margin_left_mm, closing_y, body_width_mm,
-                closing_text,
+                loc.closing,
                 Font_id::SANS, typo.body_size_pt, typo.body_lead_pt,
                 k_black, false
             });
 
-            float after_closing = closing_y + pt_to_mm(typo.body_lead_pt) + 2.0f;
+            float after_closing = closing_y + pt_to_mm(typo.body_lead_pt)
+                + L.closing_after_pad_mm;
 
             if (!sig_path.empty()) {
                 page.elements.push_back(Image_block{
                     L.margin_left_mm, after_closing, L.sig_width_mm,
                     sig_path
                 });
-                after_closing += sig_height_mm + 2.0f;
+                after_closing += sig_height_mm + L.signature_after_pad_mm;
             }
 
             page.elements.push_back(Text_block{
@@ -273,8 +282,8 @@ Build_letter_result build_letter(const Sender_profile& profile,
 
         // Page number (only on multi-page)
         if (total_pages > 1) {
-            std::string page_num = "Seite " + std::to_string(pi + 1)
-                + " von " + std::to_string(total_pages);
+            std::string page_num = format_page_number(loc.page_number_format,
+                                                       pi + 1, total_pages);
             auto page_num_metrics = measure_text(page_num, Font_id::SANS,
                                                  typo.footer_size_pt, 0, 200, false,
                                                  theme.fonts);
@@ -286,7 +295,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
                 Font_id::SANS, typo.footer_size_pt, 0,
                 k_black, false
             });
-            footer_y += pt_to_mm(typo.footer_size_pt) + 3.0f;
+            footer_y += pt_to_mm(typo.footer_size_pt) + L.footer_line_gap_mm;
         }
 
         // Commercial footer lines (on every page)
@@ -315,11 +324,12 @@ Render_result generate_letter_pdf(const Sender_profile& profile,
                                   const std::string& profile_dir,
                                   const std::string& output_path,
                                   const Theme_config& theme,
-                                  const Letter_layout_spec& layout)
+                                  const Letter_layout_spec& layout,
+                                  const Localization& loc)
 {
-    auto br = build_letter(profile, input, profile_dir, theme, layout);
+    auto br = build_letter(profile, input, profile_dir, theme, layout, loc);
     if (!br.error.empty()) {
         return { false, "", br.error, "" };
     }
-    return render_pdf(br.doc, output_path, theme.fonts);
+    return render_pdf(br.doc, output_path, theme.fonts, loc);
 }

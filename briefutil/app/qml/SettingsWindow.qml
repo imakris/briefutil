@@ -21,6 +21,7 @@ Window {
 
     onClosing: {
         if (_initialized && proxyObj) {
+            fontApplyTimer.stop()
             tryApplyFonts()
             if (templateDirOk) {
                 proxyObj.set_template_dir(templateDir)
@@ -76,11 +77,25 @@ Window {
         proxyObj.set_font_mono(fontMono)
     }
 
-    onFontSansChanged:           tryApplyFonts()
-    onFontSansBoldChanged:       tryApplyFonts()
-    onFontSansItalicChanged:     tryApplyFonts()
-    onFontSansBoldItalicChanged: tryApplyFonts()
-    onFontMonoChanged:           tryApplyFonts()
+    // Debounce font writes so each keystroke doesn't trigger a full
+    // QSettings save (which validates and walks the system font registry).
+    Timer {
+        id: fontApplyTimer
+        interval: 250
+        repeat: false
+        onTriggered: settingsWin.tryApplyFonts()
+    }
+
+    function scheduleApplyFonts() {
+        if (!_initialized) return
+        fontApplyTimer.restart()
+    }
+
+    onFontSansChanged:           scheduleApplyFonts()
+    onFontSansBoldChanged:       scheduleApplyFonts()
+    onFontSansItalicChanged:     scheduleApplyFonts()
+    onFontSansBoldItalicChanged: scheduleApplyFonts()
+    onFontMonoChanged:           scheduleApplyFonts()
 
     // ====================================================================
     // Template dir validation

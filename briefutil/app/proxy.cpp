@@ -1,9 +1,11 @@
 #include "proxy.h"
-#include "default_profiles.h"
+#include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
+#include "briefutil/localization.h"
 #include "mustermann_signature.png.h"
 #include "briefutil/sender_profile.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
 #include <QDesktopServices>
@@ -11,12 +13,14 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QLocale>
 #include <QHash>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTimer>
 #include <QUrl>
 #include <QWindow>
 
@@ -411,6 +415,8 @@ void Proxy::load_settings()
     if (!saved_dir.isEmpty()) {
         m_sender_template_dir = saved_dir;
     }
+
+    m_dark_mode = s.value("appearance/darkMode", false).toBool();
 }
 
 void Proxy::save_settings() const
@@ -425,6 +431,17 @@ void Proxy::save_settings() const
     s.setValue("typo/body_size",         (double)m_theme.typo.body_size_pt);
     s.setValue("typo/body_leading",      (double)m_theme.typo.body_lead_pt);
     s.setValue("paths/template_dir",     m_sender_template_dir);
+    s.setValue("appearance/darkMode",    m_dark_mode);
+}
+
+Localization Proxy::current_localization() const
+{
+    // Default to English. Auto-detect German from the system locale so
+    // existing German users keep their familiar wording without any UI.
+    if (QLocale::system().language() == QLocale::German) {
+        return german_localization();
+    }
+    return english_localization();
 }
 
 
@@ -434,11 +451,19 @@ void Proxy::save_settings() const
 
 Proxy::Proxy(QObject*)
 {
-    // Output directory
-    QFile output_dir_file("./output_dir.conf");
-    QString output_dir;
-    if (output_dir_file.open(QIODevice::ReadOnly)) {
-        output_dir = QString::fromUtf8(output_dir_file.readAll()).trimmed();
+    // Output directory. Look for output_dir.conf next to the executable
+    // first (deterministic), then fall back to the working directory for
+    // backwards compatibility, and finally the default user home location.
+    auto read_dir_conf = [](const QString& path) -> QString {
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) return QString();
+        return QString::fromUtf8(f.readAll()).trimmed();
+    };
+
+    QString output_dir = read_dir_conf(
+        QCoreApplication::applicationDirPath() + "/output_dir.conf");
+    if (output_dir.isEmpty()) {
+        output_dir = read_dir_conf("./output_dir.conf");
     }
 
     QDir qodir(output_dir);
@@ -461,7 +486,35 @@ Proxy::Proxy(QObject*)
 
     ensure_template_dir_ready(m_sender_template_dir);
 
+    // Debounce filesystem-watcher events so a flurry of writes (e.g.
+    // editor autosave) only triggers one reload.
+    m_discover_timer = new QTimer(this);
+    m_discover_timer->setSingleShot(true);
+    m_discover_timer->setInterval(250);
+    connect(m_discover_timer, &QTimer::timeout, this, [this]() {
+        discover_profiles();
+    });
+
+    install_template_watcher();
     discover_profiles();
+}
+
+void Proxy::install_template_watcher()
+{
+    if (!m_template_watcher) {
+        m_template_watcher = new QFileSystemWatcher(this);
+        connect(m_template_watcher, &QFileSystemWatcher::directoryChanged,
+                this, [this](const QString&) {
+            if (m_discover_timer) m_discover_timer->start();
+        });
+    }
+    auto current = m_template_watcher->directories();
+    if (!current.isEmpty()) {
+        m_template_watcher->removePaths(current);
+    }
+    if (QDir(m_sender_template_dir).exists()) {
+        m_template_watcher->addPath(m_sender_template_dir);
+    }
 }
 
 void Proxy::discover_profiles()
@@ -542,8 +595,11 @@ void Proxy::make_pdf(int from, const QString& to,
     pdf_filename.replace(QRegularExpression("\\s+"), " ");
     QString pdf_path = m_output_dir + "/" + pdf_filename;
 
-    QLocale german(QLocale::German);
-    QString date_str = german.toString(QDate::currentDate(), "d. MMMM yyyy");
+    // Format the date using the user's system locale so an English user
+    // gets "April 13, 2026" and a German user gets "13. April 2026"
+    // without any extra configuration.
+    QString date_str = QLocale::system().toString(QDate::currentDate(),
+                                                  QLocale::LongFormat);
 
     QElapsedTimer timer;
     timer.start();
@@ -560,10 +616,13 @@ void Proxy::make_pdf(int from, const QString& to,
         return;
     }
 
+    auto loc = current_localization();
     auto result = generate_letter_pdf(profile, input,
                                       m_sender_template_dir.toStdString(),
                                       pdf_path.toUtf8().toStdString(),
-                                      m_theme);
+                                      m_theme,
+                                      din_5008_form_b(),
+                                      loc);
 
     if (!result.ok) {
         emit pdf_generated(false,
@@ -640,6 +699,7 @@ void Proxy::set_template_dir(const QString& v)
 
     ensure_template_dir_ready(m_sender_template_dir);
     save_settings();
+    install_template_watcher();
     discover_profiles();
 }
 
@@ -739,15 +799,46 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     }
     updated.top_rule_color = top_rule_color;
 
+    // If the id changed, rename the backing JSON file as well so that the
+    // template directory stays consistent with the in-memory profile list.
+    const QString old_path = m_profiles[index].path;
+    QString save_path = old_path;
+    const bool id_changed = updated.id != m_profiles[index].profile.id;
+    if (id_changed) {
+        QString safe_id = sanitize_filename(QString::fromStdString(updated.id));
+        if (safe_id.isEmpty()) safe_id = "profile";
+        QDir dir(m_sender_template_dir);
+
+        // Don't clobber another profile's file.
+        QString candidate_name = safe_id + ".json";
+        QFileInfo old_info(old_path);
+        if (dir.exists(candidate_name)
+            && QFileInfo(dir.filePath(candidate_name)).absoluteFilePath()
+               != old_info.absoluteFilePath()) {
+            int counter = 2;
+            while (dir.exists(safe_id + " " + QString::number(counter) + ".json")) {
+                counter++;
+            }
+            candidate_name = safe_id + " " + QString::number(counter) + ".json";
+        }
+        save_path = dir.filePath(candidate_name);
+    }
+
     std::string error;
-    if (!::save_sender_profile(updated, m_profiles[index].path.toStdString(), &error)) {
+    if (!::save_sender_profile(updated, save_path.toStdString(), &error)) {
         qWarning("briefutil: failed to save profile '%s': %s",
-                 qPrintable(m_profiles[index].path),
+                 qPrintable(save_path),
                  error.c_str());
         return false;
     }
 
-    const bool id_changed = updated.id != m_profiles[index].profile.id;
+    if (id_changed
+        && QFileInfo(save_path).absoluteFilePath()
+           != QFileInfo(old_path).absoluteFilePath()) {
+        QFile::remove(old_path);
+        m_profiles[index].path = save_path;
+    }
+
     m_profiles[index].profile = std::move(updated);
     if (id_changed) {
         emit sender_templates_changed();
@@ -866,12 +957,11 @@ void Proxy::set_window_dark_mode(QWindow* window, bool dark)
 
 void Proxy::save_dark_mode(bool dark)
 {
-    QSettings settings("briefutil", "briefutil");
-    settings.setValue("appearance/darkMode", dark);
+    m_dark_mode = dark;
+    save_settings();
 }
 
 bool Proxy::load_dark_mode() const
 {
-    QSettings settings("briefutil", "briefutil");
-    return settings.value("appearance/darkMode", false).toBool();
+    return m_dark_mode;
 }

@@ -1,4 +1,4 @@
-#include "default_profiles.h"
+#include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
 #include "briefutil/sender_profile.h"
 
