@@ -1,5 +1,7 @@
 #include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
+#include "briefutil/pdf_backend.h"
+#include "briefutil/pdf_measurement.h"
 #include "briefutil/sender_profile.h"
 
 #include <QCoreApplication>
@@ -83,6 +85,30 @@ int main(int argc, char* argv[])
     }
 
     std::printf("[OK] PDF rendered to Unicode filename: %s\n", qPrintable(output_path));
+
+    std::string mark2_detail;
+    if (pdf_measurement_ready(Pdf_backend::Mark2Haru, default_font_family(), &mark2_detail)) {
+        QString mark2_output_path = tmp_dir + "/" + unicode_subject + ".mark2haru.pdf";
+        QFile::remove(mark2_output_path);
+        auto rendered2 = generate_letter_pdf(loaded.profile, input, qs(tmp_dir),
+                                             qs(mark2_output_path), default_theme(),
+                                             din_5008_form_b(), default_localization(),
+                                             Pdf_backend::Mark2Haru);
+        if (!rendered2.ok) {
+            std::fprintf(stderr, "FAIL: mark2haru generate_letter_pdf failed: %s (%s)\n",
+                         rendered2.message.c_str(), rendered2.detail.c_str());
+            cleanup();
+            return 1;
+        }
+        QFileInfo info2(mark2_output_path);
+        if (!info2.exists()) {
+            std::fprintf(stderr, "FAIL: mark2haru output PDF does not exist at expected Unicode path\n");
+            cleanup();
+            return 1;
+        }
+        std::printf("[OK] mark2haru rendered to Unicode filename: %s\n",
+                    qPrintable(mark2_output_path));
+    }
 
     cleanup();
     return 0;

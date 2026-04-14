@@ -4,10 +4,13 @@
 
 #include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
-#include "briefutil/pdf_renderer_haru.h"
+#include "briefutil/pdf_backend.h"
+#include "briefutil/pdf_measurement.h"
+#include "briefutil/pdf_renderer.h"
 #include "briefutil/sender_profile.h"
 
 #include <QCoreApplication>
+#include <QByteArray>
 #include <QDir>
 #include <QFile>
 
@@ -20,7 +23,152 @@
 
 static std::string qs(const QString& s) { return s.toStdString(); }
 
-static bool nearly_equal(float a, float b) { return std::fabs(a - b) < 0.01f; }
+static bool nearly_equal(float a, float b, float eps = 0.01f)
+{
+    return std::fabs(a - b) < eps;
+}
+
+static bool same_color(const color_t& a, const color_t& b, float eps = 0.001f)
+{
+    return nearly_equal(a.r, b.r, eps)
+        && nearly_equal(a.g, b.g, eps)
+        && nearly_equal(a.b, b.b, eps);
+}
+
+static bool write_test_signature_png(const QString& path)
+{
+    static const QByteArray k_png_bytes = QByteArray::fromBase64(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWP4z8DwHwAFAAH/e+m+7wAAAABJRU5ErkJggg==");
+    if (k_png_bytes.isEmpty()) {
+        return false;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    return file.write(k_png_bytes) == k_png_bytes.size();
+}
+
+static bool same_element(const Page_element& a, const Page_element& b, std::string* reason)
+{
+    if (a.index() != b.index()) {
+        if (reason) *reason = "element types differ";
+        return false;
+    }
+
+    auto compare_text = [&](const auto& lhs, const auto& rhs, const char* kind) {
+        if (lhs.text != rhs.text) {
+            if (reason) *reason = std::string(kind) + " text differs";
+            return false;
+        }
+        if (lhs.font != rhs.font || !nearly_equal(lhs.size_pt, rhs.size_pt)
+            || !same_color(lhs.color, rhs.color)) {
+            if (reason) *reason = std::string(kind) + " style differs";
+            return false;
+        }
+        return true;
+    };
+
+    if (const auto* lhs = std::get_if<Text_block>(&a)) {
+        const auto* rhs = std::get_if<Text_block>(&b);
+        if (!compare_text(*lhs, *rhs, "Text_block")) {
+            return false;
+        }
+        if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
+            || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)
+            || !nearly_equal(lhs->width_mm, rhs->width_mm, 0.1f)
+            || !nearly_equal(lhs->leading_pt, rhs->leading_pt, 0.01f)
+            || lhs->wrap != rhs->wrap) {
+            if (reason) *reason = "Text_block geometry differs";
+            return false;
+        }
+        return true;
+    }
+    if (const auto* lhs = std::get_if<Text_span>(&a)) {
+        const auto* rhs = std::get_if<Text_span>(&b);
+        if (!compare_text(*lhs, *rhs, "Text_span")) {
+            return false;
+        }
+        if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
+            || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)) {
+            if (reason) *reason = "Text_span geometry differs";
+            return false;
+        }
+        return true;
+    }
+    if (const auto* lhs = std::get_if<line_segment_t>(&a)) {
+        const auto* rhs = std::get_if<line_segment_t>(&b);
+        if (!nearly_equal(lhs->x1_mm, rhs->x1_mm, 0.1f)
+            || !nearly_equal(lhs->y1_mm, rhs->y1_mm, 0.1f)
+            || !nearly_equal(lhs->x2_mm, rhs->x2_mm, 0.1f)
+            || !nearly_equal(lhs->y2_mm, rhs->y2_mm, 0.1f)
+            || !nearly_equal(lhs->stroke_width_pt, rhs->stroke_width_pt)
+            || !same_color(lhs->color, rhs->color)) {
+            if (reason) {
+                *reason = "line_segment_t differs";
+            }
+            return false;
+        }
+        return true;
+    }
+    if (const auto* lhs = std::get_if<filled_rect_t>(&a)) {
+        const auto* rhs = std::get_if<filled_rect_t>(&b);
+        if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
+            || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)
+            || !nearly_equal(lhs->width_mm, rhs->width_mm, 0.1f)
+            || !nearly_equal(lhs->height_mm, rhs->height_mm, 0.1f)
+            || !same_color(lhs->color, rhs->color)) {
+            if (reason) *reason = "filled_rect_t differs";
+            return false;
+        }
+        return true;
+    }
+    if (const auto* lhs = std::get_if<Image_block>(&a)) {
+        const auto* rhs = std::get_if<Image_block>(&b);
+        if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
+            || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)
+            || !nearly_equal(lhs->width_mm, rhs->width_mm, 0.1f)
+            || lhs->path != rhs->path) {
+            if (reason) *reason = "Image_block differs";
+            return false;
+        }
+        return true;
+    }
+
+    if (reason) *reason = "unknown element type";
+    return false;
+}
+
+static bool same_document(const Document& a, const Document& b, std::string* reason)
+{
+    if (!nearly_equal(a.page_width_mm, b.page_width_mm) || !nearly_equal(a.page_height_mm, b.page_height_mm)) {
+        if (reason) *reason = "page size differs";
+        return false;
+    }
+    if (a.pages.size() != b.pages.size()) {
+        if (reason) *reason = "page count differs";
+        return false;
+    }
+    for (size_t i = 0; i < a.pages.size(); ++i) {
+        if (a.pages[i].elements.size() != b.pages[i].elements.size()) {
+            if (reason) *reason = "page " + std::to_string(i + 1) + " element count differs";
+            return false;
+        }
+        for (size_t j = 0; j < a.pages[i].elements.size(); ++j) {
+            std::string element_reason;
+            if (!same_element(a.pages[i].elements[j], b.pages[i].elements[j], &element_reason)) {
+                if (reason) {
+                    *reason = "page " + std::to_string(i + 1)
+                        + " element " + std::to_string(j + 1)
+                        + ": " + element_reason;
+                }
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 int main(int argc, char* argv[])
 {
@@ -551,6 +699,104 @@ int main(int argc, char* argv[])
         std::printf("[OK] Localization closing + page number applied\n");
 
         QFile::remove(profile_path);
+        QDir().rmdir(tmp_dir);
+    }
+
+    // -- Test 7: backend parity on an image-bearing corpus --
+    {
+        QString tmp_dir = QDir::tempPath() + "/briefutil_test_parity";
+        QDir().mkpath(tmp_dir);
+
+        QString profile_path = tmp_dir + "/test_profile.json";
+        QFile f(profile_path);
+        if (!f.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "FAIL: cannot write parity test profile: %s\n",
+                         qs(profile_path).c_str());
+            return 1;
+        }
+        f.write(k_default_profile_simple_json);
+        f.close();
+
+        auto lr = load_sender_profile(qs(profile_path));
+        if (!lr.ok) {
+            std::fprintf(stderr, "FAIL: parity profile load: %s\n", lr.error.c_str());
+            return 1;
+        }
+
+        Letter_input input;
+        input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
+                          "Beispielweg 42\n54321 Beispielstadt";
+        input.subject = "Backend parity check";
+        input.date = "14. M\xc3\xa4rz 2026";
+        input.body =
+            "Erster Absatz f\xc3\xbcr den Parit\xc3\xa4tstest.\n\n"
+            "Zweiter Absatz mit mehr Text, damit die Layout- und "
+            "Umbruchlogik beide Backends auf die gleiche Seitenzahl bringt.";
+
+        const QString signature_path = tmp_dir + "/mustermann_signature.png";
+        if (!write_test_signature_png(signature_path)) {
+            std::fprintf(stderr, "FAIL: could not write parity signature PNG\n");
+            return 1;
+        }
+
+#ifdef BRIEFUTIL_MARK2HARU_FONT_DIR
+        QDir mark2_fonts_dir(QString::fromUtf8(BRIEFUTIL_MARK2HARU_FONT_DIR));
+        if (!mark2_fonts_dir.exists()) {
+            std::printf("[SKIP] parity test font directory not available: %s\n",
+                        qs(mark2_fonts_dir.path()).c_str());
+        } else {
+            Theme_config parity_theme = default_theme();
+            parity_theme.fonts.sans = mark2_fonts_dir.filePath("DejaVuSans.ttf").toStdString();
+            parity_theme.fonts.sans_bold = mark2_fonts_dir.filePath("DejaVuSans-Bold.ttf").toStdString();
+            parity_theme.fonts.sans_italic = mark2_fonts_dir.filePath("DejaVuSans-Oblique.ttf").toStdString();
+            parity_theme.fonts.sans_bold_italic = mark2_fonts_dir.filePath("DejaVuSans-BoldOblique.ttf").toStdString();
+            parity_theme.fonts.mono = mark2_fonts_dir.filePath("DejaVuSansMono.ttf").toStdString();
+
+            std::string detail;
+            if (pdf_measurement_ready(Pdf_backend::Mark2Haru, parity_theme.fonts, &detail)) {
+                auto haru = build_letter(lr.profile, input, qs(tmp_dir), parity_theme,
+                                         din_5008_form_b(), default_localization(),
+                                         Pdf_backend::Haru);
+                auto mark2 = build_letter(lr.profile, input, qs(tmp_dir), parity_theme,
+                                          din_5008_form_b(), default_localization(),
+                                          Pdf_backend::Mark2Haru);
+
+                if (!haru.error.empty()) {
+                    std::fprintf(stderr, "FAIL: Haru parity build_letter: %s\n", haru.error.c_str());
+                    return 1;
+                }
+                if (!mark2.error.empty()) {
+                    std::fprintf(stderr, "FAIL: mark2haru parity build_letter: %s\n", mark2.error.c_str());
+                    return 1;
+                }
+
+                std::string reason;
+                if (!same_document(haru.doc, mark2.doc, &reason)) {
+                    std::fprintf(stderr, "FAIL: backend parity mismatch: %s\n",
+                                 reason.c_str());
+                    return 1;
+                }
+
+                auto rr = render_pdf(mark2.doc, std::string(output) + ".parity.mark2haru.pdf",
+                                     parity_theme.fonts, default_localization(),
+                                     Pdf_backend::Mark2Haru);
+                if (!rr.ok) {
+                    std::fprintf(stderr, "FAIL: mark2haru parity render: %s (%s)\n",
+                                 rr.message.c_str(), rr.detail.c_str());
+                    return 1;
+                }
+                std::printf("[OK] Haru/mark2haru parity matched on image-bearing corpus\n");
+            }
+            else if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
+                std::printf("[SKIP] mark2haru parity test not ready: %s\n", detail.c_str());
+            }
+        }
+#else
+        std::printf("[SKIP] parity test font directory not compiled in\n");
+#endif
+
+        QFile::remove(profile_path);
+        QFile::remove(signature_path);
         QDir().rmdir(tmp_dir);
     }
 

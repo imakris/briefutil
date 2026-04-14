@@ -1,5 +1,5 @@
 #include "rich_text_layout.h"
-#include "briefutil/pdf_renderer_haru.h"
+#include "briefutil/pdf_measurement.h"
 
 #include <algorithm>
 #include <unordered_map>
@@ -79,6 +79,7 @@ static std::vector<Laid_out_line> layout_runs(
     const std::vector<Text_run>& runs,
     float left_mm, float max_width_mm,
     float size_pt, float lead_pt, color_t color,
+    Pdf_backend backend,
     const Font_family_config& fonts = default_font_family())
 {
     std::vector<Laid_out_line> lines;
@@ -91,7 +92,7 @@ static std::vector<Laid_out_line> layout_runs(
     auto space_width_mm_for = [&](Font_id fid) -> float {
         int idx = (int)fid;
         if (space_widths_mm[idx] < 0) {
-            auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
+            auto sp_m = measure_text(backend, " ", fid, size_pt, 0, 1000, false, fonts);
             space_widths_mm[idx] = pt_to_mm(sp_m.width_pt);
         }
         return space_widths_mm[idx];
@@ -147,7 +148,7 @@ static std::vector<Laid_out_line> layout_runs(
                     if (wend == std::string::npos) wend = segment.size();
                     std::string word = segment.substr(wi, wend - wi);
 
-                    auto word_m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
+                    auto word_m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
                     float word_w_mm = pt_to_mm(word_m.width_pt);
 
                     float space_w_mm = (cursor_x_mm > left_mm)
@@ -274,6 +275,7 @@ struct Page_cursor
 // Measure the minimum width of a cell: the widest single unbreakable token
 static float cell_min_width(const std::vector<Text_run>& runs,
                             float size_pt,
+                            Pdf_backend backend,
                             const Font_family_config& fonts)
 {
     float max_word = 0;
@@ -286,7 +288,7 @@ static float cell_min_width(const std::vector<Text_run>& runs,
             size_t end = run.text.find(' ', pos);
             if (end == std::string::npos) end = run.text.size();
             std::string word = run.text.substr(pos, end - pos);
-            auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
+            auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
             max_word = std::max(max_word, pt_to_mm(m.width_pt));
             pos = end;
         }
@@ -296,12 +298,13 @@ static float cell_min_width(const std::vector<Text_run>& runs,
 
 static float cell_preferred_width(const std::vector<Text_run>& runs,
                                   float size_pt,
+                                  Pdf_backend backend,
                                   const Font_family_config& fonts)
 {
     float total = 0;
     for (const auto& run : runs) {
         Font_id fid = font_for_style(run.style);
-        auto m = measure_text(run.text, fid, size_pt, 0, 1000, false, fonts);
+        auto m = measure_text(backend, run.text, fid, size_pt, 0, 1000, false, fonts);
         total += pt_to_mm(m.width_pt);
     }
     return total;
@@ -318,6 +321,7 @@ static Table_layout_info compute_table_columns(const Table_block& tb,
                                                float available_mm,
                                                float size_pt,
                                                float cell_pad_mm,
+                                               Pdf_backend backend,
                                                const Font_family_config& fonts)
 {
     if (tb.rows.empty()) return {};
@@ -334,8 +338,8 @@ static Table_layout_info compute_table_columns(const Table_block& tb,
 
     for (const auto& row : tb.rows) {
         for (int c = 0; c < (int)row.cells.size() && c < num_cols; c++) {
-            float cmin = cell_min_width(row.cells[c].runs, size_pt, fonts) + pad;
-            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, fonts) + pad;
+            float cmin = cell_min_width(row.cells[c].runs, size_pt, backend, fonts) + pad;
+            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, backend, fonts) + pad;
             min_widths[c] = std::max(min_widths[c], cmin);
             pref_widths[c] = std::max(pref_widths[c], cpref);
         }
@@ -382,6 +386,7 @@ static float layout_table_row(const Table_row& row,
                               float left_mm, float y_mm,
                               float size_pt, float lead_pt, color_t color,
                               float cell_pad_mm, bool is_header,
+                              Pdf_backend backend,
                               const Font_family_config& fonts,
                               std::vector<Page_element>& elements)
 {
@@ -416,7 +421,7 @@ static float layout_table_row(const Table_row& row,
         }
 
         cl.lines = layout_runs(runs, 0, cell_content_w,
-                               size_pt, lead_pt, color, fonts);
+                               size_pt, lead_pt, color, backend, fonts);
         cl.height_mm = 0;
         for (const auto& line : cl.lines) {
             cl.height_mm += line.height_mm;
@@ -511,7 +516,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 auto lines = layout_runs(b.runs,
                     params.left_mm, params.width_mm,
                     params.typo.body_size_pt, params.typo.body_lead_pt,
-                    params.body_color, params.fonts);
+                    params.body_color, params.pdf_backend, params.fonts);
                 cursor.emit_lines(lines);
                 cursor.y_mm += params.typo.paragraph_space_mm;
 
@@ -527,7 +532,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
 
                 auto lines = layout_runs(b.runs,
                     params.left_mm, params.width_mm,
-                    hsize, hlead, params.body_color);
+                    hsize, hlead, params.body_color, params.pdf_backend, params.fonts);
 
                 // Make heading runs bold
                 for (auto& line : lines) {
@@ -570,7 +575,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                     auto lines = layout_runs(b.items[idx].runs,
                         item_left, item_width,
                         params.typo.body_size_pt, params.typo.body_lead_pt,
-                        params.body_color, params.fonts);
+                        params.body_color, params.pdf_backend, params.fonts);
                     cursor.emit_lines(lines);
                     cursor.y_mm += params.typo.list_item_space_mm;
                 }
@@ -633,6 +638,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                 auto tl = compute_table_columns(b, params.width_mm,
                                                 params.typo.body_size_pt,
                                                 params.typo.table_cell_pad_mm,
+                                                params.pdf_backend,
                                                 params.fonts);
                 if (!tl.valid) {
                     result.error = params.loc.error_table_too_wide;
@@ -648,7 +654,8 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                             params.left_mm, cursor.y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm,
-                            is_header_row, params.fonts, row_elements);
+                            is_header_row, params.pdf_backend,
+                            params.fonts, row_elements);
                         for (auto& elem : row_elements) {
                             cursor.current_elements().push_back(std::move(elem));
                         }
@@ -667,7 +674,7 @@ Layout_result layout_body(const std::vector<Body_block>& blocks,
                             params.left_mm, cursor.y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm, is_header,
-                            params.fonts, probe);
+                            params.pdf_backend, params.fonts, probe);
 
                         // If the row doesn't fit, move to the next page,
                         // re-emit the header rows on the new page, and then

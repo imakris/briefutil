@@ -2,6 +2,7 @@
 #include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
 #include "briefutil/localization.h"
+#include "briefutil/pdf_backend.h"
 #include "mustermann_signature.png.h"
 #include "briefutil/sender_profile.h"
 
@@ -42,6 +43,11 @@
 static QString default_sender_template_dir()
 {
     return QDir::homePath() + "/briefutil/templates/";
+}
+
+static Pdf_backend selected_pdf_backend()
+{
+    return pdf_backend_from_name(qEnvironmentVariable("BRIEFUTIL_PDF_BACKEND").toStdString());
 }
 
 static bool is_valid_font_config(const Font_family_config& fc)
@@ -641,12 +647,20 @@ void Proxy::make_pdf(int from, const QString& to,
 
     auto loc = current_localization();
     auto layout = current_layout_spec();
+    auto backend = selected_pdf_backend();
+    if (!pdf_backend_available(backend)) {
+        emit pdf_generated(false,
+            "Selected PDF backend is not available in this build.");
+        return;
+    }
+
     auto result = generate_letter_pdf(profile, input,
                                       m_sender_template_dir.toStdString(),
                                       pdf_path.toUtf8().toStdString(),
                                       m_theme,
                                       layout,
-                                      loc);
+                                      loc,
+                                      backend);
 
     if (!result.ok) {
         emit pdf_generated(false,

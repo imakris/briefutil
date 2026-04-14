@@ -1,7 +1,8 @@
 #include "briefutil/letter_builder.h"
 #include "briefutil/localization.h"
 #include "briefutil/markdown_parser.h"
-#include "briefutil/pdf_renderer_haru.h"
+#include "briefutil/pdf_measurement.h"
+#include "briefutil/pdf_renderer.h"
 #include "rich_text_layout.h"
 
 #include <utility>
@@ -52,7 +53,8 @@ Build_letter_result build_letter(const Sender_profile& profile,
                                  const std::string& profile_dir,
                                  const Theme_config& theme,
                                  const Letter_layout_spec& layout,
-                                 const Localization& loc)
+                                 const Localization& loc,
+                                 Pdf_backend pdf_backend)
 {
     const auto& typo = theme.typo;
     const auto& L = layout;
@@ -65,7 +67,14 @@ Build_letter_result build_letter(const Sender_profile& profile,
 
     auto sender_text = build_sender_text(profile);
 
-    auto ret_metrics = measure_text(profile.return_address_line,
+    std::string backend_detail;
+    if (!pdf_measurement_ready(pdf_backend, theme.fonts, &backend_detail)) {
+        return { {}, backend_detail.empty()
+                    ? "Selected PDF backend is unavailable."
+                    : backend_detail };
+    }
+
+    auto ret_metrics = measure_text(pdf_backend, profile.return_address_line,
                                     Font_id::SANS,
                                     typo.return_size_pt,
                                     0,
@@ -73,13 +82,13 @@ Build_letter_result build_letter(const Sender_profile& profile,
                                     false, theme.fonts);
     float return_rule_x2_mm = L.address_text_x_mm + pt_to_mm(ret_metrics.width_pt);
 
-    auto sender_metrics = measure_text(sender_text,
+    auto sender_metrics = measure_text(pdf_backend, sender_text,
                                        Font_id::SANS,
                                        typo.sender_size_pt,
                                        typo.sender_lead_pt,
                                        L.sender_w_mm,
                                        false, theme.fonts);
-    auto date_metrics = measure_text(input.date,
+    auto date_metrics = measure_text(pdf_backend, input.date,
                                      Font_id::SANS,
                                      typo.date_size_pt,
                                      0,
@@ -130,6 +139,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
     lp.typo        = typo;
     lp.fonts       = theme.fonts;
     lp.loc         = loc;
+    lp.pdf_backend = pdf_backend;
 
     float page_bottom = footer_y_base - L.page_bottom_buffer_mm;
 
@@ -284,7 +294,7 @@ Build_letter_result build_letter(const Sender_profile& profile,
         if (total_pages > 1) {
             std::string page_num = format_page_number(loc.page_number_format,
                                                        pi + 1, total_pages);
-            auto page_num_metrics = measure_text(page_num, Font_id::SANS,
+            auto page_num_metrics = measure_text(pdf_backend, page_num, Font_id::SANS,
                                                  typo.footer_size_pt, 0, 200, false,
                                                  theme.fonts);
             float page_num_x = L.page_width_mm - L.margin_right_mm
@@ -325,11 +335,12 @@ Render_result generate_letter_pdf(const Sender_profile& profile,
                                   const std::string& output_path,
                                   const Theme_config& theme,
                                   const Letter_layout_spec& layout,
-                                  const Localization& loc)
+                                  const Localization& loc,
+                                  Pdf_backend pdf_backend)
 {
-    auto br = build_letter(profile, input, profile_dir, theme, layout, loc);
+    auto br = build_letter(profile, input, profile_dir, theme, layout, loc, pdf_backend);
     if (!br.error.empty()) {
         return { false, "", br.error, "" };
     }
-    return render_pdf(br.doc, output_path, theme.fonts, loc);
+    return render_pdf(br.doc, output_path, theme.fonts, loc, pdf_backend);
 }
