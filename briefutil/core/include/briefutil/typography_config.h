@@ -22,7 +22,7 @@ inline bool looks_like_font_file(const std::string& s)
     return eq_ci(at, ".ttf") || eq_ci(at, ".otf");
 }
 
-struct Font_family_config
+struct font_family_config_t
 {
     // Each slot holds either a libHaru base-14 name (e.g. "Helvetica")
     // or a .ttf/.otf file path. The renderer infers the loading method
@@ -33,10 +33,10 @@ struct Font_family_config
     std::string sans_bold_italic;
     std::string mono;
 
-    bool operator==(const Font_family_config&) const = default;
+    bool operator==(const font_family_config_t&) const = default;
 };
 
-inline Font_family_config default_font_family()
+inline font_family_config_t default_font_family()
 {
     return {
         "Helvetica",
@@ -52,7 +52,7 @@ inline Font_family_config default_font_family()
 // Typography configuration
 // ============================================================================
 
-struct Typography_config
+struct typography_config_t
 {
     // Body text
     float body_size_pt    = 10.0f;
@@ -83,17 +83,17 @@ struct Typography_config
     float table_cell_pad_mm      = 2.0f;
 };
 
-inline Typography_config default_typography() { return {}; }
+inline typography_config_t default_typography() { return {}; }
 
 
 // ============================================================================
 // Combined theme
 // ============================================================================
 
-struct Theme_config
+struct theme_config_t
 {
-    Font_family_config fonts = default_font_family();
-    Typography_config  typo;
+    font_family_config_t fonts = default_font_family();
+    typography_config_t  typo;
 };
 
-inline Theme_config default_theme() { return {}; }
+inline theme_config_t default_theme() { return {}; }

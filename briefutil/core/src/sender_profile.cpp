@@ -11,8 +11,9 @@
 
 static std::string qs(const QString& s) { return s.toStdString(); }
 
-static std::vector<std::string> json_string_array(const QJsonObject& obj,
-                                                   const char* key)
+static std::vector<std::string> json_string_array(
+    const QJsonObject& obj,
+    const char* key)
 {
     std::vector<std::string> result;
     auto arr = obj.value(key).toArray();
@@ -22,8 +23,10 @@ static std::vector<std::string> json_string_array(const QJsonObject& obj,
     return result;
 }
 
-static color_t json_color(const QJsonObject& obj, const char* key,
-                          color_t fallback)
+static color_t json_color(
+    const QJsonObject& obj,
+    const char* key,
+    color_t fallback)
 {
     auto arr = obj.value(key).toArray();
     if (arr.size() != 3) return fallback;
@@ -53,7 +56,7 @@ static QJsonArray json_color_array(color_t color)
 }
 
 
-Profile_load_result load_sender_profile(const std::string& json_path)
+profile_load_result_t load_sender_profile(const std::string& json_path)
 {
     QFile file(QString::fromStdString(json_path));
     if (!file.open(QIODevice::ReadOnly)) {
@@ -69,7 +72,7 @@ Profile_load_result load_sender_profile(const std::string& json_path)
     }
 
     auto obj = doc.object();
-    Sender_profile p;
+    sender_profile_t p;
 
     p.id                  = qs(obj.value("id").toString());
     p.sender_lines        = json_string_array(obj, "sender_lines");
@@ -95,8 +98,10 @@ Profile_load_result load_sender_profile(const std::string& json_path)
     return { true, std::move(p), "" };
 }
 
-bool save_sender_profile(const Sender_profile& profile, const std::string& json_path,
-                         std::string* error)
+bool save_sender_profile(
+    const sender_profile_t& profile,
+    const std::string& json_path,
+    std::string* error)
 {
     QJsonObject obj;
     obj.insert("id", QString::fromStdString(profile.id));

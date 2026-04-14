@@ -63,7 +63,7 @@ int main(int argc, char* argv[])
     }
     lr.profile.signature_image.clear();
 
-    Letter_input input;
+    letter_input_t input;
     input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                       "Beispielweg 42\n54321 Beispielstadt";
     input.subject = "Angebot: Dienstleistungspakete 2026";
@@ -80,11 +80,18 @@ int main(int argc, char* argv[])
 
     std::printf("Built %zu page(s)\n", br.doc.pages.size());
 
-    auto rr = render_pdf(br.doc, output, default_font_family(), default_localization(),
-                         Pdf_backend::Haru);
+    auto rr = render_pdf(
+        br.doc,
+        output,
+        default_font_family(),
+        default_localization(),
+        Pdf_backend::Haru);
     if (!rr.ok) {
-        std::fprintf(stderr, "Render failed: %s (%s)\n",
-                     rr.message.c_str(), rr.detail.c_str());
+        std::fprintf(
+            stderr,
+            "Render failed: %s (%s)\n",
+            rr.message.c_str(),
+            rr.detail.c_str());
         QFile::remove(profile_path);
         QDir().rmdir(tmp_dir);
         return 1;
@@ -95,11 +102,18 @@ int main(int argc, char* argv[])
     std::string mark2_detail;
     if (pdf_measurement_ready(Pdf_backend::Mark2Haru, default_font_family(), &mark2_detail)) {
         std::string mark2_output = std::string(output) + ".mark2haru.pdf";
-        auto rr2 = render_pdf(br.doc, mark2_output, default_font_family(),
-                              default_localization(), Pdf_backend::Mark2Haru);
+        auto rr2 = render_pdf(
+            br.doc,
+            mark2_output,
+            default_font_family(),
+            default_localization(),
+            Pdf_backend::Mark2Haru);
         if (!rr2.ok) {
-            std::fprintf(stderr, "Render mark2haru failed: %s (%s)\n",
-                         rr2.message.c_str(), rr2.detail.c_str());
+            std::fprintf(
+                stderr,
+                "Render mark2haru failed: %s (%s)\n",
+                rr2.message.c_str(),
+                rr2.detail.c_str());
             QFile::remove(profile_path);
             QDir().rmdir(tmp_dir);
             return 1;

@@ -132,12 +132,12 @@ struct Haru_context
 {
     HPDF_Doc      pdf = nullptr;
     font_handle_t fonts[5] = {};
-    Font_family_config current_fc = default_font_family();
+    font_family_config_t current_fc = default_font_family();
     std::string   last_error;
 
     ~Haru_context() { destroy(); }
 
-    bool init(const Font_family_config& fc = default_font_family())
+    bool init(const font_family_config_t& fc = default_font_family())
     {
         last_error.clear();
         current_fc = fc;
@@ -200,15 +200,19 @@ struct Haru_context
         return fonts[(int)id];
     }
 
-    static void HPDF_STDCALL error_handler(HPDF_STATUS error_no,
-                                           HPDF_STATUS detail_no,
-                                           void* user_data)
+    static void HPDF_STDCALL error_handler(
+        HPDF_STATUS error_no,
+        HPDF_STATUS detail_no,
+        void* user_data)
     {
         auto* ctx = static_cast<Haru_context*>(user_data);
         char buf[128];
-        std::snprintf(buf, sizeof(buf),
-                      "libHaru error 0x%04X (detail %u)",
-                      (unsigned)error_no, (unsigned)detail_no);
+        std::snprintf(
+            buf,
+            sizeof(buf),
+            "libHaru error 0x%04X (detail %u)",
+            (unsigned)error_no,
+            (unsigned)detail_no);
         if (ctx) ctx->last_error = buf;
     }
 
@@ -222,20 +226,25 @@ struct Haru_context
     }
 };
 
-static float font_text_width_pt(const font_handle_t& font, float size_pt,
-                                const std::string& text)
+static float font_text_width_pt(
+    const font_handle_t& font,
+    float size_pt,
+    const std::string& text)
 {
     if (!font) return 0;
     auto encoded = encode_for_font(font, text);
-    auto tw = HPDF_Font_TextWidth(font.handle,
-                                  (const HPDF_BYTE*)encoded.c_str(),
-                                  (HPDF_UINT)encoded.size());
+    auto tw = HPDF_Font_TextWidth(
+        font.handle,
+        (const HPDF_BYTE*)encoded.c_str(),
+        (HPDF_UINT)encoded.size());
     return tw.width * size_pt / 1000.0f;
 }
 
-static std::vector<std::string> do_wrap(const font_handle_t& font, float size_pt,
-                                        float max_width_pt,
-                                        const std::string& text)
+static std::vector<std::string> do_wrap(
+    const font_handle_t& font,
+    float size_pt,
+    float max_width_pt,
+    const std::string& text)
 {
     std::vector<std::string> result;
 

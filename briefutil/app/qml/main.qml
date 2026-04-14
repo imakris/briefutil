@@ -74,7 +74,8 @@ ApplicationWindow {
         var newIndex = -1
         if (currentIndex >= 0 && currentIndex < options.length) {
             newIndex = currentIndex
-        } else {
+        }
+        else {
             for (var j = 0; j < options.length; j++) {
                 if (options[j] === currentText) {
                     newIndex = j

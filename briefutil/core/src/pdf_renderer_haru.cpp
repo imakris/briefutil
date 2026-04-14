@@ -21,8 +21,11 @@ static float tl_y(float y_mm, float page_height_mm)
     return mm_to_pt(page_height_mm - y_mm);
 }
 
-static bool render_text_block(HPDF_Page page, Haru_context& ctx,
-                              const Text_block& tb, float page_h_mm)
+static bool render_text_block(
+    HPDF_Page page,
+    Haru_context& ctx,
+    const text_block_t& tb,
+    float page_h_mm)
 {
     auto font = ctx.font_for(tb.font);
     if (!font) {
@@ -33,8 +36,13 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
 
     std::vector<std::string> lines;
     if (tb.wrap) {
-        lines = wrap_text(Pdf_backend::Haru, tb.text, tb.font, tb.size_pt,
-                          tb.width_mm, ctx.current_fc);
+        lines = wrap_text(
+            Pdf_backend::Haru,
+            tb.text,
+            tb.font,
+            tb.size_pt,
+            tb.width_mm,
+            ctx.current_fc);
     }
     else {
         lines = split_lines(tb.text);
@@ -63,8 +71,11 @@ static bool render_text_block(HPDF_Page page, Haru_context& ctx,
     return ctx.last_error.empty();
 }
 
-static bool render_line_segment(HPDF_Page page, Haru_context& ctx,
-                                const line_segment_t& ls, float page_h_mm)
+static bool render_line_segment(
+    HPDF_Page page,
+    Haru_context& ctx,
+    const line_segment_t& ls,
+    float page_h_mm)
 {
     HPDF_Page_SetLineWidth(page, ls.stroke_width_pt);
     HPDF_Page_SetRGBStroke(page, ls.color.r, ls.color.g, ls.color.b);
@@ -74,17 +85,21 @@ static bool render_line_segment(HPDF_Page page, Haru_context& ctx,
     return ctx.last_error.empty();
 }
 
-static bool render_image_block(HPDF_Page page, Haru_context& ctx,
-                               const Image_block& ib, float page_h_mm,
-                               const Localization& loc)
+static bool render_image_block(
+    HPDF_Page page,
+    Haru_context& ctx,
+    const image_block_t& ib,
+    float page_h_mm,
+    const localization_t& loc)
 {
     HPDF_Image img = HPDF_LoadPngImageFromFile(ctx.pdf, ib.path.c_str());
     if (!img) {
         ctx.last_error.clear();
         HPDF_ResetError(ctx.pdf);
 
-        std::string placeholder = format_image_not_found(loc.image_not_found_format,
-                                                          ib.path);
+        std::string placeholder = format_image_not_found(
+            loc.image_not_found_format,
+            ib.path);
         auto font = ctx.font_for(Font_id::SANS_ITALIC);
         if (font) {
             auto encoded = encode_for_font(font, placeholder);
@@ -116,8 +131,11 @@ static bool render_image_block(HPDF_Page page, Haru_context& ctx,
     return ctx.last_error.empty();
 }
 
-static bool render_filled_rect(HPDF_Page page, Haru_context& ctx,
-                               const filled_rect_t& fr, float page_h_mm)
+static bool render_filled_rect(
+    HPDF_Page page,
+    Haru_context& ctx,
+    const filled_rect_t& fr,
+    float page_h_mm)
 {
     float x = tl_x(fr.x_mm);
     float y = tl_y(fr.y_mm, page_h_mm);
@@ -130,8 +148,11 @@ static bool render_filled_rect(HPDF_Page page, Haru_context& ctx,
     return ctx.last_error.empty();
 }
 
-static bool render_text_span(HPDF_Page page, Haru_context& ctx,
-                             const Text_span& ts, float page_h_mm)
+static bool render_text_span(
+    HPDF_Page page,
+    Haru_context& ctx,
+    const text_span_t& ts,
+    float page_h_mm)
 {
     auto font = ctx.font_for(ts.font);
     if (!font) {
@@ -144,8 +165,10 @@ static bool render_text_span(HPDF_Page page, Haru_context& ctx,
     HPDF_Page_BeginText(page);
     HPDF_Page_SetFontAndSize(page, font.handle, ts.size_pt);
     HPDF_Page_SetRGBFill(page, ts.color.r, ts.color.g, ts.color.b);
-    HPDF_Page_MoveTextPos(page, tl_x(ts.x_mm),
-                          tl_y(ts.y_mm, page_h_mm) - ts.size_pt);
+    HPDF_Page_MoveTextPos(
+        page,
+        tl_x(ts.x_mm),
+        tl_y(ts.y_mm, page_h_mm) - ts.size_pt);
     HPDF_Page_ShowText(page, encoded.c_str());
     HPDF_Page_EndText(page);
     return ctx.last_error.empty();
@@ -157,8 +180,11 @@ static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
     if (status != HPDF_OK || !ctx.last_error.empty()) {
         if (ctx.last_error.empty()) {
             char buf[128];
-            std::snprintf(buf, sizeof(buf),
-                          "HPDF_SaveToStream failed (status 0x%04X)", (unsigned)status);
+            std::snprintf(
+                buf,
+                sizeof(buf),
+                "HPDF_SaveToStream failed (status 0x%04X)",
+                (unsigned)status);
             ctx.last_error = buf;
         }
         return false;
@@ -173,8 +199,11 @@ static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
     status = HPDF_ResetStream(ctx.pdf);
     if (status != HPDF_OK) {
         char buf[128];
-        std::snprintf(buf, sizeof(buf),
-                      "HPDF_ResetStream failed (status 0x%04X)", (unsigned)status);
+        std::snprintf(
+            buf,
+            sizeof(buf),
+            "HPDF_ResetStream failed (status 0x%04X)",
+            (unsigned)status);
         ctx.last_error = buf;
         return false;
     }
@@ -185,13 +214,17 @@ static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
     HPDF_UINT32 remaining = HPDF_GetStreamSize(ctx.pdf);
     while (remaining > 0) {
         HPDF_UINT32 to_read = std::min(remaining, chunk_size);
-        status = HPDF_ReadFromStream(ctx.pdf,
-                                     reinterpret_cast<HPDF_BYTE*>(buffer.data()),
-                                     &to_read);
+        status = HPDF_ReadFromStream(
+            ctx.pdf,
+            reinterpret_cast<HPDF_BYTE*>(buffer.data()),
+            &to_read);
         if (status != HPDF_OK && status != HPDF_STREAM_EOF) {
             char buf[128];
-            std::snprintf(buf, sizeof(buf),
-                          "HPDF_ReadFromStream failed (status 0x%04X)", (unsigned)status);
+            std::snprintf(
+                buf,
+                sizeof(buf),
+                "HPDF_ReadFromStream failed (status 0x%04X)",
+                (unsigned)status);
             ctx.last_error = buf;
             return false;
         }
@@ -221,16 +254,18 @@ static bool save_pdf_stream(Haru_context& ctx, const QString& output_path)
     return true;
 }
 
-static Render_result render_pdf_haru_qstring(const Document& doc, const QString& output_path,
-                                             const Font_family_config& fonts,
-                                             const Localization& loc)
+static render_result_t render_pdf_haru_qstring(
+    const document_t& doc,
+    const QString& output_path,
+    const font_family_config_t& fonts,
+    const localization_t& loc)
 {
     Haru_context ctx;
 
     auto fail = [&](const std::string& message, const char* fallback_detail) {
         auto detail = ctx.last_error.empty()
             ? std::string(fallback_detail) : ctx.last_error;
-        return Render_result{ false, "", message, detail };
+        return render_result_t{ false, "", message, detail };
     };
 
     if (!ctx.init(fonts)) {
@@ -248,15 +283,19 @@ static Render_result render_pdf_haru_qstring(const Document& doc, const QString&
         for (const auto& elem : page_def.elements) {
             bool ok = std::visit([&](const auto& e) {
                 using T = std::decay_t<decltype(e)>;
-                if constexpr (std::is_same_v<T, Text_block>)
+                if constexpr (std::is_same_v<T, text_block_t>)
                     return render_text_block(page, ctx, e, doc.page_height_mm);
-                else if constexpr (std::is_same_v<T, line_segment_t>)
+                else
+                if constexpr (std::is_same_v<T, line_segment_t>)
                     return render_line_segment(page, ctx, e, doc.page_height_mm);
-                else if constexpr (std::is_same_v<T, Image_block>)
+                else
+                if constexpr (std::is_same_v<T, image_block_t>)
                     return render_image_block(page, ctx, e, doc.page_height_mm, loc);
-                else if constexpr (std::is_same_v<T, Text_span>)
+                else
+                if constexpr (std::is_same_v<T, text_span_t>)
                     return render_text_span(page, ctx, e, doc.page_height_mm);
-                else if constexpr (std::is_same_v<T, filled_rect_t>)
+                else
+                if constexpr (std::is_same_v<T, filled_rect_t>)
                     return render_filled_rect(page, ctx, e, doc.page_height_mm);
                 return false;
             }, elem);
@@ -273,10 +312,11 @@ static Render_result render_pdf_haru_qstring(const Document& doc, const QString&
     return { true, output_path.toUtf8().toStdString(), "", "" };
 }
 
-Render_result render_pdf_haru(const Document& doc,
-                              const std::string& output_path,
-                              const Font_family_config& fonts,
-                              const Localization& loc)
+render_result_t render_pdf_haru(
+    const document_t& doc,
+    const std::string& output_path,
+    const font_family_config_t& fonts,
+    const localization_t& loc)
 {
     return render_pdf_haru_qstring(doc, QString::fromUtf8(output_path.c_str()), fonts, loc);
 }

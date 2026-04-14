@@ -50,7 +50,7 @@ static bool write_test_signature_png(const QString& path)
     return file.write(k_png_bytes) == k_png_bytes.size();
 }
 
-static bool same_element(const Page_element& a, const Page_element& b, std::string* reason)
+static bool same_element(const page_element_t& a, const page_element_t& b, std::string* reason)
 {
     if (a.index() != b.index()) {
         if (reason) *reason = "element types differ";
@@ -70,9 +70,9 @@ static bool same_element(const Page_element& a, const Page_element& b, std::stri
         return true;
     };
 
-    if (const auto* lhs = std::get_if<Text_block>(&a)) {
-        const auto* rhs = std::get_if<Text_block>(&b);
-        if (!compare_text(*lhs, *rhs, "Text_block")) {
+    if (const auto* lhs = std::get_if<text_block_t>(&a)) {
+        const auto* rhs = std::get_if<text_block_t>(&b);
+        if (!compare_text(*lhs, *rhs, "text_block_t")) {
             return false;
         }
         if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
@@ -80,19 +80,19 @@ static bool same_element(const Page_element& a, const Page_element& b, std::stri
             || !nearly_equal(lhs->width_mm, rhs->width_mm, 0.1f)
             || !nearly_equal(lhs->leading_pt, rhs->leading_pt, 0.01f)
             || lhs->wrap != rhs->wrap) {
-            if (reason) *reason = "Text_block geometry differs";
+            if (reason) *reason = "text_block_t geometry differs";
             return false;
         }
         return true;
     }
-    if (const auto* lhs = std::get_if<Text_span>(&a)) {
-        const auto* rhs = std::get_if<Text_span>(&b);
-        if (!compare_text(*lhs, *rhs, "Text_span")) {
+    if (const auto* lhs = std::get_if<text_span_t>(&a)) {
+        const auto* rhs = std::get_if<text_span_t>(&b);
+        if (!compare_text(*lhs, *rhs, "text_span_t")) {
             return false;
         }
         if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
             || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)) {
-            if (reason) *reason = "Text_span geometry differs";
+            if (reason) *reason = "text_span_t geometry differs";
             return false;
         }
         return true;
@@ -124,13 +124,13 @@ static bool same_element(const Page_element& a, const Page_element& b, std::stri
         }
         return true;
     }
-    if (const auto* lhs = std::get_if<Image_block>(&a)) {
-        const auto* rhs = std::get_if<Image_block>(&b);
+    if (const auto* lhs = std::get_if<image_block_t>(&a)) {
+        const auto* rhs = std::get_if<image_block_t>(&b);
         if (!nearly_equal(lhs->x_mm, rhs->x_mm, 0.1f)
             || !nearly_equal(lhs->y_mm, rhs->y_mm, 0.1f)
             || !nearly_equal(lhs->width_mm, rhs->width_mm, 0.1f)
             || lhs->path != rhs->path) {
-            if (reason) *reason = "Image_block differs";
+            if (reason) *reason = "image_block_t differs";
             return false;
         }
         return true;
@@ -140,7 +140,7 @@ static bool same_element(const Page_element& a, const Page_element& b, std::stri
     return false;
 }
 
-static bool same_document(const Document& a, const Document& b, std::string* reason)
+static bool same_document(const document_t& a, const document_t& b, std::string* reason)
 {
     if (!nearly_equal(a.page_width_mm, b.page_width_mm) || !nearly_equal(a.page_height_mm, b.page_height_mm)) {
         if (reason) *reason = "page size differs";
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
         // Clear signature_image since the test dir has no PNG
         lr.profile.signature_image.clear();
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                           "Beispielweg 42\n54321 Beispielstadt";
         // All text must be UTF-8 — the renderer converts to Latin-1 for libHaru.
@@ -321,7 +321,7 @@ int main(int argc, char* argv[])
         auto lr = load_sender_profile(qs(profile_path));
         lr.profile.signature_image.clear();
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Langer Brief";
         input.date = "14. M\xc3\xa4rz 2026";
@@ -401,7 +401,7 @@ int main(int argc, char* argv[])
 
         lr.profile.signature_image.clear();
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Kommerzieller Brief";
         input.date = "14. M\xc3\xa4rz 2026";
@@ -429,7 +429,7 @@ int main(int argc, char* argv[])
         bool found_fold2 = false;
         bool found_punch = false;
         for (const auto& element : doc.pages[0].elements) {
-            if (const auto* text = std::get_if<Text_block>(&element)) {
+            if (const auto* text = std::get_if<text_block_t>(&element)) {
                 if (text->text == "Musterstr. 6\n12345 Musterstadt\n\nkontakt@muster-ag.de") {
                     found_sender = true;
                     if (!nearly_equal(text->x_mm, 125.0f) || !nearly_equal(text->size_pt, 10.0f)) {
@@ -565,7 +565,7 @@ int main(int argc, char* argv[])
         }
         lr.profile.signature_image.clear();
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject.clear();
         input.date = "14. M\xc3\xa4rz 2026";
@@ -585,13 +585,13 @@ int main(int argc, char* argv[])
         bool found_placeholder = false;
         bool found_body = false;
         for (const auto& element : doc.pages[0].elements) {
-            if (const auto* text = std::get_if<Text_block>(&element)) {
+            if (const auto* text = std::get_if<text_block_t>(&element)) {
                 if (text->text == "[no subject]") {
                     found_placeholder = true;
                 }
             }
-            // Body is now rendered as Text_spans via the layout engine
-            if (const auto* span = std::get_if<Text_span>(&element)) {
+            // Body is now rendered as text_span_t values via the layout engine
+            if (const auto* span = std::get_if<text_span_t>(&element)) {
                 if (span->text.find("Erste") != std::string::npos) {
                     found_body = true;
                 }
@@ -632,7 +632,7 @@ int main(int argc, char* argv[])
         }
         lr.profile.signature_image.clear();
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Brief mit Localization";
         input.date = "13. April 2026";
@@ -649,21 +649,28 @@ int main(int argc, char* argv[])
         }
         input.body = body;
 
-        Localization custom;
+        localization_t custom;
         custom.closing             = "Yours truly,";
         custom.page_number_format  = "Sheet {current}/{total}";
         custom.error_pdf_open_failed_format = "Open failed for {path}";
 
         auto open_failed = format_pdf_open_failed(
-            custom.error_pdf_open_failed_format, "C:/tmp/out.pdf");
+            custom.error_pdf_open_failed_format,
+            "C:/tmp/out.pdf");
         if (open_failed != "Open failed for C:/tmp/out.pdf") {
-            std::fprintf(stderr,
+            std::fprintf(
+                stderr,
                 "FAIL: localized open-failure format was not expanded correctly\n");
             return 1;
         }
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir),
-                               default_theme(), din_5008_form_b(), custom);
+        auto br = build_letter(
+            lr.profile,
+            input,
+            qs(tmp_dir),
+            default_theme(),
+            din_5008_form_b(),
+            custom);
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: loc build_letter: %s\n", br.error.c_str());
             return 1;
@@ -677,7 +684,7 @@ int main(int argc, char* argv[])
         bool found_page_number = false;
         for (const auto& page : br.doc.pages) {
             for (const auto& element : page.elements) {
-                if (const auto* text = std::get_if<Text_block>(&element)) {
+                if (const auto* text = std::get_if<text_block_t>(&element)) {
                     if (text->text == "Yours truly,") found_closing = true;
                     if (text->text.find("Sheet ") == 0
                         && text->text.find("/") != std::string::npos) {
@@ -723,7 +730,7 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        Letter_input input;
+        letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                           "Beispielweg 42\n54321 Beispielstadt";
         input.subject = "Backend parity check";
@@ -742,10 +749,12 @@ int main(int argc, char* argv[])
 #ifdef BRIEFUTIL_MARK2HARU_FONT_DIR
         QDir mark2_fonts_dir(QString::fromUtf8(BRIEFUTIL_MARK2HARU_FONT_DIR));
         if (!mark2_fonts_dir.exists()) {
-            std::printf("[SKIP] parity test font directory not available: %s\n",
-                        qs(mark2_fonts_dir.path()).c_str());
-        } else {
-            Theme_config parity_theme = default_theme();
+            std::printf(
+                "[SKIP] parity test font directory not available: %s\n",
+                qs(mark2_fonts_dir.path()).c_str());
+        }
+        else {
+            theme_config_t parity_theme = default_theme();
             parity_theme.fonts.sans = mark2_fonts_dir.filePath("DejaVuSans.ttf").toStdString();
             parity_theme.fonts.sans_bold = mark2_fonts_dir.filePath("DejaVuSans-Bold.ttf").toStdString();
             parity_theme.fonts.sans_italic = mark2_fonts_dir.filePath("DejaVuSans-Oblique.ttf").toStdString();
@@ -754,12 +763,22 @@ int main(int argc, char* argv[])
 
             std::string detail;
             if (pdf_measurement_ready(Pdf_backend::Mark2Haru, parity_theme.fonts, &detail)) {
-                auto haru = build_letter(lr.profile, input, qs(tmp_dir), parity_theme,
-                                         din_5008_form_b(), default_localization(),
-                                         Pdf_backend::Haru);
-                auto mark2 = build_letter(lr.profile, input, qs(tmp_dir), parity_theme,
-                                          din_5008_form_b(), default_localization(),
-                                          Pdf_backend::Mark2Haru);
+                auto haru = build_letter(
+                    lr.profile,
+                    input,
+                    qs(tmp_dir),
+                    parity_theme,
+                    din_5008_form_b(),
+                    default_localization(),
+                    Pdf_backend::Haru);
+                auto mark2 = build_letter(
+                    lr.profile,
+                    input,
+                    qs(tmp_dir),
+                    parity_theme,
+                    din_5008_form_b(),
+                    default_localization(),
+                    Pdf_backend::Mark2Haru);
 
                 if (!haru.error.empty()) {
                     std::fprintf(stderr, "FAIL: Haru parity build_letter: %s\n", haru.error.c_str());
@@ -772,22 +791,31 @@ int main(int argc, char* argv[])
 
                 std::string reason;
                 if (!same_document(haru.doc, mark2.doc, &reason)) {
-                    std::fprintf(stderr, "FAIL: backend parity mismatch: %s\n",
-                                 reason.c_str());
+                    std::fprintf(
+                        stderr,
+                        "FAIL: backend parity mismatch: %s\n",
+                        reason.c_str());
                     return 1;
                 }
 
-                auto rr = render_pdf(mark2.doc, std::string(output) + ".parity.mark2haru.pdf",
-                                     parity_theme.fonts, default_localization(),
-                                     Pdf_backend::Mark2Haru);
+                auto rr = render_pdf(
+                    mark2.doc,
+                    std::string(output) + ".parity.mark2haru.pdf",
+                    parity_theme.fonts,
+                    default_localization(),
+                    Pdf_backend::Mark2Haru);
                 if (!rr.ok) {
-                    std::fprintf(stderr, "FAIL: mark2haru parity render: %s (%s)\n",
-                                 rr.message.c_str(), rr.detail.c_str());
+                    std::fprintf(
+                        stderr,
+                        "FAIL: mark2haru parity render: %s (%s)\n",
+                        rr.message.c_str(),
+                        rr.detail.c_str());
                     return 1;
                 }
                 std::printf("[OK] Haru/mark2haru parity matched on image-bearing corpus\n");
             }
-            else if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
+            else
+            if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
                 std::printf("[SKIP] mark2haru parity test not ready: %s\n", detail.c_str());
             }
         }

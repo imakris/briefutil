@@ -24,15 +24,18 @@ inline const char* pdf_backend_name(Pdf_backend backend)
     switch (backend) {
         case Pdf_backend::Haru:      return "haru";
         case Pdf_backend::Mark2Haru: return "mark2haru";
+        default:                     return "haru";
     }
-    return "haru";
 }
 
 inline Pdf_backend pdf_backend_from_name(const std::string& name)
 {
     std::string normalized = name;
-    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                   [](unsigned char c) { return (char)std::tolower(c); });
+    std::transform(
+        normalized.begin(),
+        normalized.end(),
+        normalized.begin(),
+        [](unsigned char c) { return (char)std::tolower(c); });
     if (normalized == "mark2haru") {
         return Pdf_backend::Mark2Haru;
     }

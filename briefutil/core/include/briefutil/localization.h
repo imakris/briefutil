@@ -4,7 +4,7 @@
 
 
 // ============================================================================
-// Localization — strings the core writes into letters and error messages
+// Localization strings the core writes into letters and error messages
 //
 // Defaults are English. Use german_localization() for the previous
 // German-language defaults, or fill the struct yourself for any other
@@ -15,7 +15,7 @@
 //   {path}                in image_not_found_format and error_pdf_open_failed_format
 // ============================================================================
 
-struct Localization
+struct localization_t
 {
     // Closing line above the signer name (e.g. "Sincerely,").
     std::string closing = "Sincerely,";
@@ -28,7 +28,7 @@ struct Localization
     // Tokens: {path}.
     std::string image_not_found_format = "[Image not found: {path}]";
 
-    // User-facing error strings returned in Render_result::message.
+    // User-facing error strings returned in render_result_t::message.
     std::string error_pdf_create_failed = "Failed to create the PDF.";
     std::string error_pdf_save_failed   = "Failed to save the PDF.";
     std::string error_table_too_wide    = "A table is too wide for the available page area.";
@@ -41,9 +41,10 @@ struct Localization
 // String substitution helpers
 // ============================================================================
 
-inline std::string format_replace(std::string s,
-                                  const std::string& token,
-                                  const std::string& value)
+inline std::string format_replace(
+    std::string s,
+    const std::string& token,
+    const std::string& value)
 {
     size_t pos = 0;
     while ((pos = s.find(token, pos)) != std::string::npos) {
@@ -53,21 +54,24 @@ inline std::string format_replace(std::string s,
     return s;
 }
 
-inline std::string format_page_number(const std::string& format_template,
-                                      int current, int total)
+inline std::string format_page_number(
+    const std::string& format_template,
+    int current, int total)
 {
     auto out = format_replace(format_template, "{current}", std::to_string(current));
     return format_replace(out, "{total}", std::to_string(total));
 }
 
-inline std::string format_image_not_found(const std::string& format_template,
-                                          const std::string& path)
+inline std::string format_image_not_found(
+    const std::string& format_template,
+    const std::string& path)
 {
     return format_replace(format_template, "{path}", path);
 }
 
-inline std::string format_pdf_open_failed(const std::string& format_template,
-                                          const std::string& path)
+inline std::string format_pdf_open_failed(
+    const std::string& format_template,
+    const std::string& path)
 {
     return format_replace(format_template, "{path}", path);
 }
@@ -77,13 +81,13 @@ inline std::string format_pdf_open_failed(const std::string& format_template,
 // Built-in presets
 // ============================================================================
 
-inline Localization default_localization() { return {}; }
+inline localization_t default_localization() { return {}; }
 
-inline Localization english_localization() { return {}; }
+inline localization_t english_localization() { return {}; }
 
-inline Localization german_localization()
+inline localization_t german_localization()
 {
-    Localization L;
+    localization_t L;
     // UTF-8: ü = \xc3\xbc, ß = \xc3\x9f
     L.closing                 = "Mit freundlichen Gr\xc3\xbc\xc3\x9f" "en";
     L.page_number_format      = "Seite {current} von {total}";

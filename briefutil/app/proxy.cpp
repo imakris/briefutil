@@ -45,12 +45,7 @@ static QString default_sender_template_dir()
     return QDir::homePath() + "/briefutil/templates/";
 }
 
-static Pdf_backend selected_pdf_backend()
-{
-    return pdf_backend_from_name(qEnvironmentVariable("BRIEFUTIL_PDF_BACKEND").toStdString());
-}
-
-static bool is_valid_font_config(const Font_family_config& fc)
+static bool is_valid_font_config(const font_family_config_t& fc)
 {
     return !fc.sans.empty()
         && !fc.sans_bold.empty()
@@ -75,13 +70,13 @@ static void ensure_template_dir_ready(const QString& dir_path)
         templates_dir.mkpath(".");
     }
 
-    auto write_file_if_missing = [&](const QString& path, const char* data,
-                                     size_t size, bool refresh_old_placeholder = false) {
+    auto write_file_if_missing = [&](
+        const QString& path,
+        const char* data,
+        size_t size) {
         QFileInfo info(path);
         if (info.exists()) {
-            if (!(refresh_old_placeholder && info.size() == 67)) {
-                return;
-            }
+            return;
         }
         QFile file(path);
         if (!file.open(QIODevice::WriteOnly)) {
@@ -90,16 +85,18 @@ static void ensure_template_dir_ready(const QString& dir_path)
         file.write(data, (qint64)size);
     };
 
-    write_file_if_missing(dir_path + "Max Mustermann.json",
-                          k_default_profile_simple_json,
-                          std::strlen(k_default_profile_simple_json));
-    write_file_if_missing(dir_path + "Max Mustermann, Mustermann AG.json",
-                          k_default_profile_commercial_json,
-                          std::strlen(k_default_profile_commercial_json));
-    write_file_if_missing(dir_path + "mustermann_signature.png",
-                          (const char*)mustermann_signature_png::data().first,
-                          mustermann_signature_png::data().second,
-                          true);
+    write_file_if_missing(
+        dir_path + "Max Mustermann.json",
+        k_default_profile_simple_json,
+        std::strlen(k_default_profile_simple_json));
+    write_file_if_missing(
+        dir_path + "Max Mustermann, Mustermann AG.json",
+        k_default_profile_commercial_json,
+        std::strlen(k_default_profile_commercial_json));
+    write_file_if_missing(
+        dir_path + "mustermann_signature.png",
+        (const char*)mustermann_signature_png::data().first,
+        mustermann_signature_png::data().second);
 }
 
 static QString join_lines(const std::vector<std::string>& lines)
@@ -255,9 +252,10 @@ static QString resolve_windows_font_path(QString path, const QStringList& base_d
     return QString();
 }
 
-static void append_windows_registry_fonts(QHash<QString, QString>& map,
-                                          const QString& registry_path,
-                                          const QStringList& base_dirs)
+static void append_windows_registry_fonts(
+    QHash<QString, QString>& map,
+    const QString& registry_path,
+    const QStringList& base_dirs)
 {
     QSettings settings(registry_path, QSettings::NativeFormat);
     for (const auto& key : settings.allKeys()) {
@@ -305,47 +303,54 @@ static QStringList font_name_candidates(const QString& family, Font_role role)
     candidates.push_back(base);
     switch (role) {
         case Font_role::SANS_BOLD:
-            candidates << (base + " Bold")
-                       << (base + " DemiBold")
-                       << (base + " Semibold")
-                       << (base + " SemiBold")
-                       << (base + " Demi Bold")
-                       << (base + " Medium");
+            candidates
+                << (base + " Bold")
+                << (base + " DemiBold")
+                << (base + " Semibold")
+                << (base + " SemiBold")
+                << (base + " Demi Bold")
+                << (base + " Medium");
             break;
         case Font_role::SANS_ITALIC:
-            candidates << (base + " Italic")
-                       << (base + " Oblique");
+            candidates
+                << (base + " Italic")
+                << (base + " Oblique");
             break;
         case Font_role::SANS_BOLD_ITALIC:
-            candidates << (base + " Bold Italic")
-                       << (base + " BoldItalic")
-                       << (base + " Bold Oblique")
-                       << (base + " Semibold Italic")
-                       << (base + " SemiBold Italic")
-                       << (base + " Demi Bold Italic")
-                       << (base + " Medium Italic");
+            candidates
+                << (base + " Bold Italic")
+                << (base + " BoldItalic")
+                << (base + " Bold Oblique")
+                << (base + " Semibold Italic")
+                << (base + " SemiBold Italic")
+                << (base + " Demi Bold Italic")
+                << (base + " Medium Italic");
             break;
         case Font_role::SANS:
         case Font_role::MONO:
-            candidates << (base + " Regular")
-                       << (base + " Roman")
-                       << (base + " Book");
+            candidates
+                << (base + " Regular")
+                << (base + " Roman")
+                << (base + " Book");
             break;
         case Font_role::ANY:
-            candidates << (base + " Regular")
-                       << (base + " Roman")
-                       << (base + " Book")
-                       << (base + " Bold")
-                       << (base + " DemiBold")
-                       << (base + " Semibold")
-                       << (base + " SemiBold")
-                       << (base + " Italic")
-                       << (base + " Bold Italic")
-                       << (base + " BoldItalic")
-                       << (base + " Oblique")
-                       << (base + " Bold Oblique")
-                       << (base + " Semibold Italic")
-                       << (base + " SemiBold Italic");
+            candidates
+                << (base + " Regular")
+                << (base + " Roman")
+                << (base + " Book")
+                << (base + " Bold")
+                << (base + " DemiBold")
+                << (base + " Semibold")
+                << (base + " SemiBold")
+                << (base + " Italic")
+                << (base + " Bold Italic")
+                << (base + " BoldItalic")
+                << (base + " Oblique")
+                << (base + " Bold Oblique")
+                << (base + " Semibold Italic")
+                << (base + " SemiBold Italic");
+            break;
+        default:
             break;
     }
     candidates.removeDuplicates();
@@ -392,9 +397,12 @@ static QString resolve_font_value(const QString& value, Font_role role)
 #endif
 }
 
-static Font_family_config font_config_from_inputs(const QString& sans, const QString& sans_bold,
-                                                  const QString& sans_italic, const QString& sans_bold_italic,
-                                                  const QString& mono)
+static font_family_config_t font_config_from_inputs(
+    const QString& sans,
+    const QString& sans_bold,
+    const QString& sans_italic,
+    const QString& sans_bold_italic,
+    const QString& mono)
 {
     return {
         resolve_font_value(sans,             Font_role::SANS).toStdString(),
@@ -452,7 +460,7 @@ void Proxy::save_settings() const
     s.setValue("appearance/darkMode",    m_dark_mode);
 }
 
-Localization Proxy::current_localization() const
+localization_t Proxy::current_localization() const
 {
     // Default to English. Auto-detect German from the system locale so
     // existing German users keep their familiar wording without any UI.
@@ -462,7 +470,7 @@ Localization Proxy::current_localization() const
     return english_localization();
 }
 
-Letter_layout_spec Proxy::current_layout_spec() const
+letter_layout_spec_t Proxy::current_layout_spec() const
 {
     if (m_layout_preset == "din_5008_form_a") {
         return din_5008_form_a();
@@ -481,8 +489,7 @@ Letter_layout_spec Proxy::current_layout_spec() const
 Proxy::Proxy(QObject*)
 {
     // Output directory. Look for output_dir.conf next to the executable
-    // first (deterministic), then fall back to the working directory for
-    // backwards compatibility, and finally the default user home location.
+    // first (deterministic), then fall back to the default user home location.
     auto read_dir_conf = [](const QString& path) -> QString {
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly)) return QString();
@@ -491,9 +498,6 @@ Proxy::Proxy(QObject*)
 
     QString output_dir = read_dir_conf(
         QCoreApplication::applicationDirPath() + "/output_dir.conf");
-    if (output_dir.isEmpty()) {
-        output_dir = read_dir_conf("./output_dir.conf");
-    }
 
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
@@ -604,8 +608,11 @@ static bool open_generated_pdf(const QString& pdf_path)
 #endif
 }
 
-void Proxy::make_pdf(int from, const QString& to,
-                     const QString& subject, const QString& body)
+void Proxy::make_pdf(
+    int from,
+    const QString& to,
+    const QString& subject,
+    const QString& body)
 {
     if (from < 0 || from >= (int)m_profiles.size()) {
         emit pdf_generated(false, "Invalid sender profile selection.");
@@ -633,7 +640,7 @@ void Proxy::make_pdf(int from, const QString& to,
     QElapsedTimer timer;
     timer.start();
 
-    Letter_input input;
+    letter_input_t input;
     input.recipient = to.toStdString();
     input.subject   = subject.toStdString();
     input.body      = body.toStdString();
@@ -647,20 +654,23 @@ void Proxy::make_pdf(int from, const QString& to,
 
     auto loc = current_localization();
     auto layout = current_layout_spec();
-    auto backend = selected_pdf_backend();
+    auto backend = Pdf_backend::Haru;
     if (!pdf_backend_available(backend)) {
-        emit pdf_generated(false,
+        emit pdf_generated(
+            false,
             "Selected PDF backend is not available in this build.");
         return;
     }
 
-    auto result = generate_letter_pdf(profile, input,
-                                      m_sender_template_dir.toStdString(),
-                                      pdf_path.toUtf8().toStdString(),
-                                      m_theme,
-                                      layout,
-                                      loc,
-                                      backend);
+    auto result = generate_letter_pdf(
+        profile,
+        input,
+        m_sender_template_dir.toStdString(),
+        pdf_path.toUtf8().toStdString(),
+        m_theme,
+        layout,
+        loc,
+        backend);
 
     if (!result.ok) {
         emit pdf_generated(false,
@@ -672,10 +682,12 @@ void Proxy::make_pdf(int from, const QString& to,
     qInfo("briefutil: native PDF generated in %lld ms", timer.elapsed());
 
     if (!open_generated_pdf(pdf_path)) {
-        emit pdf_generated(false,
+        emit pdf_generated(
+            false,
             QString::fromStdString(
-                format_pdf_open_failed(loc.error_pdf_open_failed_format,
-                                       pdf_path.toUtf8().toStdString())));
+                format_pdf_open_failed(
+                    loc.error_pdf_open_failed_format,
+                    pdf_path.toUtf8().toStdString())));
         return;
     }
 
@@ -808,7 +820,7 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
         return false;
     }
 
-    Sender_profile updated = m_profiles[index].profile;
+    sender_profile_t updated = m_profiles[index].profile;
 
     auto id = profile_data.value("id").toString().trimmed();
     if (id.isEmpty()) {
@@ -902,7 +914,7 @@ int Proxy::create_new_profile()
         file_name = base_name + " " + QString::number(counter++) + ".json";
     }
 
-    Sender_profile_entry entry;
+    sender_profile_entry_t entry;
     entry.path = dir.filePath(file_name);
     m_profiles.push_back(std::move(entry));
 

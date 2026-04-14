@@ -197,7 +197,9 @@ Window {
             if (targetField === "signature") {
                 editorWin.signatureImage = imported
                 if (signatureImageField) signatureImageField.text = imported
-            } else if (targetField === "logo") {
+            }
+            else
+            if (targetField === "logo") {
                 editorWin.logoImage = imported
                 if (logoImageField) logoImageField.text = imported
             }

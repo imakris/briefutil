@@ -38,9 +38,9 @@ static bool is_word_char(char c)
         || (c >= '0' && c <= '9');
 }
 
-static std::vector<Text_run> parse_inline(const std::string& text)
+static std::vector<text_run_t> parse_inline(const std::string& text)
 {
-    std::vector<Text_run> runs;
+    std::vector<text_run_t> runs;
     size_t i = 0;
     std::string current;
 
@@ -177,7 +177,8 @@ static std::vector<Text_run> parse_inline(const std::string& text)
                     if (display.empty()) {
                         current += url;
                     }
-                    else if (display == url) {
+                    else
+                    if (display == url) {
                         current += display;
                     }
                     else {
@@ -217,7 +218,7 @@ enum class Line_type
     TEXT,
 };
 
-struct Classified_line
+struct classified_line_t
 {
     Line_type   type;
     std::string content;      // trimmed/extracted content
@@ -243,7 +244,7 @@ static bool is_table_separator_line(const std::string& line)
     return true;
 }
 
-static Classified_line classify_line(const std::string& line)
+static classified_line_t classify_line(const std::string& line)
 {
     auto trimmed = trim(line);
 
@@ -315,7 +316,7 @@ static Classified_line classify_line(const std::string& line)
 
 // split_lines() from document_model.h is used instead of a local copy
 
-static Image_content_block parse_image_line(const std::string& line)
+static image_content_block_t parse_image_line(const std::string& line)
 {
     // ![alt](path)
     size_t alt_start = 2;
@@ -350,9 +351,9 @@ static std::vector<std::string> split_table_cells(const std::string& row)
 // Main parser
 // ============================================================================
 
-std::vector<Body_block> parse_markdown(const std::string& input)
+std::vector<body_block_t> parse_markdown(const std::string& input)
 {
-    std::vector<Body_block> blocks;
+    std::vector<body_block_t> blocks;
     auto lines = split_lines(input);
     size_t i = 0;
 
@@ -361,7 +362,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
 
     auto flush_paragraph = [&]() {
         if (para_accum.empty()) return;
-        Paragraph_block pb;
+        paragraph_block_t pb;
         pb.runs = parse_inline(para_accum);
         blocks.push_back(std::move(pb));
         para_accum.clear();
@@ -385,7 +386,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
                 code += lines[i];
                 i++;
             }
-            blocks.push_back(Code_block{ code, lang });
+            blocks.push_back(code_block_t{ code, lang });
             continue;
         }
 
@@ -400,7 +401,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
             case Line_type::HEADING:
                 flush_paragraph();
                 {
-                    Heading_block hb;
+                    heading_block_t hb;
                     hb.level = cl.heading_level;
                     hb.runs = parse_inline(cl.content);
                     blocks.push_back(std::move(hb));
@@ -413,7 +414,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
                 flush_paragraph();
                 {
                     bool ordered = (cl.type == Line_type::ORDERED_ITEM);
-                    List_block lb;
+                    list_block_t lb;
                     lb.ordered = ordered;
                     lb.start_number = cl.list_number;
 
@@ -424,7 +425,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
                             (!ordered && lcl.type == Line_type::BULLET_ITEM);
 
                         if (is_matching_item) {
-                            List_item item;
+                            list_item_t item;
                             item.runs = parse_inline(lcl.content);
                             lb.items.push_back(std::move(item));
                             i++;
@@ -465,7 +466,7 @@ std::vector<Body_block> parse_markdown(const std::string& input)
                 if (i + 1 < lines.size() &&
                     classify_line(lines[i + 1]).type == Line_type::TABLE_SEPARATOR) {
                     flush_paragraph();
-                    Table_block tb;
+                    table_block_t tb;
 
                     // Collect all table rows
                     while (i < lines.size()) {
@@ -477,10 +478,10 @@ std::vector<Body_block> parse_markdown(const std::string& input)
                         }
                         if (tcl.type != Line_type::TABLE_ROW) break;
 
-                        Table_row row;
+                        table_row_t row;
                         auto cell_texts = split_table_cells(tcl.content);
                         for (const auto& ct : cell_texts) {
-                            Table_cell cell;
+                            table_cell_t cell;
                             cell.runs = parse_inline(ct);
                             row.cells.push_back(std::move(cell));
                         }

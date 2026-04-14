@@ -12,4 +12,4 @@
 // ATX headings, bullet/ordered lists, images, and pipe tables.
 // ============================================================================
 
-std::vector<Body_block> parse_markdown(const std::string& input);
+std::vector<body_block_t> parse_markdown(const std::string& input);

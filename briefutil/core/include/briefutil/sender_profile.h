@@ -15,7 +15,7 @@ enum class Profile_style
     COMMERCIAL,
 };
 
-struct Sender_profile
+struct sender_profile_t
 {
     std::string              id;
     Profile_style            style = Profile_style::SIMPLE;
@@ -43,13 +43,15 @@ struct Sender_profile
 // JSON loading
 // ============================================================================
 
-struct Profile_load_result
+struct profile_load_result_t
 {
     bool           ok = false;
-    Sender_profile profile;
+    sender_profile_t profile;
     std::string    error;
 };
 
-Profile_load_result load_sender_profile(const std::string& json_path);
-bool save_sender_profile(const Sender_profile& profile, const std::string& json_path,
-                         std::string* error = nullptr);
+profile_load_result_t load_sender_profile(const std::string& json_path);
+bool save_sender_profile(
+    const sender_profile_t& profile,
+    const std::string& json_path,
+    std::string* error = nullptr);

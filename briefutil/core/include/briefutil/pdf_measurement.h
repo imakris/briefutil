@@ -26,46 +26,63 @@ struct image_dimensions_t
     bool  valid     = false;
 };
 
-bool pdf_measurement_ready(Pdf_backend backend,
-                           const Font_family_config& fonts = default_font_family(),
-                           std::string* detail = nullptr);
+bool pdf_measurement_ready(
+    Pdf_backend backend,
+    const font_family_config_t& fonts = default_font_family(),
+    std::string* detail = nullptr);
 
-text_metrics_t measure_text(Pdf_backend backend,
-                            const std::string& text,
-                            Font_id font,
-                            float size_pt,
-                            float leading_pt,
-                            float max_width_mm,
-                            bool wrap,
-                            const Font_family_config& fonts = default_font_family());
+text_metrics_t measure_text(
+    Pdf_backend backend,
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float leading_pt,
+    float max_width_mm,
+    bool wrap,
+    const font_family_config_t& fonts = default_font_family());
 
-inline text_metrics_t measure_text(const std::string& text,
-                                   Font_id font,
-                                   float size_pt,
-                                   float leading_pt,
-                                   float max_width_mm,
-                                   bool wrap,
-                                   const Font_family_config& fonts = default_font_family())
+inline text_metrics_t measure_text(
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float leading_pt,
+    float max_width_mm,
+    bool wrap,
+    const font_family_config_t& fonts = default_font_family())
 {
-    return measure_text(Pdf_backend::Haru, text, font, size_pt, leading_pt,
-                        max_width_mm, wrap, fonts);
+    return measure_text(
+        Pdf_backend::Haru,
+        text,
+        font,
+        size_pt,
+        leading_pt,
+        max_width_mm,
+        wrap,
+        fonts);
 }
 
-std::vector<std::string> wrap_text(Pdf_backend backend,
-                                   const std::string& text,
-                                   Font_id font,
-                                   float size_pt,
-                                   float max_width_mm,
-                                   const Font_family_config& fonts = default_font_family());
+std::vector<std::string> wrap_text(
+    Pdf_backend backend,
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float max_width_mm,
+    const font_family_config_t& fonts = default_font_family());
 
-inline std::vector<std::string> wrap_text(const std::string& text,
-                                          Font_id font,
-                                          float size_pt,
-                                          float max_width_mm,
-                                          const Font_family_config& fonts = default_font_family())
+inline std::vector<std::string> wrap_text(
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float max_width_mm,
+    const font_family_config_t& fonts = default_font_family())
 {
-    return wrap_text(Pdf_backend::Haru, text, font, size_pt, max_width_mm, fonts);
+    return wrap_text(
+        Pdf_backend::Haru,
+        text,
+        font,
+        size_pt,
+        max_width_mm,
+        fonts);
 }
 
 image_dimensions_t measure_png(const std::string& path);
-

@@ -11,6 +11,8 @@
 #include <QUrl>
 #include <QVariantMap>
 
+#include <vector>
+
 class QFileSystemWatcher;
 class QTimer;
 class QWindow;
@@ -66,9 +68,9 @@ public:
     Q_INVOKABLE QString import_template_image(const QUrl& source_url) const;
 
 private:
-    struct Sender_profile_entry
+    struct sender_profile_entry_t
     {
-        Sender_profile profile;
+        sender_profile_t profile;
         QString path;
     };
 
@@ -77,19 +79,19 @@ private:
     void discover_profiles();
     void update_font_and_save(QString& slot, const QString& v);
     void install_template_watcher();
-    Localization current_localization() const;
-    Letter_layout_spec current_layout_spec() const;
+    localization_t current_localization() const;
+    letter_layout_spec_t current_layout_spec() const;
 
     QString m_sender_template_dir;
     QString m_output_dir;
-    std::vector<Sender_profile_entry> m_profiles;
+    std::vector<sender_profile_entry_t> m_profiles;
     QString m_font_sans_input;
     QString m_font_sans_bold_input;
     QString m_font_sans_italic_input;
     QString m_font_sans_bold_italic_input;
     QString m_font_mono_input;
     QString m_layout_preset = "din_5008_form_b";
-    Theme_config m_theme;
+    theme_config_t m_theme;
     bool m_dark_mode = false;
     QFileSystemWatcher* m_template_watcher = nullptr;
     QTimer* m_discover_timer = nullptr;

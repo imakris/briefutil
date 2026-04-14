@@ -27,8 +27,9 @@ static inline QString path_to_qstring(const std::filesystem::path& path)
     return QString::fromStdWString(path.native());
 #else
     auto u8 = path.u8string();
-    return QString::fromUtf8(reinterpret_cast<const char*>(u8.c_str()),
-                             static_cast<int>(u8.size()));
+    return QString::fromUtf8(
+        reinterpret_cast<const char*>(u8.c_str()),
+        static_cast<int>(u8.size()));
 #endif
 }
 
@@ -52,33 +53,33 @@ static inline std::filesystem::path mark2haru_bundle_font_dir()
 }
 
 #if BRIEFUTIL_HAS_MARK2HARU
-static inline mark2haru::FontSource mark2haru_font_source(const std::string& value)
+static inline mark2haru::font_source_t mark2haru_font_source(const std::string& value)
 {
     if (value.empty()) {
         return {};
     }
     if (looks_like_font_file(value)) {
-        return mark2haru::FontSource::from_path(
+        return mark2haru::font_source_t::from_path(
             qstring_to_path(QString::fromUtf8(value.c_str())));
     }
-    return mark2haru::FontSource::from_base14(value);
+    return mark2haru::font_source_t::from_base14(value);
 }
 
-static inline mark2haru::PdfFont mark2haru_font_for(Font_id id)
+static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
 {
     switch (id) {
-        case Font_id::SANS:             return mark2haru::PdfFont::Regular;
-        case Font_id::SANS_BOLD:        return mark2haru::PdfFont::Bold;
-        case Font_id::SANS_ITALIC:      return mark2haru::PdfFont::Italic;
-        case Font_id::SANS_BOLD_ITALIC: return mark2haru::PdfFont::BoldItalic;
-        case Font_id::MONO:             return mark2haru::PdfFont::Mono;
+        case Font_id::SANS:             return mark2haru::Pdf_font::REGULAR;
+        case Font_id::SANS_BOLD:        return mark2haru::Pdf_font::BOLD;
+        case Font_id::SANS_ITALIC:      return mark2haru::Pdf_font::ITALIC;
+        case Font_id::SANS_BOLD_ITALIC: return mark2haru::Pdf_font::BOLD_ITALIC;
+        case Font_id::MONO:             return mark2haru::Pdf_font::MONO;
+        default:                        return mark2haru::Pdf_font::REGULAR;
     }
-    return mark2haru::PdfFont::Regular;
 }
 
-static inline mark2haru::FontFamilyConfig mark2haru_font_family(const Font_family_config& fonts)
+static inline mark2haru::font_family_config_t mark2haru_font_family(const font_family_config_t& fonts)
 {
-    mark2haru::FontFamilyConfig family;
+    mark2haru::font_family_config_t family;
     family.regular = mark2haru_font_source(fonts.sans);
     family.bold = mark2haru_font_source(fonts.sans_bold);
     family.italic = mark2haru_font_source(fonts.sans_italic);
@@ -87,11 +88,12 @@ static inline mark2haru::FontFamilyConfig mark2haru_font_family(const Font_famil
     return family;
 }
 
-static inline std::shared_ptr<const mark2haru::MeasurementContext>
-make_mark2haru_measurement_context(const Font_family_config& fonts,
-                                   std::string* error = nullptr)
+static inline std::shared_ptr<const mark2haru::Measurement_context>
+make_mark2haru_measurement_context(
+    const font_family_config_t& fonts,
+    std::string* error = nullptr)
 {
-    auto ctx = std::make_shared<mark2haru::MeasurementContext>(
+    auto ctx = std::make_shared<mark2haru::Measurement_context>(
         mark2haru_font_family(fonts),
         mark2haru_bundle_font_dir());
     if (!ctx->loaded()) {
@@ -104,7 +106,7 @@ make_mark2haru_measurement_context(const Font_family_config& fonts,
 }
 
 static inline std::vector<std::string> wrap_mark2haru_text(
-    const mark2haru::MeasurementContext& metrics,
+    const mark2haru::Measurement_context& metrics,
     const std::string& text,
     Font_id font,
     float size_pt,
@@ -138,7 +140,8 @@ static inline std::vector<std::string> wrap_mark2haru_text(
             if (w > max_width_pt && !current.empty()) {
                 lines.push_back(current);
                 current = word;
-            } else {
+            }
+            else {
                 current = candidate;
             }
         }

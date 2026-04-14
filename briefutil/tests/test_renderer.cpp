@@ -25,8 +25,11 @@ int main(int argc, char* argv[])
     // -- Test 1: text measurement --
     {
         auto m = measure_text(Pdf_backend::Haru, "Hello World", Font_id::SANS, 10, 12, 100, false);
-        std::printf("measure_text: width=%.1fpt height=%.1fpt lines=%d\n",
-                    m.width_pt, m.height_pt, m.line_count);
+        std::printf(
+            "measure_text: width=%.1fpt height=%.1fpt lines=%d\n",
+            m.width_pt,
+            m.height_pt,
+            m.line_count);
         if (m.line_count != 1 || m.width_pt < 1) {
             std::fprintf(stderr, "FAIL: unexpected measurement\n");
             return 1;
@@ -49,8 +52,12 @@ int main(int argc, char* argv[])
 
     // -- Test 3: explicit newline handling --
     {
-        auto lines = wrap_text(Pdf_backend::Haru, "Line one\nLine two\n\nLine four",
-                               Font_id::SANS, 10, 200);
+        auto lines = wrap_text(
+            Pdf_backend::Haru,
+            "Line one\nLine two\n\nLine four",
+            Font_id::SANS,
+            10,
+            200);
         std::printf("wrap_text newlines: %zu lines\n", lines.size());
         if (lines.size() != 4) {
             std::fprintf(stderr, "FAIL: expected 4 lines, got %zu\n",
@@ -60,11 +67,11 @@ int main(int argc, char* argv[])
     }
 
     // -- Test 4: multi-page document rendering --
-    Document doc;
+    document_t doc;
 
     // Page 1: header elements + start of body
     {
-        Page p;
+        page_t p;
 
         // Fold marks
         p.elements.push_back(line_segment_t{ 0, 105, 10, 105, 0.5f, k_black });
@@ -72,7 +79,7 @@ int main(int argc, char* argv[])
         p.elements.push_back(line_segment_t{ 0, 148.5f, 15, 148.5f, 0.5f, k_black });
 
         // Sender block
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             139.7f, 27.94f, 40.64f,
             "Max Mustermann\nMusterstr. 6\n12345 Musterstadt\n\nmax.mustermann@example.org",
             Font_id::SANS, 8, 10, k_black, false
@@ -80,7 +87,7 @@ int main(int argc, char* argv[])
 
         // Return-address line
         const char* return_addr = "Max Mustermann \xb7 Musterstr. 6 \xb7 12345 Musterstadt";
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 51.05f, 85.09f,
             return_addr,
             Font_id::SANS, 8, 0, k_footer_col, false
@@ -94,21 +101,21 @@ int main(int argc, char* argv[])
         });
 
         // Recipient
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 55.88f, 111.76f,
             "Firma Beispiel GmbH\nHerrn Erich Beispiel\nBeispielweg 42\n54321 Beispielstadt",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Date
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             139.7f, 76.2f, 40.64f,
             "14. M\xe4rz 2026",
             Font_id::SANS, 10, 0, k_black, false
         });
 
         // Subject
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 88.0f, 159.2f,
             "Betreff: Mehrseitiges Testdokument",
             Font_id::SANS_BOLD, 10, 12, k_black, false
@@ -125,14 +132,14 @@ int main(int argc, char* argv[])
                 "auf die n" "\xe4" "chste Seite umgebrochen wird.";
         }
 
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 100.0f, 159.2f,
             body,
             Font_id::SANS, 10, 12, k_black, true
         });
 
         // Footer (page 1)
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 279.0f, 159.2f,
             "Seite 1 von 2",
             Font_id::SANS, 9, 0, k_black, false
@@ -143,7 +150,7 @@ int main(int argc, char* argv[])
 
     // Page 2: continuation body + closing + footer
     {
-        Page p;
+        page_t p;
 
         // Fold marks on continuation page
         p.elements.push_back(line_segment_t{ 0, 105, 10, 105, 0.5f, k_black });
@@ -158,28 +165,28 @@ int main(int argc, char* argv[])
                 + ". Weitere Informationen auf der zweiten Seite.";
         }
 
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 25.4f, 159.2f,
             cont_body,
             Font_id::SANS, 10, 12, k_black, true
         });
 
         // Closing
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 100.0f, 159.2f,
             "Mit freundlichen Gr" "\xfc\xdf" "en",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Signer name
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 130.0f, 159.2f,
             "Max Mustermann",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Footer (page 2)
-        p.elements.push_back(Text_block{
+        p.elements.push_back(text_block_t{
             25.4f, 279.0f, 159.2f,
             "Seite 2 von 2",
             Font_id::SANS, 9, 0, k_black, false
@@ -189,8 +196,12 @@ int main(int argc, char* argv[])
     }
 
     // Render
-    auto result = render_pdf(doc, output, default_font_family(), default_localization(),
-                             Pdf_backend::Haru);
+    auto result = render_pdf(
+        doc,
+        output,
+        default_font_family(),
+        default_localization(),
+        Pdf_backend::Haru);
 
     if (!result.ok) {
         std::fprintf(stderr, "FAIL: %s (%s)\n",
@@ -225,11 +236,18 @@ int main(int argc, char* argv[])
         }
 
         std::string mark2_output = std::string(output) + ".mark2haru.pdf";
-        auto mark2 = render_pdf(doc, mark2_output, default_font_family(),
-                                default_localization(), Pdf_backend::Mark2Haru);
+        auto mark2 = render_pdf(
+            doc,
+            mark2_output,
+            default_font_family(),
+            default_localization(),
+            Pdf_backend::Mark2Haru);
         if (!mark2.ok) {
-            std::fprintf(stderr, "FAIL: mark2haru render: %s (%s)\n",
-                         mark2.message.c_str(), mark2.detail.c_str());
+            std::fprintf(
+                stderr,
+                "FAIL: mark2haru render: %s (%s)\n",
+                mark2.message.c_str(),
+                mark2.detail.c_str());
             return 1;
         }
 
@@ -247,7 +265,8 @@ int main(int argc, char* argv[])
         }
         std::printf("mark2haru PDF saved to: %s\n", mark2_output.c_str());
     }
-    else if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
+    else
+    if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
         std::printf("[SKIP] mark2haru backend not ready: %s\n", mark2_detail.c_str());
     }
 

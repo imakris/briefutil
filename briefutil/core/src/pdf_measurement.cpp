@@ -14,11 +14,12 @@
 // Haru measurement cache
 // ============================================================================
 
-static Haru_context& get_haru_measure_context(const Font_family_config& fc,
-                                              std::string* detail = nullptr)
+static Haru_context& get_haru_measure_context(
+    const font_family_config_t& fc,
+    std::string* detail = nullptr)
 {
     static Haru_context ctx;
-    static Font_family_config current_fc;
+    static font_family_config_t current_fc;
 
     bool need_init = !ctx.ready();
     if (!need_init && fc != current_fc) {
@@ -47,11 +48,11 @@ static Haru_context& get_haru_measure_context(const Font_family_config& fc,
 #if BRIEFUTIL_HAS_MARK2HARU
 struct Mark2Haru_measure_context
 {
-    std::shared_ptr<const mark2haru::MeasurementContext> metrics;
-    Font_family_config current_fc;
+    std::shared_ptr<const mark2haru::Measurement_context> metrics;
+    font_family_config_t current_fc;
     std::string last_error;
 
-    bool init(const Font_family_config& fc)
+    bool init(const font_family_config_t& fc)
     {
         last_error.clear();
         metrics = make_mark2haru_measurement_context(fc, &last_error);
@@ -69,7 +70,7 @@ struct Mark2Haru_measure_context
 };
 
 static Mark2Haru_measure_context& get_mark2haru_measure_context(
-    const Font_family_config& fc,
+    const font_family_config_t& fc,
     std::string* detail = nullptr)
 {
     static Mark2Haru_measure_context ctx;
@@ -97,9 +98,10 @@ static Mark2Haru_measure_context& get_mark2haru_measure_context(
 // Public readiness check
 // ============================================================================
 
-bool pdf_measurement_ready(Pdf_backend backend,
-                           const Font_family_config& fonts,
-                           std::string* detail)
+bool pdf_measurement_ready(
+    Pdf_backend backend,
+    const font_family_config_t& fonts,
+    std::string* detail)
 {
     switch (backend) {
         case Pdf_backend::Haru: {
@@ -117,6 +119,8 @@ bool pdf_measurement_ready(Pdf_backend backend,
             return false;
 #endif
         }
+        default:
+            break;
     }
     if (detail) {
         *detail = "Unknown PDF backend.";
@@ -129,10 +133,14 @@ bool pdf_measurement_ready(Pdf_backend backend,
 // Text measurement
 // ============================================================================
 
-static text_metrics_t measure_with_haru(const std::string& text, Font_id font_id,
-                                        float size_pt, float leading_pt,
-                                        float max_width_mm, bool wrap,
-                                        const Font_family_config& fonts)
+static text_metrics_t measure_with_haru(
+    const std::string& text,
+    Font_id font_id,
+    float size_pt,
+    float leading_pt,
+    float max_width_mm,
+    bool wrap,
+    const font_family_config_t& fonts)
 {
     auto& ctx = get_haru_measure_context(fonts);
     if (!ctx.ready()) {
@@ -168,10 +176,14 @@ static text_metrics_t measure_with_haru(const std::string& text, Font_id font_id
 }
 
 #if BRIEFUTIL_HAS_MARK2HARU
-static text_metrics_t measure_with_mark2haru(const std::string& text, Font_id font_id,
-                                             float size_pt, float leading_pt,
-                                             float max_width_mm, bool wrap,
-                                             const Font_family_config& fonts)
+static text_metrics_t measure_with_mark2haru(
+    const std::string& text,
+    Font_id font_id,
+    float size_pt,
+    float leading_pt,
+    float max_width_mm,
+    bool wrap,
+    const font_family_config_t& fonts)
 {
     auto& ctx = get_mark2haru_measure_context(fonts);
     if (!ctx.ready()) {
@@ -200,36 +212,51 @@ static text_metrics_t measure_with_mark2haru(const std::string& text, Font_id fo
 }
 #endif
 
-text_metrics_t measure_text(Pdf_backend backend,
-                            const std::string& text,
-                            Font_id font,
-                            float size_pt,
-                            float leading_pt,
-                            float max_width_mm,
-                            bool wrap,
-                            const Font_family_config& fonts)
+text_metrics_t measure_text(
+    Pdf_backend backend,
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float leading_pt,
+    float max_width_mm,
+    bool wrap,
+    const font_family_config_t& fonts)
 {
     switch (backend) {
         case Pdf_backend::Haru:
-            return measure_with_haru(text, font, size_pt, leading_pt,
-                                     max_width_mm, wrap, fonts);
+            return measure_with_haru(
+                text,
+                font,
+                size_pt,
+                leading_pt,
+                max_width_mm,
+                wrap,
+                fonts);
         case Pdf_backend::Mark2Haru:
 #if BRIEFUTIL_HAS_MARK2HARU
-            return measure_with_mark2haru(text, font, size_pt, leading_pt,
-                                          max_width_mm, wrap, fonts);
+            return measure_with_mark2haru(
+                text,
+                font,
+                size_pt,
+                leading_pt,
+                max_width_mm,
+                wrap,
+                fonts);
 #else
             return {};
 #endif
+        default:
+            return {};
     }
-    return {};
 }
 
-std::vector<std::string> wrap_text(Pdf_backend backend,
-                                   const std::string& text,
-                                   Font_id font,
-                                   float size_pt,
-                                   float max_width_mm,
-                                   const Font_family_config& fonts)
+std::vector<std::string> wrap_text(
+    Pdf_backend backend,
+    const std::string& text,
+    Font_id font,
+    float size_pt,
+    float max_width_mm,
+    const font_family_config_t& fonts)
 {
     auto metrics = measure_text(backend, text, font, size_pt, 0, max_width_mm, true, fonts);
     if (metrics.line_count == 0 && !text.empty()) {
@@ -256,6 +283,8 @@ std::vector<std::string> wrap_text(Pdf_backend backend,
 #else
             return {};
 #endif
+        default:
+            return {};
     }
 
     return lines;

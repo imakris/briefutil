@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
         "\xC3\xBC"
         "fung der Beitragsanpassung");
 
-    Letter_input input;
+    letter_input_t input;
     input.recipient = "Versicherung AG\nLeistungsabteilung\nBeispielweg 7\n12345 Berlin";
     input.subject = unicode_subject.toUtf8().toStdString();
     input.date = "27. M\xC3\xA4rz 2026";
@@ -65,8 +65,11 @@ int main(int argc, char* argv[])
 
     auto rendered = generate_letter_pdf(loaded.profile, input, qs(tmp_dir), qs(output_path));
     if (!rendered.ok) {
-        std::fprintf(stderr, "FAIL: generate_letter_pdf failed: %s (%s)\n",
-                     rendered.message.c_str(), rendered.detail.c_str());
+        std::fprintf(
+            stderr,
+            "FAIL: generate_letter_pdf failed: %s (%s)\n",
+            rendered.message.c_str(),
+            rendered.detail.c_str());
         cleanup();
         return 1;
     }
@@ -90,13 +93,21 @@ int main(int argc, char* argv[])
     if (pdf_measurement_ready(Pdf_backend::Mark2Haru, default_font_family(), &mark2_detail)) {
         QString mark2_output_path = tmp_dir + "/" + unicode_subject + ".mark2haru.pdf";
         QFile::remove(mark2_output_path);
-        auto rendered2 = generate_letter_pdf(loaded.profile, input, qs(tmp_dir),
-                                             qs(mark2_output_path), default_theme(),
-                                             din_5008_form_b(), default_localization(),
-                                             Pdf_backend::Mark2Haru);
+        auto rendered2 = generate_letter_pdf(
+            loaded.profile,
+            input,
+            qs(tmp_dir),
+            qs(mark2_output_path),
+            default_theme(),
+            din_5008_form_b(),
+            default_localization(),
+            Pdf_backend::Mark2Haru);
         if (!rendered2.ok) {
-            std::fprintf(stderr, "FAIL: mark2haru generate_letter_pdf failed: %s (%s)\n",
-                         rendered2.message.c_str(), rendered2.detail.c_str());
+            std::fprintf(
+                stderr,
+                "FAIL: mark2haru generate_letter_pdf failed: %s (%s)\n",
+                rendered2.message.c_str(),
+                rendered2.detail.c_str());
             cleanup();
             return 1;
         }
@@ -106,8 +117,9 @@ int main(int argc, char* argv[])
             cleanup();
             return 1;
         }
-        std::printf("[OK] mark2haru rendered to Unicode filename: %s\n",
-                    qPrintable(mark2_output_path));
+        std::printf(
+            "[OK] mark2haru rendered to Unicode filename: %s\n",
+            qPrintable(mark2_output_path));
     }
 
     cleanup();

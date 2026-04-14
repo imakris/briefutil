@@ -12,27 +12,27 @@
 // ============================================================================
 // Rich text layout engine
 //
-// Converts parsed body blocks into positioned Page_elements, handling
+// Converts parsed body blocks into positioned page_element_t values, handling
 // mixed-style inline runs, headings, lists, images, and pagination.
 // ============================================================================
 
-struct Layout_params
+struct layout_params_t
 {
     float       left_mm;
     float       width_mm;
     color_t     body_color     = { 0, 0, 0 };
     std::string profile_dir;
-    Typography_config typo;
-    Font_family_config fonts = default_font_family();
-    Localization loc;
+    typography_config_t typo;
+    font_family_config_t fonts = default_font_family();
+    localization_t loc;
     Pdf_backend pdf_backend = Pdf_backend::Haru;
 };
 
-struct Layout_result
+struct layout_result_t
 {
     // Positioned elements for each page's body area.
     // Each inner vector holds the elements for one page.
-    std::vector<std::vector<Page_element>> pages;
+    std::vector<std::vector<page_element_t>> pages;
 
     // Total height consumed on the last page (mm from that page's body top)
     float last_page_used_mm = 0;
@@ -42,8 +42,8 @@ struct Layout_result
     std::string error;
 };
 
-Layout_result layout_body(const std::vector<Body_block>& blocks,
-                          const Layout_params& params,
+layout_result_t layout_body(const std::vector<body_block_t>& blocks,
+                          const layout_params_t& params,
                           float first_page_top_mm,
                           float first_page_bottom_mm,
                           float cont_page_top_mm,

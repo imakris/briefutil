@@ -10,10 +10,10 @@
 
 
 // ============================================================================
-// Letter builder — converts sender profile + user input into a Document
+// Letter builder - converts sender profile + user input into a document_t
 // ============================================================================
 
-struct Letter_input
+struct letter_input_t
 {
     std::string recipient;     // multi-line
     std::string subject;
@@ -21,26 +21,28 @@ struct Letter_input
     std::string date;          // pre-formatted date string
 };
 
-struct Build_letter_result
+struct build_letter_result_t
 {
-    Document    doc;
+    document_t    doc;
     std::string error;   // non-empty if generation failed
 };
 
-Build_letter_result build_letter(const Sender_profile& profile,
-                                 const Letter_input& input,
-                                 const std::string& profile_dir,
-                                 const Theme_config& theme = default_theme(),
-                                 const Letter_layout_spec& layout = din_5008_form_b(),
-                                 const Localization& loc = default_localization(),
-                                 Pdf_backend pdf_backend = Pdf_backend::Haru);
+build_letter_result_t build_letter(
+    const sender_profile_t& profile,
+    const letter_input_t& input,
+    const std::string& profile_dir,
+    const theme_config_t& theme = default_theme(),
+    const letter_layout_spec_t& layout = din_5008_form_b(),
+    const localization_t& loc = default_localization(),
+    Pdf_backend pdf_backend = Pdf_backend::Haru);
 
 // Convenience: build + render in one call.
-Render_result generate_letter_pdf(const Sender_profile& profile,
-                                  const Letter_input& input,
-                                  const std::string& profile_dir,
-                                  const std::string& output_path,
-                                  const Theme_config& theme = default_theme(),
-                                  const Letter_layout_spec& layout = din_5008_form_b(),
-                                  const Localization& loc = default_localization(),
-                                  Pdf_backend pdf_backend = Pdf_backend::Haru);
+render_result_t generate_letter_pdf(
+    const sender_profile_t& profile,
+    const letter_input_t& input,
+    const std::string& profile_dir,
+    const std::string& output_path,
+    const theme_config_t& theme = default_theme(),
+    const letter_layout_spec_t& layout = din_5008_form_b(),
+    const localization_t& loc = default_localization(),
+    Pdf_backend pdf_backend = Pdf_backend::Haru);

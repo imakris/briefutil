@@ -6,7 +6,7 @@
 
 
 // ============================================================================
-// Document model — page-element types for native PDF rendering
+// Document model - page-element types for native PDF rendering
 //
 // All coordinates are in mm from the top-left corner of the page.
 // The renderer converts to libHaru's bottom-left point system internally.
@@ -53,7 +53,7 @@ enum class Font_id
     MONO,
 };
 
-struct Text_block
+struct text_block_t
 {
     float       x_mm;
     float       y_mm;
@@ -76,7 +76,7 @@ struct line_segment_t
     color_t color;
 };
 
-struct Image_block
+struct image_block_t
 {
     float       x_mm;
     float       y_mm;
@@ -84,7 +84,7 @@ struct Image_block
     std::string path;
 };
 
-struct Text_span
+struct text_span_t
 {
     float       x_mm;
     float       y_mm;
@@ -103,18 +103,18 @@ struct filled_rect_t
     color_t color;
 };
 
-using Page_element = std::variant<Text_block, line_segment_t, Image_block, Text_span, filled_rect_t>;
+using page_element_t = std::variant<text_block_t, line_segment_t, image_block_t, text_span_t, filled_rect_t>;
 
-struct Page
+struct page_t
 {
-    std::vector<Page_element> elements;
+    std::vector<page_element_t> elements;
 };
 
-struct Document
+struct document_t
 {
     float page_width_mm  = 210.0f;   // A4
     float page_height_mm = 297.0f;
-    std::vector<Page> pages;
+    std::vector<page_t> pages;
 };
 
 
@@ -122,7 +122,7 @@ struct Document
 // Render result
 // ============================================================================
 
-struct Render_result
+struct render_result_t
 {
     bool        ok = false;
     std::string output_path;

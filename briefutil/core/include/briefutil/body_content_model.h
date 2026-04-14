@@ -21,68 +21,68 @@ enum class Inline_style
     CODE,       // inline code (monospace)
 };
 
-struct Text_run
+struct text_run_t
 {
     std::string  text;
     Inline_style style = Inline_style::NORMAL;
 };
 
-struct Paragraph_block
+struct paragraph_block_t
 {
-    std::vector<Text_run> runs;
+    std::vector<text_run_t> runs;
 };
 
-struct Heading_block
+struct heading_block_t
 {
     int level = 1;
-    std::vector<Text_run> runs;
+    std::vector<text_run_t> runs;
 };
 
-struct List_item
+struct list_item_t
 {
-    std::vector<Text_run> runs;
+    std::vector<text_run_t> runs;
 };
 
-struct List_block
+struct list_block_t
 {
     bool ordered = false;
     int  start_number = 1;
-    std::vector<List_item> items;
+    std::vector<list_item_t> items;
 };
 
-struct Image_content_block
+struct image_content_block_t
 {
     std::string path;
     std::string alt_text;
 };
 
-struct Table_cell
+struct table_cell_t
 {
-    std::vector<Text_run> runs;
+    std::vector<text_run_t> runs;
 };
 
-struct Table_row
+struct table_row_t
 {
-    std::vector<Table_cell> cells;
+    std::vector<table_cell_t> cells;
 };
 
-struct Table_block
+struct table_block_t
 {
-    std::vector<Table_row> rows;     // first row is the header
+    std::vector<table_row_t> rows;     // first row is the header
     bool has_header = false;
 };
 
-struct Code_block
+struct code_block_t
 {
     std::string text;      // raw code content (newlines preserved)
     std::string language;  // optional language hint (from ``` tag)
 };
 
-using Body_block = std::variant<
-    Paragraph_block,
-    Heading_block,
-    List_block,
-    Image_content_block,
-    Table_block,
-    Code_block
+using body_block_t = std::variant<
+    paragraph_block_t,
+    heading_block_t,
+    list_block_t,
+    image_content_block_t,
+    table_block_t,
+    code_block_t
 >;
