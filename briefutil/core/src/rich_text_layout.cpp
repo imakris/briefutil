@@ -2,7 +2,9 @@
 #include "briefutil/pdf_measurement.h"
 
 #include <algorithm>
+#include <string>
 #include <unordered_map>
+#include <utility>
 
 
 // ============================================================================
@@ -98,6 +100,28 @@ static std::vector<laid_out_line_t> layout_runs(
         return space_widths_mm[idx];
     };
 
+    // Cache word widths per (font, word). Paragraphs often repeat common
+    // words ("the", "a", "and", plus all punctuation-only tokens), and each
+    // measure_text call walks the full libHaru width table.
+    std::unordered_map<std::string, float> word_width_cache;
+    auto word_width_mm = [&](Font_id fid, const std::string& word) -> float {
+        // Prefix the key with the font id so different faces don't collide.
+        std::string key;
+        key.reserve(word.size() + 2);
+        key.push_back((char)('0' + (int)fid));
+        key.push_back(':');
+        key.append(word);
+
+        auto it = word_width_cache.find(key);
+        if (it != word_width_cache.end()) {
+            return it->second;
+        }
+        auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
+        float w_mm = pt_to_mm(m.width_pt);
+        word_width_cache.emplace(std::move(key), w_mm);
+        return w_mm;
+    };
+
     // Current line being built.
     // We accumulate consecutive words of the same style into one span
     // so that spaces are real characters in the PDF, not positional gaps.
@@ -148,8 +172,7 @@ static std::vector<laid_out_line_t> layout_runs(
                     if (wend == std::string::npos) wend = segment.size();
                     std::string word = segment.substr(wi, wend - wi);
 
-                    auto word_m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
-                    float word_w_mm = pt_to_mm(word_m.width_pt);
+                    float word_w_mm = word_width_mm(fid, word);
 
                     float space_w_mm = (cursor_x_mm > left_mm)
                         ? space_width_mm_for(fid) : 0.0f;

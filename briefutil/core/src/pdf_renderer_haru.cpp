@@ -3,6 +3,11 @@
 
 #include "pdf_haru_support.h"
 
+#include <QByteArray>
+#include <QFile>
+#include <QIODevice>
+#include <QString>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -11,7 +16,7 @@
 
 
 // ============================================================================
-// Renderer â€” libHaru backend
+// Renderer - libHaru backend
 // ============================================================================
 
 static float tl_x(float x_mm) { return mm_to_pt(x_mm); }
