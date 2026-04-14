@@ -892,7 +892,8 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
 
     if (id_changed
         && QFileInfo(save_path).absoluteFilePath()
-           != QFileInfo(old_path).absoluteFilePath()) {
+           != QFileInfo(old_path).absoluteFilePath())
+    {
         QFile::remove(old_path);
         m_profiles[index].path = save_path;
     }

@@ -212,7 +212,8 @@ int main(int argc, char* argv[])
             return 1;
         }
         if (p.return_address_line
-            != "Max Mustermann \xE2\x80\xA2 Musterstr. 6 \xE2\x80\xA2 12345 Musterstadt") {
+            != "Max Mustermann \xE2\x80\xA2 Musterstr. 6 \xE2\x80\xA2 12345 Musterstadt")
+        {
             std::fprintf(stderr, "FAIL: return_address_line is incorrectly decoded: '%s'\n",
                          p.return_address_line.c_str());
             return 1;
@@ -393,7 +394,8 @@ int main(int argc, char* argv[])
             return 1;
         }
         if (lr.profile.return_address_line
-            != "Muster AG \xE2\x80\xA2 Musterstr. 6 \xE2\x80\xA2 12345 Musterstadt") {
+            != "Muster AG \xE2\x80\xA2 Musterstr. 6 \xE2\x80\xA2 12345 Musterstadt")
+        {
             std::fprintf(stderr, "FAIL: commercial return_address_line is incorrect: '%s'\n",
                          lr.profile.return_address_line.c_str());
             return 1;

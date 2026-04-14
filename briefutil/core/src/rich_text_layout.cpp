@@ -156,7 +156,8 @@ static std::vector<laid_out_line_t> layout_runs(
 
                     // Line break if word doesn't fit
                     if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm
-                        && cursor_x_mm > left_mm) {
+                        && cursor_x_mm > left_mm)
+                    {
                         flush_line();
                         space_w_mm = 0;
                     }
