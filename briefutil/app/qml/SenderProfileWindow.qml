@@ -32,7 +32,9 @@ Window {
     property string profileStyle: "simple"
     property string senderLines: ""
     property string email: ""
+    property string profileLanguage: "en"
     property string returnAddressLine: ""
+    property string closingPhrase: ""
     property string signerName: ""
     property string signerTitle: ""
     property string signatureImage: ""
@@ -63,10 +65,51 @@ Window {
         loadProfile()
     }
 
+    function resetProfileFields() {
+        profileId = ""
+        profileStyle = "simple"
+        senderLines = ""
+        email = ""
+        profileLanguage = "en"
+        returnAddressLine = ""
+        closingPhrase = ""
+        signerName = ""
+        signerTitle = ""
+        signatureImage = ""
+        logoImage = ""
+        topRuleColor = "#C8C8C8"
+        footerLines = ""
+
+        if (idField) idField.text = profileId
+        if (styleCombo) styleCombo.currentIndex = 0
+        if (emailField) emailField.text = email
+        if (languageCombo) languageCombo.currentIndex = 0
+        if (closingPhraseField) closingPhraseField.text = closingPhrase
+        if (signerNameField) signerNameField.text = signerName
+        if (topRuleColorField) topRuleColorField.text = topRuleColor
+        if (senderLinesArea) senderLinesArea.text = senderLines
+        if (returnAddressArea) returnAddressArea.text = returnAddressLine
+        if (signatureImageField) signatureImageField.text = signatureImage
+        if (logoImageField) logoImageField.text = logoImage
+        if (signerTitleField) signerTitleField.text = signerTitle
+        if (footerLinesArea) footerLinesArea.text = footerLines
+    }
+
+    function selectProfile(index, forceReload) {
+        if (profileCombo && profileCombo.currentIndex !== index) {
+            profileCombo.currentIndex = index
+        }
+        if (profileIndex !== index) {
+            profileIndex = index
+        } else if (forceReload) {
+            loadProfile()
+        }
+    }
+
     function switchToProfile(index) {
         saveTimer.stop()
         saveProfile()
-        profileIndex = index
+        selectProfile(index, true)
     }
 
     onClosing: {
@@ -101,11 +144,19 @@ Window {
         for (var i = 0; i < templates.length; i++) {
             items.push(templates[i].length > 0 ? templates[i] : "(new profile)")
         }
-        var savedIndex = profileCombo.currentIndex
         profileCombo.model = items
-        if (savedIndex >= 0 && savedIndex < items.length) {
-            profileCombo.currentIndex = savedIndex
+        if (items.length === 0) {
+            profileCombo.currentIndex = -1
+            return
         }
+
+        var selectedIndex = profileIndex
+        if (selectedIndex < 0) {
+            selectedIndex = 0
+        } else if (selectedIndex >= items.length) {
+            selectedIndex = items.length - 1
+        }
+        profileCombo.currentIndex = selectedIndex
     }
 
     function cleanupNewProfile() {
@@ -121,15 +172,25 @@ Window {
         _initialized = false
         saveTimer.stop()
         if (!proxyObj || profileIndex < 0) {
+            resetProfileFields()
             return
         }
 
         var profile = proxyObj.get_sender_profile(profileIndex)
+        if (!profile
+            || (profile.id === undefined
+                && profile.style === undefined
+                && profile.senderLines === undefined)) {
+            resetProfileFields()
+            return
+        }
         profileId = profile.id || ""
         profileStyle = profile.style || "simple"
         senderLines = profile.senderLines || ""
         email = profile.email || ""
+        profileLanguage = profile.language || "en"
         returnAddressLine = profile.returnAddressLine || ""
+        closingPhrase = profile.closingPhrase || ""
         signerName = profile.signerName || ""
         signerTitle = profile.signerTitle || ""
         signatureImage = profile.signatureImage || ""
@@ -140,6 +201,8 @@ Window {
         if (idField) idField.text = profileId
         if (styleCombo) styleCombo.currentIndex = profileStyle === "commercial" ? 1 : 0
         if (emailField) emailField.text = email
+        if (languageCombo) languageCombo.currentIndex = profileLanguage === "de" ? 1 : 0
+        if (closingPhraseField) closingPhraseField.text = closingPhrase
         if (signerNameField) signerNameField.text = signerName
         if (topRuleColorField) topRuleColorField.text = topRuleColor
         if (senderLinesArea) senderLinesArea.text = senderLines
@@ -164,7 +227,9 @@ Window {
             style: profileStyle,
             senderLines: senderLines,
             email: email,
+            language: profileLanguage,
             returnAddressLine: returnAddressLine,
+            closingPhrase: closingPhrase,
             signerName: signerName,
             signerTitle: signerTitle,
             signatureImage: signatureImage,
@@ -253,6 +318,28 @@ Window {
         }
     }
 
+    component ActionButton: Button {
+        id: actionBtn
+        Layout.preferredWidth: 92
+        Layout.preferredHeight: idField.implicitHeight
+        background: Rectangle {
+            color: actionBtn.pressed ? editorWin.buttonPressed : editorWin.buttonBg
+            border.width: 1
+            border.color: editorWin.fieldBorder
+            radius: 2
+            opacity: actionBtn.enabled ? 1.0 : 0.6
+        }
+        contentItem: Text {
+            text: actionBtn.text
+            color: editorWin.textColor
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+            leftPadding: 8
+            rightPadding: 8
+        }
+    }
+
     component StyledComboBox: ComboBox {
         id: styledCombo
         background: Rectangle {
@@ -320,271 +407,341 @@ Window {
     }
 
     ScrollView {
+        id: editorScroll
         anchors.fill: parent
         anchors.margins: 15
         clip: true
+        rightPadding: 14
+        contentWidth: availableWidth
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-        ColumnLayout {
-            width: editorWin.width - 40
-            spacing: 8
+        Item {
+            width: editorScroll.availableWidth
+            implicitWidth: editorScroll.availableWidth
+            implicitHeight: contentColumn.implicitHeight
 
-            Label {
-                text: "Sender profile"
-                font.bold: true
-                color: editorWin.textColor
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
+            ColumnLayout {
+                id: contentColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 spacing: 8
 
-                StyledComboBox {
-                    id: profileCombo
+                Label {
+                    text: "Sender profile"
+                    font.bold: true
+                    color: editorWin.textColor
+                }
+
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: idField.implicitHeight
-                    model: []
-                    onActivated: function(index) {
-                        saveTimer.stop()
-                        editorWin.saveProfile()
-                        editorWin.profileIndex = index
+                    spacing: 8
+
+                    StyledComboBox {
+                        id: profileCombo
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: idField.implicitHeight
+                        model: []
+                        onActivated: function(index) {
+                            saveTimer.stop()
+                            editorWin.saveProfile()
+                            editorWin.selectProfile(index, true)
+                        }
+                    }
+
+                    ActionButton {
+                        id: newProfileBtn
+                        text: "New"
+                        onClicked: {
+                            saveTimer.stop()
+                            editorWin.saveProfile()
+                            editorWin.cleanupNewProfile()
+
+                            var newIndex = proxyObj.create_new_profile()
+                            editorWin._newProfileIndex = newIndex
+                            editorWin.selectProfile(newIndex, true)
+                        }
+                    }
+
+                    ActionButton {
+                        text: "Clone"
+                        enabled: editorWin.profileIndex >= 0 && editorWin.profileCanSave
+                        onClicked: {
+                            saveTimer.stop()
+                            editorWin.saveProfile()
+                            editorWin.cleanupNewProfile()
+
+                            var newIndex = proxyObj.clone_sender_profile(editorWin.profileIndex)
+                            if (newIndex >= 0) {
+                                editorWin.selectProfile(newIndex, true)
+                            }
+                        }
+                    }
+
+                    ActionButton {
+                        text: "Remove"
+                        enabled: editorWin.profileIndex >= 0
+                        onClicked: {
+                            if (!proxyObj || editorWin.profileIndex < 0) return
+
+                            saveTimer.stop()
+                            var removedIndex = editorWin.profileIndex
+                            if (editorWin._newProfileIndex === removedIndex) {
+                                editorWin._newProfileIndex = -1
+                            } else if (editorWin._newProfileIndex > removedIndex) {
+                                editorWin._newProfileIndex -= 1
+                            }
+                            if (!proxyObj.delete_sender_profile(removedIndex))
+                                return
+
+                            editorWin.refreshProfileList()
+                            var remaining = proxyObj.get_sender_templates()
+                            if (remaining.length === 0) {
+                                var newIndex = proxyObj.create_new_profile()
+                                editorWin._newProfileIndex = newIndex
+                                editorWin.selectProfile(newIndex, true)
+                            } else {
+                                var nextIndex = Math.min(removedIndex, remaining.length - 1)
+                                editorWin.selectProfile(nextIndex, true)
+                            }
+                        }
                     }
                 }
 
-                Button {
-                    id: newProfileBtn
-                    Layout.preferredHeight: idField.implicitHeight
-                    background: Rectangle {
-                        color: newProfileBtn.pressed ? editorWin.buttonPressed : editorWin.buttonBg
-                        border.width: 1
-                        border.color: editorWin.fieldBorder
-                        radius: 2
-                    }
-                    contentItem: Text {
-                        text: "New profile"
-                        color: editorWin.textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 10
-                        rightPadding: 10
-                    }
-                    onClicked: {
-                        saveTimer.stop()
-                        editorWin.saveProfile()
-                        editorWin.cleanupNewProfile()
+                Label {
+                    text: "Changes are written directly to the selected profile JSON. Imported PNG files are copied into the template directory."
+                    wrapMode: Text.WordWrap
+                    color: editorWin.dimTextColor
+                    Layout.fillWidth: true
+                }
 
-                        var newIndex = proxyObj.create_new_profile()
-                        editorWin._newProfileIndex = newIndex
-                        editorWin.profileIndex = newIndex
-                        profileCombo.currentIndex = newIndex
+                Item { Layout.preferredHeight: 4 }
+
+                Label {
+                    text: "General"
+                    font.bold: true
+                    color: editorWin.textColor
+                }
+
+                GridLayout {
+                    columns: 2
+                    columnSpacing: 10
+                    rowSpacing: 8
+                    Layout.fillWidth: true
+
+                    Label { text: "Display name"; color: editorWin.dimTextColor }
+                    StyledTextField {
+                        id: idField
+                        Layout.fillWidth: true
+                        valid: editorWin.profileIdOk
+                        text: editorWin.profileId
+                        onTextChanged: {
+                            editorWin.profileId = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label { text: "Style"; color: editorWin.dimTextColor }
+                    StyledComboBox {
+                        id: styleCombo
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: idField.implicitHeight
+                        model: ["simple", "commercial"]
+                        currentIndex: editorWin.profileStyle === "commercial" ? 1 : 0
+                        onActivated: {
+                            editorWin.profileStyle = currentIndex === 1 ? "commercial" : "simple"
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label { text: "Email"; color: editorWin.dimTextColor }
+                    StyledTextField {
+                        id: emailField
+                        Layout.fillWidth: true
+                        text: editorWin.email
+                        onTextChanged: {
+                            editorWin.email = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label { text: "Language"; color: editorWin.dimTextColor }
+                    StyledComboBox {
+                        id: languageCombo
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: idField.implicitHeight
+                        model: ["English", "German"]
+                        currentIndex: editorWin.profileLanguage === "de" ? 1 : 0
+                        onActivated: {
+                            editorWin.profileLanguage = currentIndex === 1 ? "de" : "en"
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label { text: "Closing phrase"; color: editorWin.dimTextColor }
+                    StyledTextField {
+                        id: closingPhraseField
+                        Layout.fillWidth: true
+                        text: editorWin.closingPhrase
+                        placeholderText: editorWin.profileLanguage === "de"
+                            ? "Defaults to \"Mit freundlichen Grüßen\""
+                            : "Defaults to \"Sincerely,\""
+                        onTextChanged: {
+                            editorWin.closingPhrase = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label { text: "Signer name"; color: editorWin.dimTextColor }
+                    StyledTextField {
+                        id: signerNameField
+                        Layout.fillWidth: true
+                        text: editorWin.signerName
+                        onTextChanged: {
+                            editorWin.signerName = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+
+                    Label {
+                        text: "Top rule color"
+                        color: editorWin.dimTextColor
+                        visible: editorWin.isCommercial
+                    }
+                    StyledTextField {
+                        id: topRuleColorField
+                        Layout.fillWidth: true
+                        visible: editorWin.isCommercial
+                        valid: editorWin.topRuleColorOk
+                        text: editorWin.topRuleColor
+                        placeholderText: "#C8C8C8"
+                        onTextChanged: {
+                            editorWin.topRuleColor = text
+                            editorWin.scheduleSave()
+                        }
                     }
                 }
-            }
 
-            Label {
-                text: "Changes are written directly to the selected profile JSON. Imported PNG files are copied into the template directory."
-                wrapMode: Text.WordWrap
-                color: editorWin.dimTextColor
-                Layout.fillWidth: true
-            }
-
-            Item { Layout.preferredHeight: 4 }
-
-            Label {
-                text: "General"
-                font.bold: true
-                color: editorWin.textColor
-            }
-
-            GridLayout {
-                columns: 2
-                columnSpacing: 10
-                rowSpacing: 8
-                Layout.fillWidth: true
-
-                Label { text: "Display name"; color: editorWin.dimTextColor }
-                StyledTextField {
-                    id: idField
+                Label {
+                    text: "Sender lines"
+                    font.bold: true
+                    color: editorWin.textColor
+                }
+                StyledTextArea {
+                    id: senderLinesArea
                     Layout.fillWidth: true
-                    valid: editorWin.profileIdOk
-                    text: editorWin.profileId
+                    Layout.preferredHeight: 100
+                    text: editorWin.senderLines
+                    placeholderText: "One line per row"
                     onTextChanged: {
-                        editorWin.profileId = text
-                        editorWin.scheduleSave()
-                    }
-                }
-
-                Label { text: "Style"; color: editorWin.dimTextColor }
-                StyledComboBox {
-                    id: styleCombo
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: idField.implicitHeight
-                    model: ["simple", "commercial"]
-                    currentIndex: editorWin.profileStyle === "commercial" ? 1 : 0
-                    onActivated: {
-                        editorWin.profileStyle = currentIndex === 1 ? "commercial" : "simple"
-                        editorWin.scheduleSave()
-                    }
-                }
-
-                Label { text: "Email"; color: editorWin.dimTextColor }
-                StyledTextField {
-                    id: emailField
-                    Layout.fillWidth: true
-                    text: editorWin.email
-                    onTextChanged: {
-                        editorWin.email = text
-                        editorWin.scheduleSave()
-                    }
-                }
-
-                Label { text: "Signer name"; color: editorWin.dimTextColor }
-                StyledTextField {
-                    id: signerNameField
-                    Layout.fillWidth: true
-                    text: editorWin.signerName
-                    onTextChanged: {
-                        editorWin.signerName = text
+                        editorWin.senderLines = text
                         editorWin.scheduleSave()
                     }
                 }
 
                 Label {
-                    text: "Top rule color"
-                    color: editorWin.dimTextColor
-                    visible: editorWin.isCommercial
+                    text: "Return address line"
+                    font.bold: true
+                    color: editorWin.textColor
                 }
-                StyledTextField {
-                    id: topRuleColorField
+                StyledTextArea {
+                    id: returnAddressArea
                     Layout.fillWidth: true
-                    visible: editorWin.isCommercial
-                    valid: editorWin.topRuleColorOk
-                    text: editorWin.topRuleColor
-                    placeholderText: "#C8C8C8"
+                    Layout.preferredHeight: 70
+                    text: editorWin.returnAddressLine
+                    placeholderText: "Shown above the recipient block"
                     onTextChanged: {
-                        editorWin.topRuleColor = text
+                        editorWin.returnAddressLine = text
                         editorWin.scheduleSave()
-                    }
-                }
-            }
-
-            Label {
-                text: "Sender lines"
-                font.bold: true
-                color: editorWin.textColor
-            }
-            StyledTextArea {
-                id: senderLinesArea
-                Layout.fillWidth: true
-                Layout.preferredHeight: 100
-                text: editorWin.senderLines
-                placeholderText: "One line per row"
-                onTextChanged: {
-                    editorWin.senderLines = text
-                    editorWin.scheduleSave()
-                }
-            }
-
-            Label {
-                text: "Return address line"
-                font.bold: true
-                color: editorWin.textColor
-            }
-            StyledTextArea {
-                id: returnAddressArea
-                Layout.fillWidth: true
-                Layout.preferredHeight: 70
-                text: editorWin.returnAddressLine
-                placeholderText: "Shown above the recipient block"
-                onTextChanged: {
-                    editorWin.returnAddressLine = text
-                    editorWin.scheduleSave()
-                }
-            }
-
-            Label {
-                text: "Images"
-                font.bold: true
-                color: editorWin.textColor
-            }
-
-            GridLayout {
-                columns: 3
-                columnSpacing: 8
-                rowSpacing: 8
-                Layout.fillWidth: true
-
-                Label { text: "Signature"; color: editorWin.dimTextColor }
-                StyledTextField {
-                    id: signatureImageField
-                    Layout.fillWidth: true
-                    valid: editorWin.signatureImageOk
-                    text: editorWin.signatureImage
-                    placeholderText: "relative PNG filename"
-                    onTextChanged: {
-                        editorWin.signatureImage = text
-                        editorWin.scheduleSave()
-                    }
-                }
-                BrowseButton {
-                    onClicked: {
-                        imageDialog.targetField = "signature"
-                        imageDialog.open()
                     }
                 }
 
                 Label {
-                    text: "Logo"
-                    color: editorWin.dimTextColor
+                    text: "Images"
+                    font.bold: true
+                    color: editorWin.textColor
+                }
+
+                GridLayout {
+                    columns: 3
+                    columnSpacing: 8
+                    rowSpacing: 8
+                    Layout.fillWidth: true
+
+                    Label { text: "Signature"; color: editorWin.dimTextColor }
+                    StyledTextField {
+                        id: signatureImageField
+                        Layout.fillWidth: true
+                        valid: editorWin.signatureImageOk
+                        text: editorWin.signatureImage
+                        placeholderText: "relative PNG filename"
+                        onTextChanged: {
+                            editorWin.signatureImage = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+                    BrowseButton {
+                        onClicked: {
+                            imageDialog.targetField = "signature"
+                            imageDialog.open()
+                        }
+                    }
+
+                    Label {
+                        text: "Logo"
+                        color: editorWin.dimTextColor
+                        visible: editorWin.isCommercial
+                    }
+                    StyledTextField {
+                        id: logoImageField
+                        Layout.fillWidth: true
+                        visible: editorWin.isCommercial
+                        valid: editorWin.logoImageOk
+                        text: editorWin.logoImage
+                        placeholderText: "relative PNG filename"
+                        onTextChanged: {
+                            editorWin.logoImage = text
+                            editorWin.scheduleSave()
+                        }
+                    }
+                    BrowseButton {
+                        visible: editorWin.isCommercial
+                        onClicked: {
+                            imageDialog.targetField = "logo"
+                            imageDialog.open()
+                        }
+                    }
+                }
+
+                Label {
+                    text: "Commercial footer"
+                    font.bold: true
+                    color: editorWin.textColor
                     visible: editorWin.isCommercial
                 }
                 StyledTextField {
-                    id: logoImageField
+                    id: signerTitleField
                     Layout.fillWidth: true
                     visible: editorWin.isCommercial
-                    valid: editorWin.logoImageOk
-                    text: editorWin.logoImage
-                    placeholderText: "relative PNG filename"
+                    text: editorWin.signerTitle
+                    placeholderText: "Signer title"
                     onTextChanged: {
-                        editorWin.logoImage = text
+                        editorWin.signerTitle = text
                         editorWin.scheduleSave()
                     }
                 }
-                BrowseButton {
+                StyledTextArea {
+                    id: footerLinesArea
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 110
                     visible: editorWin.isCommercial
-                    onClicked: {
-                        imageDialog.targetField = "logo"
-                        imageDialog.open()
+                    text: editorWin.footerLines
+                    placeholderText: "One footer line per row"
+                    onTextChanged: {
+                        editorWin.footerLines = text
+                        editorWin.scheduleSave()
                     }
-                }
-            }
-
-            Label {
-                text: "Commercial footer"
-                font.bold: true
-                color: editorWin.textColor
-                visible: editorWin.isCommercial
-            }
-            StyledTextField {
-                id: signerTitleField
-                Layout.fillWidth: true
-                visible: editorWin.isCommercial
-                text: editorWin.signerTitle
-                placeholderText: "Signer title"
-                onTextChanged: {
-                    editorWin.signerTitle = text
-                    editorWin.scheduleSave()
-                }
-            }
-            StyledTextArea {
-                id: footerLinesArea
-                Layout.fillWidth: true
-                Layout.preferredHeight: 110
-                visible: editorWin.isCommercial
-                text: editorWin.footerLines
-                placeholderText: "One footer line per row"
-                onTextChanged: {
-                    editorWin.footerLines = text
-                    editorWin.scheduleSave()
                 }
             }
         }

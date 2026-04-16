@@ -62,6 +62,83 @@ ApplicationWindow {
         color: root.palette.window
     }
 
+    component StyledComboBox: ComboBox {
+        id: styledCombo
+
+        background: Rectangle {
+            implicitHeight: 28
+            color: root.palette.base
+            border.width: 1
+            border.color: root.darkMode ? "#555555" : "#c0c0c0"
+            radius: 2
+        }
+
+        contentItem: Text {
+            leftPadding: 8
+            rightPadding: 24
+            text: styledCombo.displayText
+            color: root.palette.text
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        delegate: ItemDelegate {
+            width: styledCombo.width
+            highlighted: styledCombo.highlightedIndex === index
+
+            background: Rectangle {
+                color: highlighted
+                    ? (root.darkMode ? "#505050" : "#d0d0d0")
+                    : (root.darkMode ? "#2d2d2d" : "#eeeeee")
+            }
+
+            contentItem: Text {
+                text: modelData[""]
+                color: root.palette.text
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+        }
+
+        popup: Popup {
+            y: styledCombo.height
+            width: styledCombo.width
+            padding: 1
+
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: styledCombo.popup.visible ? styledCombo.delegateModel : null
+                currentIndex: styledCombo.highlightedIndex
+            }
+
+            background: Rectangle {
+                color: root.darkMode ? "#2d2d2d" : "#eeeeee"
+                border.width: 1
+                border.color: root.darkMode ? "#555555" : "#c0c0c0"
+                radius: 2
+            }
+        }
+
+        indicator: Canvas {
+            x: styledCombo.width - width - 8
+            y: (styledCombo.height - height) / 2
+            width: 12
+            height: 8
+            contextType: "2d"
+
+            onPaint: {
+                context.reset()
+                context.moveTo(0, 0)
+                context.lineTo(width, 0)
+                context.lineTo(width / 2, height)
+                context.closePath()
+                context.fillStyle = root.palette.text
+                context.fill()
+            }
+        }
+    }
+
     function refreshSenderTemplates() {
         var currentIndex = w_from.currentIndex
         var currentText = w_from.currentText
@@ -103,12 +180,10 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: 8
 
-            ComboBox {
+            StyledComboBox {
                 id: w_from
-                background: Rectangle {
-                    color: root.palette.base
-                }
                 Layout.fillWidth: true
+                Layout.preferredHeight: 28
 
                 model: ListModel {
                 }

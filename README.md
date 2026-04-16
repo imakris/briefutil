@@ -92,12 +92,25 @@ briefutil/build/app/Release/briefutil.exe
 On Windows, the CMake build also runs Qt deployment steps so the build output
 contains the required Qt DLLs, plugins, and QML modules.
 
+`build_portable.bat` assembles a cleaner distributable layout under `dist/portable/`:
+
+```text
+dist/portable/
+  briefutil.exe
+  briefutil_runtime/
+```
+
+The visible top-level `briefutil.exe` is a launcher. The real Qt application
+binary plus all DLLs, plugins, and QML files live in `briefutil_runtime/`.
+
 ## Runtime data
 
 On first launch, the app creates and seeds:
 
 ```text
-%USERPROFILE%/briefutil/templates/
+Windows: %APPDATA%/briefutil/templates/
+Linux:   $XDG_DATA_HOME/briefutil/templates/ (or ~/.local/share/briefutil/templates/)
+macOS:   ~/Library/Application Support/briefutil/templates/
 ```
 
 This folder contains default sender profiles such as:
@@ -119,8 +132,8 @@ The app also stores UI and typography settings with `QSettings`, including:
 - font configuration
 - body size and leading
 
-An optional `output_dir.conf` file in the current working directory can
-override the default output directory.
+An optional `output_dir.conf` file can override the default output directory.
+For the portable package, place it next to the visible top-level `briefutil.exe`.
 
 ## Sender profiles
 

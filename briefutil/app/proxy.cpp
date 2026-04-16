@@ -42,7 +42,37 @@
 
 static QString default_sender_template_dir()
 {
-    return QDir::homePath() + "/briefutil/templates/";
+    QString base_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (base_dir.isEmpty()) {
+        base_dir = QDir::homePath() + "/.local/share/briefutil";
+    }
+
+    QString path = QDir::fromNativeSeparators(QDir(base_dir).filePath("templates"));
+    if (!path.endsWith('/')) {
+        path += '/';
+    }
+    return path;
+}
+
+static QString normalize_profile_language(const QString& language)
+{
+    const QString normalized = language.trimmed().toLower();
+    if (normalized == "de"
+        || normalized == "de-de"
+        || normalized == "german"
+        || normalized == "deutsch")
+    {
+        return "de";
+    }
+    return "en";
+}
+
+static QLocale qlocale_for_profile_language(const QString& language)
+{
+    if (normalize_profile_language(language) == "de") {
+        return QLocale(QLocale::German, QLocale::Germany);
+    }
+    return QLocale(QLocale::English, QLocale::UnitedStates);
 }
 
 static bool is_valid_font_config(const font_family_config_t& fc)
@@ -464,11 +494,9 @@ void Proxy::save_settings() const
     s.setValue("appearance/darkMode",    m_dark_mode);
 }
 
-localization_t Proxy::current_localization() const
+localization_t Proxy::current_localization(const sender_profile_t& profile) const
 {
-    // Default to English. Auto-detect German from the system locale so
-    // existing German users keep their familiar wording without any UI.
-    if (QLocale::system().language() == QLocale::German) {
+    if (normalize_profile_language(QString::fromStdString(profile.language)) == "de") {
         return german_localization();
     }
     return english_localization();
@@ -492,16 +520,28 @@ letter_layout_spec_t Proxy::current_layout_spec() const
 
 Proxy::Proxy(QObject*)
 {
-    // Output directory. Look for output_dir.conf next to the executable
-    // first (deterministic), then fall back to the default user home location.
+    // Output directory. Prefer a portable-launcher root when present, then
+    // look next to the executable, then in the current working directory.
     auto read_dir_conf = [](const QString& path) -> QString {
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly)) return QString();
         return QString::fromUtf8(f.readAll()).trimmed();
     };
 
-    QString output_dir = read_dir_conf(
-        QCoreApplication::applicationDirPath() + "/output_dir.conf");
+    QString output_dir;
+    const QString portable_root = qEnvironmentVariable("BRIEFUTIL_PORTABLE_ROOT");
+    if (!portable_root.isEmpty()) {
+        output_dir = read_dir_conf(
+            QDir::fromNativeSeparators(QDir(portable_root).filePath("output_dir.conf")));
+    }
+    if (output_dir.isEmpty()) {
+        output_dir = read_dir_conf(
+            QCoreApplication::applicationDirPath() + "/output_dir.conf");
+    }
+    if (output_dir.isEmpty()) {
+        output_dir = read_dir_conf(
+            QDir::current().filePath("output_dir.conf"));
+    }
 
     QDir qodir(output_dir);
     if (!output_dir.isEmpty() && qodir.exists()) {
@@ -596,6 +636,21 @@ static QString sanitize_filename(const QString& input)
     return sanitized;
 }
 
+static QString unique_profile_file_name(const QDir& dir, const QString& base_name)
+{
+    QString stem = sanitize_filename(base_name);
+    if (stem.isEmpty()) {
+        stem = "profile";
+    }
+
+    QString candidate = stem + ".json";
+    int counter = 2;
+    while (dir.exists(candidate)) {
+        candidate = stem + " " + QString::number(counter++) + ".json";
+    }
+    return candidate;
+}
+
 static bool open_generated_pdf(const QString& pdf_path)
 {
 #ifdef Q_OS_WIN
@@ -635,11 +690,10 @@ void Proxy::make_pdf(
     pdf_filename.replace(QRegularExpression("\\s+"), " ");
     QString pdf_path = m_output_dir + "/" + pdf_filename;
 
-    // Format the date using the user's system locale so an English user
-    // gets "April 13, 2026" and a German user gets "13. April 2026"
-    // without any extra configuration.
-    QString date_str = QLocale::system().toString(QDate::currentDate(),
-                                                  QLocale::LongFormat);
+    QString date_str = qlocale_for_profile_language(
+        QString::fromStdString(profile.language)).toString(
+            QDate::currentDate(),
+            QLocale::LongFormat);
 
     QElapsedTimer timer;
     timer.start();
@@ -656,7 +710,7 @@ void Proxy::make_pdf(
         return;
     }
 
-    auto loc = current_localization();
+    auto loc = current_localization(profile);
     auto layout = current_layout_spec();
     auto backend = Pdf_backend::Haru;
     if (!pdf_backend_available(backend)) {
@@ -807,7 +861,9 @@ QVariantMap Proxy::get_sender_profile(int index) const
     result.insert("style", profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
     result.insert("senderLines", join_lines(profile.sender_lines));
     result.insert("email", QString::fromStdString(profile.email));
+    result.insert("language", normalize_profile_language(QString::fromStdString(profile.language)));
     result.insert("returnAddressLine", QString::fromStdString(profile.return_address_line));
+    result.insert("closingPhrase", QString::fromStdString(profile.closing_phrase));
     result.insert("signerName", QString::fromStdString(profile.signer_name));
     result.insert("signatureImage", QString::fromStdString(profile.signature_image));
     result.insert("logoImage", QString::fromStdString(profile.logo_image));
@@ -838,7 +894,9 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
 
     updated.sender_lines = split_profile_lines(profile_data.value("senderLines").toString());
     updated.email = profile_data.value("email").toString().trimmed().toStdString();
+    updated.language = normalize_profile_language(profile_data.value("language").toString()).toStdString();
     updated.return_address_line = profile_data.value("returnAddressLine").toString().trimmed().toStdString();
+    updated.closing_phrase = profile_data.value("closingPhrase").toString().trimmed().toStdString();
     updated.signer_name = profile_data.value("signerName").toString().trimmed().toStdString();
 
     auto signature_image = normalize_asset_name(profile_data.value("signatureImage").toString());
@@ -912,17 +970,48 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
 int Proxy::create_new_profile()
 {
     QString base_name = "New Profile";
-    QString file_name = base_name + ".json";
     QDir dir(m_sender_template_dir);
-    int counter = 2;
-    while (dir.exists(file_name)) {
-        file_name = base_name + " " + QString::number(counter++) + ".json";
-    }
 
     sender_profile_entry_t entry;
-    entry.path = dir.filePath(file_name);
+    entry.path = dir.filePath(unique_profile_file_name(dir, base_name));
     m_profiles.push_back(std::move(entry));
 
+    emit sender_templates_changed();
+    return (int)m_profiles.size() - 1;
+}
+
+int Proxy::clone_sender_profile(int index)
+{
+    if (index < 0 || index >= (int)m_profiles.size()) {
+        return -1;
+    }
+
+    QDir dir(m_sender_template_dir);
+    sender_profile_entry_t entry;
+    entry.profile = m_profiles[index].profile;
+
+    QString base_id = QString::fromStdString(entry.profile.id).trimmed();
+    if (base_id.isEmpty()) {
+        base_id = "New Profile";
+    }
+
+    QString candidate_id = base_id + " Copy";
+    int counter = 2;
+    while (profile_name_exists(candidate_id, -1)) {
+        candidate_id = base_id + " Copy " + QString::number(counter++);
+    }
+    entry.profile.id = candidate_id.toStdString();
+    entry.path = dir.filePath(unique_profile_file_name(dir, candidate_id));
+
+    std::string error;
+    if (!::save_sender_profile(entry.profile, entry.path.toStdString(), &error)) {
+        qWarning("briefutil: failed to clone profile '%s': %s",
+                 qPrintable(entry.path),
+                 error.c_str());
+        return -1;
+    }
+
+    m_profiles.push_back(std::move(entry));
     emit sender_templates_changed();
     return (int)m_profiles.size() - 1;
 }
@@ -933,7 +1022,13 @@ bool Proxy::delete_sender_profile(int index)
         return false;
     }
 
-    QFile::remove(m_profiles[index].path);
+    const QString path = m_profiles[index].path;
+    if (QFileInfo::exists(path) && !QFile::remove(path)) {
+        qWarning("briefutil: failed to delete sender profile '%s'",
+                 qPrintable(path));
+        return false;
+    }
+
     m_profiles.erase(m_profiles.begin() + index);
     emit sender_templates_changed();
     return true;

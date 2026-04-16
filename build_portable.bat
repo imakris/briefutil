@@ -3,8 +3,10 @@ REM ========================================================================
 REM build_portable.bat - Build portable distribution of briefutil
 REM ========================================================================
 REM
-REM Creates a self-contained portable directory under dist/ containing the
-REM briefutil executable and all required Qt/MinGW runtime dependencies.
+REM Creates a self-contained portable directory under dist/ with a single
+REM visible briefutil.exe launcher at the top level and a briefutil_runtime\
+REM directory containing the actual application binary and all Qt/MinGW
+REM runtime dependencies.
 REM
 REM Requires a build_config.bat file with local tool paths.
 REM See build_config.bat.example for a template.
@@ -81,29 +83,36 @@ echo.
 echo [3/5] Assembling portable distribution ...
 
 set PORTABLE_DIR=%DIST_DIR%\portable
+set RUNTIME_DIR=%PORTABLE_DIR%\briefutil_runtime
 if exist "%PORTABLE_DIR%" rmdir /s /q "%PORTABLE_DIR%"
 mkdir "%PORTABLE_DIR%"
+mkdir "%RUNTIME_DIR%"
 
 REM The POST_BUILD steps in CMakeLists already ran windeployqt and copied
 REM runtime DLLs into the build/app/ directory.  Copy only the distributable
 REM files, not build artefacts (CMakeFiles, autogen, .obj, etc.).
-copy /y "%BUILD_DIR%\app\briefutil.exe" "%PORTABLE_DIR%\" >nul
+copy /y "%BUILD_DIR%\app\briefutil_portable_launcher.exe" "%PORTABLE_DIR%\briefutil.exe" >nul
+if errorlevel 1 (
+    echo ERROR: briefutil_portable_launcher.exe not found in build output.
+    exit /b 1
+)
+copy /y "%BUILD_DIR%\app\briefutil.exe" "%RUNTIME_DIR%\briefutil.exe" >nul
 if errorlevel 1 (
     echo ERROR: briefutil.exe not found in build output.
     exit /b 1
 )
-copy /y "%BUILD_DIR%\app\*.dll" "%PORTABLE_DIR%\" >nul
+copy /y "%BUILD_DIR%\app\*.dll" "%RUNTIME_DIR%\" >nul
 
 set MISSING_DIRS=
 for %%D in (platforms imageformats iconengines tls networkinformation generic qml qmltooling) do (
     if exist "%BUILD_DIR%\app\%%D" (
-        xcopy /e /i /q /y "%BUILD_DIR%\app\%%D" "%PORTABLE_DIR%\%%D" >nul
+        xcopy /e /i /q /y "%BUILD_DIR%\app\%%D" "%RUNTIME_DIR%\%%D" >nul
         if errorlevel 1 (
             echo WARNING: Failed to copy plugin directory %%D
         )
     )
 )
-if not exist "%PORTABLE_DIR%\platforms" (
+if not exist "%RUNTIME_DIR%\platforms" (
     echo ERROR: Critical plugin directory 'platforms' is missing.
     exit /b 1
 )
@@ -123,7 +132,7 @@ for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH:m
     echo Configuration:   Release
     echo Toolchain:       MinGW ^(GCC^)
     echo Qt:              %QT_PREFIX%
-) > "%PORTABLE_DIR%\briefutil_build_info.txt"
+) > "%RUNTIME_DIR%\briefutil_build_info.txt"
 
 REM -- Create ZIP archive --
 echo.

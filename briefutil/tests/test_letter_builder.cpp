@@ -613,7 +613,7 @@ int main(int argc, char* argv[])
         QDir().rmdir(tmp_dir);
     }
 
-    // -- Test 6: localization is honored (closing line + page numbers) --
+    // -- Test 6: profile closing overrides localization; page numbers still localize --
     {
         QString tmp_dir = QDir::tempPath() + "/briefutil_test_loc";
         QDir().mkpath(tmp_dir);
@@ -634,6 +634,7 @@ int main(int argc, char* argv[])
             return 1;
         }
         lr.profile.signature_image.clear();
+        lr.profile.closing_phrase = "Warm regards,";
 
         letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -683,12 +684,14 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        bool found_closing = false;
+        bool found_profile_closing = false;
+        bool found_localized_closing = false;
         bool found_page_number = false;
         for (const auto& page : br.doc.pages) {
             for (const auto& element : page.elements) {
                 if (const auto* text = std::get_if<text_block_t>(&element)) {
-                    if (text->text == "Yours truly,") found_closing = true;
+                    if (text->text == "Warm regards,") found_profile_closing = true;
+                    if (text->text == "Yours truly,") found_localized_closing = true;
                     if (text->text.find("Sheet ") == 0
                         && text->text.find("/") != std::string::npos) {
                         found_page_number = true;
@@ -696,9 +699,14 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        if (!found_closing) {
+        if (!found_profile_closing) {
             std::fprintf(stderr,
-                "FAIL: localized closing 'Yours truly,' not found in document\n");
+                "FAIL: profile closing 'Warm regards,' not found in document\n");
+            return 1;
+        }
+        if (found_localized_closing) {
+            std::fprintf(stderr,
+                "FAIL: localization closing should not override profile closing\n");
             return 1;
         }
         if (!found_page_number) {
@@ -706,7 +714,7 @@ int main(int argc, char* argv[])
                 "FAIL: localized page number 'Sheet X/Y' not found in document\n");
             return 1;
         }
-        std::printf("[OK] Localization closing + page number applied\n");
+        std::printf("[OK] Profile closing override + localized page number applied\n");
 
         QFile::remove(profile_path);
         QDir().rmdir(tmp_dir);
@@ -853,6 +861,7 @@ int main(int argc, char* argv[])
             return 1;
         }
         lr.profile.signature_image.clear();
+        lr.profile.closing_phrase = "Warm regards,";
 
         letter_input_t input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -900,7 +909,9 @@ int main(int argc, char* argv[])
         profile.style = Profile_style::COMMERCIAL;
         profile.sender_lines = { "Line 1", "", "Line 3" };
         profile.email = "blank.lines@example.org";
+        profile.language = "de";
         profile.return_address_line = "Line 1";
+        profile.closing_phrase = "Kind regards,";
         profile.signer_name = "Signer";
         profile.footer_lines = { "Footer 1", "", "Footer 3" };
         profile.signer_title = "Role";
@@ -920,6 +931,14 @@ int main(int argc, char* argv[])
         }
         if (loaded.profile.sender_lines != profile.sender_lines) {
             std::fprintf(stderr, "FAIL: sender_lines blank-line round-trip changed\n");
+            return 1;
+        }
+        if (loaded.profile.closing_phrase != profile.closing_phrase) {
+            std::fprintf(stderr, "FAIL: closing_phrase round-trip changed\n");
+            return 1;
+        }
+        if (loaded.profile.language != profile.language) {
+            std::fprintf(stderr, "FAIL: language round-trip changed\n");
             return 1;
         }
         if (loaded.profile.footer_lines != profile.footer_lines) {

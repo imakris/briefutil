@@ -226,6 +226,7 @@ Window {
         id: styledCombo
 
         background: Rectangle {
+            implicitHeight: 28
             color: settingsWin.fieldBg
             border.width: 1
             border.color: settingsWin.fieldBorder
@@ -448,6 +449,7 @@ Window {
             StyledComboBox {
                 id: layoutPresetCombo
                 Layout.fillWidth: true
+                Layout.preferredHeight: 28
                 model: layoutPresetModel
                 textRole: "text"
 

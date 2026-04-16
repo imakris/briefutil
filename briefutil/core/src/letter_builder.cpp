@@ -116,9 +116,22 @@ build_letter_result_t build_letter(
     float body_y_mm = has_subject ? (subject_y_mm + L.subject_to_body_mm)
                                   : subject_y_mm;
 
+    const std::string& closing_text = profile.closing_phrase.empty()
+        ? loc.closing
+        : profile.closing_phrase;
+
     // Closing block height estimate
+    auto closing_metrics = measure_text(
+        pdf_backend,
+        closing_text,
+        Font_id::SANS,
+        typo.body_size_pt,
+        typo.body_lead_pt,
+        body_width_mm,
+        false,
+        theme.fonts);
     float closing_height_mm = pt_to_mm(L.closing_skip_baselines * typo.body_lead_pt)
-        + pt_to_mm(typo.body_lead_pt);
+        + pt_to_mm(closing_metrics.height_pt);
 
     float sig_height_mm = 0;
     std::string sig_path;
@@ -263,7 +276,7 @@ build_letter_result_t build_letter(
 
             page.elements.push_back(text_block_t{
                 L.margin_left_mm, closing_y, body_width_mm,
-                loc.closing,
+                closing_text,
                 Font_id::SANS, typo.body_size_pt, typo.body_lead_pt,
                 k_black, false
             });

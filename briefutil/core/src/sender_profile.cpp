@@ -77,7 +77,12 @@ profile_load_result_t load_sender_profile(const std::string& json_path)
     p.id                  = qs(obj.value("id").toString());
     p.sender_lines        = json_string_array(obj, "sender_lines");
     p.email               = qs(obj.value("email").toString());
+    p.language            = qs(obj.value("language").toString());
+    if (p.language.empty()) {
+        p.language = "en";
+    }
     p.return_address_line  = qs(obj.value("return_address_line").toString());
+    p.closing_phrase      = qs(obj.value("closing_phrase").toString());
     p.signer_name         = qs(obj.value("signer_name").toString());
     p.signature_image     = qs(obj.value("signature_image").toString());
 
@@ -108,7 +113,9 @@ bool save_sender_profile(
     obj.insert("style", profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
     obj.insert("sender_lines", json_string_array(profile.sender_lines));
     obj.insert("email", QString::fromStdString(profile.email));
+    obj.insert("language", QString::fromStdString(profile.language));
     obj.insert("return_address_line", QString::fromStdString(profile.return_address_line));
+    obj.insert("closing_phrase", QString::fromStdString(profile.closing_phrase));
     obj.insert("signer_name", QString::fromStdString(profile.signer_name));
     obj.insert("signature_image", QString::fromStdString(profile.signature_image));
     obj.insert("logo_image", QString::fromStdString(profile.logo_image));

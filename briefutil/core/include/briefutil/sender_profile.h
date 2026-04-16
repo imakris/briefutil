@@ -23,11 +23,13 @@ struct sender_profile_t
     // Sender block (right side of header)
     std::vector<std::string> sender_lines;       // e.g. {"Max Mustermann", "Musterstr. 6", ...}
     std::string              email;
+    std::string              language = "en";    // controls built-in wording/date defaults
 
     // Return-address summary (small text above recipient)
     std::string              return_address_line; // e.g. "Max Mustermann · Musterstr. 6 · 12345 Musterstadt"
 
     // Closing
+    std::string              closing_phrase;      // empty = use localized default
     std::string              signer_name;
     std::string              signature_image;     // filename relative to profile directory
 

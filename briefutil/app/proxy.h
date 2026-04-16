@@ -61,6 +61,7 @@ public:
     Q_INVOKABLE QVariantMap get_sender_profile(int index) const;
     Q_INVOKABLE bool save_sender_profile(int index, const QVariantMap& profile);
     Q_INVOKABLE int  create_new_profile();
+    Q_INVOKABLE int  clone_sender_profile(int index);
     Q_INVOKABLE bool delete_sender_profile(int index);
     Q_INVOKABLE bool profile_name_exists(const QString& name, int exclude_index) const;
     Q_INVOKABLE bool validate_profile_image_name(const QString& v) const;
@@ -79,7 +80,7 @@ private:
     void discover_profiles();
     void update_font_and_save(QString& slot, const QString& v);
     void install_template_watcher();
-    localization_t current_localization() const;
+    localization_t current_localization(const sender_profile_t& profile) const;
     letter_layout_spec_t current_layout_spec() const;
 
     QString m_sender_template_dir;

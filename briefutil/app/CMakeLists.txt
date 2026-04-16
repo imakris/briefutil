@@ -51,6 +51,12 @@ if(WIN32)
             VERBATIM
         )
     endif()
+
+    add_executable(briefutil_portable_launcher WIN32 portable_launcher_win.c)
+    target_link_libraries(briefutil_portable_launcher PRIVATE shell32)
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        target_link_options(briefutil_portable_launcher PRIVATE -static -static-libgcc)
+    endif()
 endif()
 
 qt_import_qml_plugins(briefutil)
