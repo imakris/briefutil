@@ -4,6 +4,7 @@
 
 #include "briefutil/markdown_parser.h"
 
+#include <climits>
 #include <cstdio>
 #include <cstring>
 
@@ -135,6 +136,18 @@ int main()
         ASSERT(lb->items.size() == 3, "3 items");
         ASSERT(lb->start_number == 1, "starts at 1");
         std::printf("[OK] Ordered list\n");
+    }
+
+    // -- Ordered list number overflow clamps instead of throwing --
+    {
+        auto blocks = parse_markdown("999999999999999999999999999999. Large\n");
+        ASSERT(blocks.size() == 1, "overflowing ordered list = 1 block");
+        auto* lb = get_block<list_block_t>(blocks[0]);
+        ASSERT(lb && lb->ordered, "overflowing ordered list should still parse");
+        ASSERT(lb->start_number == INT_MAX, "overflowing ordered list clamps to INT_MAX");
+        ASSERT(lb->items.size() == 1, "overflowing ordered list has 1 item");
+        ASSERT(lb->items[0].runs[0].text == "Large", "overflowing ordered list item text");
+        std::printf("[OK] Ordered list overflow clamps safely\n");
     }
 
     // -- Image --

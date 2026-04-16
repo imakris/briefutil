@@ -14,6 +14,7 @@
 #include <QDir>
 #include <QFile>
 
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -828,6 +829,140 @@ int main(int argc, char* argv[])
         QFile::remove(profile_path);
         QFile::remove(signature_path);
         QDir().rmdir(tmp_dir);
+    }
+
+    // -- Test 7: ordered list markers saturate when start number overflowed --
+    {
+        QString tmp_dir = QDir::tempPath() + "/briefutil_test_overflow_list";
+        QDir().mkpath(tmp_dir);
+
+        QString profile_path = tmp_dir + "/test_profile.json";
+        QFile f(profile_path);
+        if (!f.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "FAIL: cannot write overflow-list test profile: %s\n",
+                         qs(profile_path).c_str());
+            return 1;
+        }
+        f.write(k_default_profile_simple_json);
+        f.close();
+
+        auto lr = load_sender_profile(qs(profile_path));
+        if (!lr.ok) {
+            std::fprintf(stderr, "FAIL: overflow-list profile load: %s\n",
+                         lr.error.c_str());
+            return 1;
+        }
+        lr.profile.signature_image.clear();
+
+        letter_input_t input;
+        input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
+        input.subject = "Ordered list overflow";
+        input.date = "14. M\xc3\xa4rz 2026";
+        input.body =
+            "999999999999999999999999999999. First\n"
+            "1000000000000000000000000000000. Second";
+
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: overflow-list build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        int saturated_marker_count = 0;
+        for (const auto& page : br.doc.pages) {
+            for (const auto& element : page.elements) {
+                if (const auto* span = std::get_if<text_span_t>(&element)) {
+                    if (span->text == std::to_string(INT_MAX) + ".") {
+                        saturated_marker_count++;
+                    }
+                }
+            }
+        }
+
+        if (saturated_marker_count != 2) {
+            std::fprintf(stderr,
+                         "FAIL: expected 2 saturated ordered-list markers, got %d\n",
+                         saturated_marker_count);
+            return 1;
+        }
+        std::printf("[OK] Ordered-list markers saturate safely after parser clamp\n");
+
+        QFile::remove(profile_path);
+        QDir().rmdir(tmp_dir);
+    }
+
+    // -- Test 8: profile save/load preserves blank sender and footer lines --
+    {
+        QString tmp_path = QDir::tempPath() + "/briefutil_test_profile_blank_lines.json";
+
+        sender_profile_t profile;
+        profile.id = "Blank line profile";
+        profile.style = Profile_style::COMMERCIAL;
+        profile.sender_lines = { "Line 1", "", "Line 3" };
+        profile.email = "blank.lines@example.org";
+        profile.return_address_line = "Line 1";
+        profile.signer_name = "Signer";
+        profile.footer_lines = { "Footer 1", "", "Footer 3" };
+        profile.signer_title = "Role";
+
+        std::string save_error;
+        if (!save_sender_profile(profile, qs(tmp_path), &save_error)) {
+            std::fprintf(stderr, "FAIL: blank-line profile save: %s\n", save_error.c_str());
+            return 1;
+        }
+
+        auto loaded = load_sender_profile(qs(tmp_path));
+        QFile::remove(tmp_path);
+
+        if (!loaded.ok) {
+            std::fprintf(stderr, "FAIL: blank-line profile load: %s\n", loaded.error.c_str());
+            return 1;
+        }
+        if (loaded.profile.sender_lines != profile.sender_lines) {
+            std::fprintf(stderr, "FAIL: sender_lines blank-line round-trip changed\n");
+            return 1;
+        }
+        if (loaded.profile.footer_lines != profile.footer_lines) {
+            std::fprintf(stderr, "FAIL: footer_lines blank-line round-trip changed\n");
+            return 1;
+        }
+        std::printf("[OK] Profile save/load preserves blank sender/footer lines\n");
+    }
+
+    // -- Test 9: profile save/load preserves empty sender/footer vectors --
+    {
+        QString tmp_path = QDir::tempPath() + "/briefutil_test_profile_empty_lines.json";
+
+        sender_profile_t profile;
+        profile.id = "Empty line profile";
+        profile.style = Profile_style::COMMERCIAL;
+        profile.email = "empty.lines@example.org";
+        profile.return_address_line = "Return line";
+        profile.signer_name = "Signer";
+        profile.signer_title = "Role";
+
+        std::string save_error;
+        if (!save_sender_profile(profile, qs(tmp_path), &save_error)) {
+            std::fprintf(stderr, "FAIL: empty-line profile save: %s\n", save_error.c_str());
+            return 1;
+        }
+
+        auto loaded = load_sender_profile(qs(tmp_path));
+        QFile::remove(tmp_path);
+
+        if (!loaded.ok) {
+            std::fprintf(stderr, "FAIL: empty-line profile load: %s\n", loaded.error.c_str());
+            return 1;
+        }
+        if (!loaded.profile.sender_lines.empty()) {
+            std::fprintf(stderr, "FAIL: sender_lines empty-vector round-trip changed\n");
+            return 1;
+        }
+        if (!loaded.profile.footer_lines.empty()) {
+            std::fprintf(stderr, "FAIL: footer_lines empty-vector round-trip changed\n");
+            return 1;
+        }
+        std::printf("[OK] Profile save/load preserves empty sender/footer vectors\n");
     }
 
     std::printf("\nAll letter-builder tests passed.\n");

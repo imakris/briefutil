@@ -2,7 +2,10 @@
 #include "briefutil/pdf_measurement.h"
 
 #include <algorithm>
+#include <climits>
+#include <string>
 #include <unordered_map>
+#include <utility>
 
 
 // ============================================================================
@@ -30,6 +33,20 @@ static float heading_space_before(int level)
 
 static constexpr float k_bullet_offset_mm      = 4.0f;
 static constexpr float k_table_border_width_pt = 0.5f;
+
+static int saturating_list_marker_number(int start_number, size_t item_index)
+{
+    if (start_number >= INT_MAX) {
+        return INT_MAX;
+    }
+
+    const size_t max_offset = static_cast<size_t>(INT_MAX - start_number);
+    if (item_index > max_offset) {
+        return INT_MAX;
+    }
+
+    return start_number + static_cast<int>(item_index);
+}
 
 
 // ============================================================================
@@ -98,6 +115,24 @@ static std::vector<laid_out_line_t> layout_runs(
         return space_widths_mm[idx];
     };
 
+    // Cache repeated word measurements per (font, word) pair so dense prose
+    // and tables do not re-walk the backend width tables for the same token.
+    std::unordered_map<std::string, float> word_width_cache;
+    auto word_width_mm = [&](Font_id fid, const std::string& word) -> float {
+        std::string key = std::to_string((int)fid);
+        key.push_back(':');
+        key.append(word);
+
+        auto it = word_width_cache.find(key);
+        if (it != word_width_cache.end()) {
+            return it->second;
+        }
+        auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
+        float width_mm = pt_to_mm(m.width_pt);
+        word_width_cache.emplace(std::move(key), width_mm);
+        return width_mm;
+    };
+
     // Current line being built.
     // We accumulate consecutive words of the same style into one span
     // so that spaces are real characters in the PDF, not positional gaps.
@@ -148,8 +183,7 @@ static std::vector<laid_out_line_t> layout_runs(
                     if (wend == std::string::npos) wend = segment.size();
                     std::string word = segment.substr(wi, wend - wi);
 
-                    auto word_m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
-                    float word_w_mm = pt_to_mm(word_m.width_pt);
+                    float word_w_mm = word_width_mm(fid, word);
 
                     float space_w_mm = (cursor_x_mm > left_mm)
                         ? space_width_mm_for(fid) : 0.0f;
@@ -584,7 +618,10 @@ layout_result_t layout_body(
                     // Bullet or number
                     std::string marker;
                     if (b.ordered) {
-                        marker = std::to_string(b.start_number + idx) + ".";
+                        marker = std::to_string(
+                            saturating_list_marker_number(
+                                b.start_number,
+                                static_cast<size_t>(idx))) + ".";
                     }
                     else {
                         marker = "\xe2\x80\xa2"; // UTF-8 bullet •

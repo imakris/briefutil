@@ -1,6 +1,7 @@
 #include "briefutil/markdown_parser.h"
 #include "briefutil/document_model.h"
 
+#include <climits>
 #include <cstring>
 
 
@@ -280,7 +281,15 @@ static classified_line_t classify_line(const std::string& line)
         while (i < trimmed.size() && trimmed[i] >= '0' && trimmed[i] <= '9') i++;
         if (i < trimmed.size() && trimmed[i] == '.' &&
             i + 1 < trimmed.size() && trimmed[i + 1] == ' ') {
-            int num = std::stoi(trimmed.substr(0, i));
+            int num = 0;
+            for (size_t k = 0; k < i; k++) {
+                int digit = trimmed[k] - '0';
+                if (num > (INT_MAX - digit) / 10) {
+                    num = INT_MAX;
+                    break;
+                }
+                num = num * 10 + digit;
+            }
             return { Line_type::ORDERED_ITEM, trim(trimmed.substr(i + 2)), 0, num };
         }
     }

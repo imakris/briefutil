@@ -49,7 +49,10 @@ Today `briefutil` performs layout with Haru-owned measurement functions:
 - `wrap_text()`
 - `measure_png()`
 
-Those functions live in `pdf_renderer_haru.h`, and they are called from:
+Those functions now live in the shared measurement layer
+(`core/include/briefutil/pdf_measurement.h`, `core/src/pdf_measurement.cpp`,
+and Haru-specific helpers in `core/src/pdf_haru_support.h/.cpp`), and they are
+called from:
 
 - `rich_text_layout.cpp`
 - `letter_builder.cpp`
@@ -329,8 +332,8 @@ That is enough.
 
 Before adding a second renderer:
 
-1. move `text_metrics_t`, `measure_text()`, and `wrap_text()` out of
-   `pdf_renderer_haru.h`
+1. keep `text_metrics_t`, `measure_text()`, and `wrap_text()` in the shared
+   `pdf_measurement` seam instead of regressing them back into Haru-only code
 2. move `image_dimensions_t` and `measure_png()` into a shared utility
 3. make `rich_text_layout` and `letter_builder` depend on backend-selected
    measurement functions instead of directly depending on Haru

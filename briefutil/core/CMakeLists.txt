@@ -27,6 +27,7 @@ endif()
 add_library(briefutil_core STATIC
     src/letter_builder.cpp
     src/markdown_parser.cpp
+    src/pdf_haru_support.cpp
     src/pdf_measurement.cpp
     src/pdf_renderer.cpp
     src/pdf_renderer_haru.cpp

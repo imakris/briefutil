@@ -108,14 +108,18 @@ static QString join_lines(const std::vector<std::string>& lines)
     return result.join('\n');
 }
 
-static std::vector<std::string> split_lines(const QString& text)
+static std::vector<std::string> split_profile_lines(const QString& text)
 {
     std::vector<std::string> result;
-    for (const auto& line : text.split('\n')) {
-        auto trimmed = line.trimmed();
-        if (!trimmed.isEmpty()) {
-            result.push_back(trimmed.toStdString());
+    if (text.isEmpty()) {
+        return result;
+    }
+
+    for (auto line : text.split('\n', Qt::KeepEmptyParts)) {
+        if (line.endsWith('\r')) {
+            line.chop(1);
         }
+        result.push_back(line.toStdString());
     }
     return result;
 }
@@ -832,7 +836,7 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     updated.style = style == "commercial"
         ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
 
-    updated.sender_lines = split_lines(profile_data.value("senderLines").toString());
+    updated.sender_lines = split_profile_lines(profile_data.value("senderLines").toString());
     updated.email = profile_data.value("email").toString().trimmed().toStdString();
     updated.return_address_line = profile_data.value("returnAddressLine").toString().trimmed().toStdString();
     updated.signer_name = profile_data.value("signerName").toString().trimmed().toStdString();
@@ -849,7 +853,7 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     }
     updated.logo_image = logo_image.toStdString();
     updated.signer_title = profile_data.value("signerTitle").toString().trimmed().toStdString();
-    updated.footer_lines = split_lines(profile_data.value("footerLines").toString());
+    updated.footer_lines = split_profile_lines(profile_data.value("footerLines").toString());
 
     color_t top_rule_color;
     if (!parse_hex_color(profile_data.value("topRuleColor").toString(), top_rule_color)) {
