@@ -832,12 +832,6 @@ bool Proxy::validate_font_value(const QString& v, const QString& role) const
     return !resolve_font_value(trimmed, font_role_from_string(role)).isEmpty();
 }
 
-bool Proxy::font_value_is_file_backed(const QString& v, const QString& role) const
-{
-    auto resolved = resolve_font_value(v, font_role_from_string(role));
-    return !resolved.isEmpty() && looks_like_font_file(resolved.toStdString());
-}
-
 bool Proxy::validate_directory(const QString& v) const
 {
     auto trimmed = v.trimmed();

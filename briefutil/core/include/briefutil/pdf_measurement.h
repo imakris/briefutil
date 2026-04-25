@@ -41,26 +41,6 @@ text_metrics_t measure_text(
     bool wrap,
     const font_family_config_t& fonts = default_font_family());
 
-inline text_metrics_t measure_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float leading_pt,
-    float max_width_mm,
-    bool wrap,
-    const font_family_config_t& fonts = default_font_family())
-{
-    return measure_text(
-        Pdf_backend::Haru,
-        text,
-        font,
-        size_pt,
-        leading_pt,
-        max_width_mm,
-        wrap,
-        fonts);
-}
-
 std::vector<std::string> wrap_text(
     Pdf_backend backend,
     const std::string& text,
@@ -68,21 +48,5 @@ std::vector<std::string> wrap_text(
     float size_pt,
     float max_width_mm,
     const font_family_config_t& fonts = default_font_family());
-
-inline std::vector<std::string> wrap_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float max_width_mm,
-    const font_family_config_t& fonts = default_font_family())
-{
-    return wrap_text(
-        Pdf_backend::Haru,
-        text,
-        font,
-        size_pt,
-        max_width_mm,
-        fonts);
-}
 
 image_dimensions_t measure_png(const std::string& path);

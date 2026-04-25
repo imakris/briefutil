@@ -229,19 +229,8 @@ std::vector<std::string> do_wrap(
             continue;
         }
 
-        std::vector<std::string> words;
-        size_t pos = 0;
-        while (pos < para.size()) {
-            while (pos < para.size() && para[pos] == ' ') pos++;
-            if (pos >= para.size()) break;
-            size_t end = para.find(' ', pos);
-            if (end == std::string::npos) end = para.size();
-            words.push_back(para.substr(pos, end - pos));
-            pos = end;
-        }
-
         std::string current;
-        for (const auto& word : words) {
+        for_each_word(para, [&](const std::string& word) {
             std::string candidate = current.empty() ? word : current + " " + word;
             float w = font_text_width_pt(font, size_pt, candidate);
             if (w > max_width_pt && !current.empty()) {
@@ -251,7 +240,7 @@ std::vector<std::string> do_wrap(
             else {
                 current = candidate;
             }
-        }
+        });
         if (!current.empty()) {
             result.push_back(current);
         }
