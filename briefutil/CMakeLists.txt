@@ -127,10 +127,10 @@ endfunction()
 enable_testing()
 
 add_subdirectory(core)
+add_subdirectory(cli)
 if(BRIEFUTIL_BUILD_GUI)
     add_subdirectory(app)
 endif()
-add_subdirectory(cli)
 add_subdirectory(tests)
 
 # ============================================================================

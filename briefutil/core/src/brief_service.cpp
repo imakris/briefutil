@@ -72,6 +72,9 @@ bool is_valid_font_config(const font_family_config_t& fonts)
 
 float font_scale_from_percent(double percent)
 {
+    if (!std::isfinite(percent)) {
+        return 1.0f;
+    }
     return static_cast<float>(std::clamp(percent / 100.0, 0.5, 2.0));
 }
 

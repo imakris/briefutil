@@ -9,9 +9,10 @@
 #include <QStringList>
 #include <QTextStream>
 
+#include <charconv>
+#include <cmath>
 #include <iostream>
 #include <optional>
-#include <sstream>
 #include <string>
 
 namespace {
@@ -25,11 +26,15 @@ struct cli_options_t
     std::string body;
     std::string body_file;
     std::string profile_id;
+    std::string profile_path;
     std::string template_dir;
     std::string output_dir;
     std::string output_path;
     std::string layout = "din_5008_form_b";
     std::string backend = "haru";
+    font_family_config_t fonts = default_font_family();
+    double body_size = 10.0;
+    double body_leading = 12.0;
     double header_scale = 100.0;
     double body_scale = 100.0;
     double footer_scale = 100.0;
@@ -48,14 +53,22 @@ void print_help()
         << "  --body TEXT            Markdown body; use \\n for line breaks\n"
         << "  --body-file PATH       Read Markdown body from a UTF-8 text file\n"
         << "  --profile ID           Sender profile id; default is the first profile\n"
+        << "  --profile-path PATH    Exact sender profile JSON path\n"
         << "  --template-dir PATH    Template/profile directory\n"
         << "  --output-dir PATH      Directory for generated PDF\n"
         << "  --output PATH          Exact output PDF path\n"
         << "  --layout NAME          din_5008_form_b, din_5008_form_a, or us_letter\n"
         << "  --backend NAME         haru or mark2haru\n"
-        << "  --header-scale PCT     Header font scale percent\n"
-        << "  --body-scale PCT       Body font scale percent\n"
-        << "  --footer-scale PCT     Footer font scale percent\n"
+        << "  --font-sans VALUE      Base-14 font name or .ttf/.otf path\n"
+        << "  --font-sans-bold VALUE Base-14 font name or .ttf/.otf path\n"
+        << "  --font-sans-italic VALUE Base-14 font name or .ttf/.otf path\n"
+        << "  --font-sans-bold-italic VALUE Base-14 font name or .ttf/.otf path\n"
+        << "  --font-mono VALUE      Base-14 font name or .ttf/.otf path\n"
+        << "  --body-size PT         Body font size in points, 6..24\n"
+        << "  --body-leading PT      Body line leading in points, 6..36\n"
+        << "  --header-scale PCT     Header font scale percent, 50..200\n"
+        << "  --body-scale PCT       Body font scale percent, 50..200\n"
+        << "  --footer-scale PCT     Footer font scale percent, 50..200\n"
         << "  --force                Replace an existing --output file\n";
 }
 
@@ -122,15 +135,35 @@ std::optional<std::string> value_for(
 
 std::optional<double> parse_double_value(const std::string& value, const char* option)
 {
-    std::istringstream stream(value);
+    const auto first = value.find_first_not_of(" \t\r\n");
+    const auto last = value.find_last_not_of(" \t\r\n");
+    if (first == std::string::npos) {
+        std::cerr << option << " must be a number.\n";
+        return std::nullopt;
+    }
+    const std::string trimmed = value.substr(first, last - first + 1);
     double result = 0.0;
-    stream >> result;
-    stream >> std::ws;
-    if (!stream || !stream.eof()) {
+    const char* begin = trimmed.data();
+    const char* end   = begin + trimmed.size();
+    const auto parsed = std::from_chars(begin, end, result);
+    if (parsed.ec != std::errc{} || parsed.ptr != end || !std::isfinite(result)) {
         std::cerr << option << " must be a number.\n";
         return std::nullopt;
     }
     return result;
+}
+
+bool validate_range(
+    double value,
+    double minimum,
+    double maximum,
+    const char* option)
+{
+    if (value >= minimum && value <= maximum) {
+        return true;
+    }
+    std::cerr << option << " must be between " << minimum << " and " << maximum << ".\n";
+    return false;
 }
 
 bool valid_layout_name(const std::string& value)
@@ -191,6 +224,11 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             if (!value) return std::nullopt;
             options.profile_id = *value;
         }
+        else if (arg == "--profile-path") {
+            auto value = read_value("--profile-path");
+            if (!value) return std::nullopt;
+            options.profile_path = *value;
+        }
         else if (arg == "--template-dir") {
             auto value = read_value("--template-dir");
             if (!value) return std::nullopt;
@@ -224,11 +262,53 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             }
             options.backend = lower_ascii(*value);
         }
+        else if (arg == "--font-sans") {
+            auto value = read_value("--font-sans");
+            if (!value) return std::nullopt;
+            options.fonts.sans = *value;
+        }
+        else if (arg == "--font-sans-bold") {
+            auto value = read_value("--font-sans-bold");
+            if (!value) return std::nullopt;
+            options.fonts.sans_bold = *value;
+        }
+        else if (arg == "--font-sans-italic") {
+            auto value = read_value("--font-sans-italic");
+            if (!value) return std::nullopt;
+            options.fonts.sans_italic = *value;
+        }
+        else if (arg == "--font-sans-bold-italic") {
+            auto value = read_value("--font-sans-bold-italic");
+            if (!value) return std::nullopt;
+            options.fonts.sans_bold_italic = *value;
+        }
+        else if (arg == "--font-mono") {
+            auto value = read_value("--font-mono");
+            if (!value) return std::nullopt;
+            options.fonts.mono = *value;
+        }
+        else if (arg == "--body-size") {
+            auto value = read_value("--body-size");
+            if (!value) return std::nullopt;
+            auto parsed = parse_double_value(*value, "--body-size");
+            if (!parsed) return std::nullopt;
+            if (!validate_range(*parsed, 6.0, 24.0, "--body-size")) return std::nullopt;
+            options.body_size = *parsed;
+        }
+        else if (arg == "--body-leading") {
+            auto value = read_value("--body-leading");
+            if (!value) return std::nullopt;
+            auto parsed = parse_double_value(*value, "--body-leading");
+            if (!parsed) return std::nullopt;
+            if (!validate_range(*parsed, 6.0, 36.0, "--body-leading")) return std::nullopt;
+            options.body_leading = *parsed;
+        }
         else if (arg == "--header-scale") {
             auto value = read_value("--header-scale");
             if (!value) return std::nullopt;
             auto parsed = parse_double_value(*value, "--header-scale");
             if (!parsed) return std::nullopt;
+            if (!validate_range(*parsed, 50.0, 200.0, "--header-scale")) return std::nullopt;
             options.header_scale = *parsed;
         }
         else if (arg == "--body-scale") {
@@ -236,6 +316,7 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             if (!value) return std::nullopt;
             auto parsed = parse_double_value(*value, "--body-scale");
             if (!parsed) return std::nullopt;
+            if (!validate_range(*parsed, 50.0, 200.0, "--body-scale")) return std::nullopt;
             options.body_scale = *parsed;
         }
         else if (arg == "--footer-scale") {
@@ -243,6 +324,7 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             if (!value) return std::nullopt;
             auto parsed = parse_double_value(*value, "--footer-scale");
             if (!parsed) return std::nullopt;
+            if (!validate_range(*parsed, 50.0, 200.0, "--footer-scale")) return std::nullopt;
             options.footer_scale = *parsed;
         }
         else if (arg == "--force") {
@@ -275,6 +357,10 @@ int main(int argc, char** argv)
         print_help();
         return 0;
     }
+    if (!options.profile_path.empty() && !options.profile_id.empty()) {
+        std::cerr << "Use either --profile or --profile-path, not both.\n";
+        return 2;
+    }
 
     std::string error;
     if (!options.recipient_file.empty()) {
@@ -297,7 +383,7 @@ int main(int argc, char** argv)
         QTextStream in(stdin, QIODevice::ReadOnly);
         options.recipient = in.readAll().toStdString();
     }
-    if (options.recipient.empty()) {
+    if (options.recipient.empty() && !options.recipient_source_provided) {
         std::cerr << "Recipient is required. Use --to, --to-file, or stdin.\n";
         return 2;
     }
@@ -317,40 +403,55 @@ int main(int argc, char** argv)
             QDir::currentPath().toStdString());
     }
 
-    if (!briefutil::ensure_template_dir_ready(options.template_dir, &error)) {
-        std::cerr << "Could not initialize template directory: " << error << "\n";
-        return 1;
-    }
-
-    std::vector<std::string> profile_errors;
-    auto profiles = briefutil::discover_profiles(options.template_dir, &profile_errors);
-    for (const auto& profile_error : profile_errors) {
-        std::cerr << "Profile load warning: " << profile_error << "\n";
-    }
-    if (profiles.empty()) {
-        std::cerr << "No sender profiles found in " << options.template_dir << "\n";
-        return 1;
-    }
-
-    const briefutil::profile_entry_t* selected = &profiles.front();
-    if (!options.profile_id.empty()) {
-        selected = nullptr;
-        for (const auto& profile : profiles) {
-            if (profile.profile.id == options.profile_id) {
-                selected = &profile;
-                break;
-            }
-        }
-        if (!selected) {
-            std::cerr << "Sender profile not found: " << options.profile_id << "\n";
+    briefutil::profile_entry_t selected_entry;
+    if (!options.profile_path.empty()) {
+        auto loaded = load_sender_profile(options.profile_path);
+        if (!loaded.ok) {
+            std::cerr << "Could not load sender profile: " << loaded.error << "\n";
             return 2;
         }
+        QFileInfo profile_info(QString::fromStdString(options.profile_path));
+        selected_entry.profile = std::move(loaded.profile);
+        selected_entry.path = profile_info.absoluteFilePath().toStdString();
+        selected_entry.base_dir = profile_info.absoluteDir().absolutePath().toStdString();
+    }
+    else {
+        if (!briefutil::ensure_template_dir_ready(options.template_dir, &error)) {
+            std::cerr << "Could not initialize template directory: " << error << "\n";
+            return 1;
+        }
+
+        std::vector<std::string> profile_errors;
+        auto profiles = briefutil::discover_profiles(options.template_dir, &profile_errors);
+        for (const auto& profile_error : profile_errors) {
+            std::cerr << "Profile load warning: " << profile_error << "\n";
+        }
+        if (profiles.empty()) {
+            std::cerr << "No sender profiles found in " << options.template_dir << "\n";
+            return 1;
+        }
+
+        const briefutil::profile_entry_t* selected = &profiles.front();
+        if (!options.profile_id.empty()) {
+            selected = nullptr;
+            for (const auto& profile : profiles) {
+                if (profile.profile.id == options.profile_id) {
+                    selected = &profile;
+                    break;
+                }
+            }
+            if (!selected) {
+                std::cerr << "Sender profile not found: " << options.profile_id << "\n";
+                return 2;
+            }
+        }
+        selected_entry = *selected;
     }
 
     briefutil::generation_request_t request;
-    request.profile.profile = selected->profile;
-    request.profile.profile_path = selected->path;
-    request.profile.profile_base_dir = selected->base_dir;
+    request.profile.profile = selected_entry.profile;
+    request.profile.profile_path = selected_entry.path;
+    request.profile.profile_base_dir = selected_entry.base_dir;
     request.recipient = options.recipient;
     request.subject = options.subject;
     request.body = options.body;
@@ -359,6 +460,9 @@ int main(int argc, char** argv)
     request.overwrite_output = options.force;
     request.layout = briefutil::layout_spec_from_name(options.layout);
     request.backend = pdf_backend_from_name(options.backend);
+    request.theme.fonts = options.fonts;
+    request.theme.typo.body_size_pt = static_cast<float>(options.body_size);
+    request.theme.typo.body_lead_pt = static_cast<float>(options.body_leading);
     request.theme.typo.header_scale = briefutil::font_scale_from_percent(options.header_scale);
     request.theme.typo.body_scale = briefutil::font_scale_from_percent(options.body_scale);
     request.theme.typo.footer_scale = briefutil::font_scale_from_percent(options.footer_scale);

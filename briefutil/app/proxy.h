@@ -1,6 +1,5 @@
 #pragma once
 
-#include "briefutil/letter_layout_spec.h"
 #include "briefutil/localization.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
@@ -87,7 +86,6 @@ private:
     void update_font_and_save(QString& slot, const QString& v);
     void install_template_watcher();
     localization_t current_localization(const sender_profile_t& profile) const;
-    letter_layout_spec_t current_layout_spec() const;
 
     QString m_sender_template_dir;
     QString m_output_dir;

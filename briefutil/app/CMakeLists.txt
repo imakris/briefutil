@@ -21,6 +21,17 @@ target_link_libraries(briefutil
         Qt6::QuickDialogs2
 )
 
+add_custom_target(briefutil_cli_companion
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:briefutil>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:briefutil_cli>"
+        "$<TARGET_FILE_DIR:briefutil>/$<TARGET_FILE_NAME:briefutil_cli>"
+    DEPENDS briefutil_cli
+    VERBATIM
+)
+add_dependencies(briefutil briefutil_cli_companion)
+
 if(WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
     target_sources(briefutil PRIVATE resources/briefutil.rc)

@@ -115,10 +115,17 @@ Common CLI options:
 - `--to TEXT`, `--to-file PATH`, or stdin for the recipient block
 - `--subject TEXT`
 - `--body TEXT` or `--body-file PATH`
-- `--profile ID`
+- `--profile ID` or `--profile-path PATH`
 - `--template-dir PATH`
 - `--output PATH` or `--output-dir PATH`
+- `--layout NAME` (`din_5008_form_b`, `din_5008_form_a`, or `us_letter`)
+- `--backend NAME` (`haru` or `mark2haru`)
+- `--font-sans VALUE`, `--font-sans-bold VALUE`,
+  `--font-sans-italic VALUE`, `--font-sans-bold-italic VALUE`,
+  `--font-mono VALUE`
+- `--body-size PT` (`6..24`), `--body-leading PT` (`6..36`)
 - `--header-scale PCT`, `--body-scale PCT`, `--footer-scale PCT`
+  (`50..200`)
 - `--force` to replace an existing `--output` file
 
 On Windows, the CMake build also runs Qt deployment steps so the build output

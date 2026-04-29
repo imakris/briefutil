@@ -15,10 +15,12 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QHash>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTemporaryFile>
 #include <QTimer>
 #include <QUrl>
 #include <QWindow>
@@ -31,6 +33,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 
 // ============================================================================
@@ -64,6 +67,11 @@ static QString normalize_layout_preset(QString preset)
 static float font_scale_from_percent(double percent)
 {
     return briefutil::font_scale_from_percent(percent);
+}
+
+static float clamp_float(float value, float minimum, float maximum)
+{
+    return std::clamp(value, minimum, maximum);
 }
 
 static void ensure_template_dir_ready(const QString& dir_path)
@@ -412,11 +420,26 @@ void Proxy::load_settings()
         m_font_mono_input);
 
     auto def_typo = default_typography();
-    m_theme.typo.body_size_pt = s.value("typo/body_size",    def_typo.body_size_pt).toFloat();
-    m_theme.typo.body_lead_pt = s.value("typo/body_leading", def_typo.body_lead_pt).toFloat();
-    m_theme.typo.header_scale = s.value("typo/header_scale", def_typo.header_scale).toFloat();
-    m_theme.typo.body_scale   = s.value("typo/body_scale",   def_typo.body_scale).toFloat();
-    m_theme.typo.footer_scale = s.value("typo/footer_scale", def_typo.footer_scale).toFloat();
+    m_theme.typo.body_size_pt = clamp_float(
+        s.value("typo/body_size", def_typo.body_size_pt).toFloat(),
+        6.0f,
+        24.0f);
+    m_theme.typo.body_lead_pt = clamp_float(
+        s.value("typo/body_leading", def_typo.body_lead_pt).toFloat(),
+        6.0f,
+        36.0f);
+    m_theme.typo.header_scale = clamp_float(
+        s.value("typo/header_scale", def_typo.header_scale).toFloat(),
+        0.5f,
+        2.0f);
+    m_theme.typo.body_scale = clamp_float(
+        s.value("typo/body_scale", def_typo.body_scale).toFloat(),
+        0.5f,
+        2.0f);
+    m_theme.typo.footer_scale = clamp_float(
+        s.value("typo/footer_scale", def_typo.footer_scale).toFloat(),
+        0.5f,
+        2.0f);
 
     QString saved_dir = s.value("paths/template_dir").toString();
     if (qEnvironmentVariableIsEmpty("BRIEFUTIL_TEMPLATE_DIR") && !saved_dir.isEmpty()) {
@@ -453,12 +476,6 @@ localization_t Proxy::current_localization(const sender_profile_t& profile) cons
 {
     return briefutil::localization_for_language(profile.language);
 }
-
-letter_layout_spec_t Proxy::current_layout_spec() const
-{
-    return briefutil::layout_spec_from_name(m_layout_preset.toStdString());
-}
-
 
 // ============================================================================
 // Construction and profile discovery
@@ -581,6 +598,75 @@ static bool open_generated_pdf(const QString& pdf_path)
 #endif
 }
 
+static QString briefutil_cli_path()
+{
+    const QString app_dir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_WIN
+    const QString exe_name = "briefutil_cli.exe";
+#else
+    const QString exe_name = "briefutil_cli";
+#endif
+    const QString local_path = QDir(app_dir).filePath(exe_name);
+    return local_path;
+}
+
+static bool write_utf8_temp_file(
+    QTemporaryFile& file,
+    const QString& text,
+    QString* error)
+{
+    if (!file.open()) {
+        if (error) {
+            *error = file.errorString();
+        }
+        return false;
+    }
+
+    const QByteArray bytes = text.toUtf8();
+    if (file.write(bytes) != bytes.size()) {
+        if (error) {
+            *error = file.errorString();
+        }
+        return false;
+    }
+
+    if (!file.flush()) {
+        if (error) {
+            *error = file.errorString();
+        }
+        return false;
+    }
+
+    file.close();
+    return true;
+}
+
+static QString cli_failure_message(QProcess& process)
+{
+    const QString stderr_text = QString::fromUtf8(process.readAllStandardError()).trimmed();
+    if (!stderr_text.isEmpty()) {
+        return stderr_text;
+    }
+    if (process.error() != QProcess::UnknownError) {
+        return process.errorString();
+    }
+    return QString("PDF generation failed with exit code %1.").arg(process.exitCode());
+}
+
+static QString pdf_path_from_cli_stdout(const QString& stdout_text)
+{
+    const auto lines = stdout_text.split('\n', Qt::SkipEmptyParts);
+    for (const QString& line : lines) {
+        const QString candidate = line.trimmed();
+        if (candidate.endsWith(".pdf", Qt::CaseInsensitive) &&
+            QFileInfo(candidate).isFile())
+        {
+            return candidate;
+        }
+    }
+    return {};
+}
+
 void Proxy::make_pdf(
     int from,
     const QString& to,
@@ -591,11 +677,6 @@ void Proxy::make_pdf(
         emit pdf_generated(false, "Invalid sender profile selection.");
         return;
     }
-
-    const auto& profile = m_profiles[from].profile;
-
-    QElapsedTimer timer;
-    timer.start();
 
     if (!is_valid_font_config(m_theme.fonts)) {
         emit pdf_generated(false,
@@ -611,48 +692,130 @@ void Proxy::make_pdf(
         return;
     }
 
-    const auto today = QDate::currentDate();
-    briefutil::generation_request_t request;
-    request.profile.profile = profile;
-    request.profile.profile_path = m_profiles[from].path.toStdString();
-    request.profile.profile_base_dir = QFileInfo(m_profiles[from].path)
-        .absoluteDir()
-        .absolutePath()
-        .toStdString();
-    request.recipient = to.toStdString();
-    request.subject = subject.toStdString();
-    request.body = body.toStdString();
-    request.output_dir = m_output_dir.toStdString();
-    request.date_year = today.year();
-    request.date_month = today.month();
-    request.date_day = today.day();
-    request.theme = m_theme;
-    request.layout = current_layout_spec();
-    request.backend = backend;
-
-    auto result = briefutil::generate_brief_pdf(request);
-
-    if (!result.ok) {
+    const QString cli_path = briefutil_cli_path();
+    if (!QFileInfo::exists(cli_path)) {
         emit pdf_generated(false,
-            QString::fromStdString(result.message.empty()
-                ? result.detail : result.message));
+            QString("Could not find the briefutil CLI executable: %1").arg(cli_path));
         return;
     }
 
-    qInfo("briefutil: native PDF generated in %lld ms", timer.elapsed());
-
-    const QString pdf_path = QString::fromStdString(result.output_path);
-    if (!open_generated_pdf(pdf_path)) {
-        emit pdf_generated(
-            false,
-            QString::fromStdString(
-                format_pdf_open_failed(
-                    current_localization(profile).error_pdf_open_failed_format,
-                    result.output_path)));
+    auto recipient_file = std::make_shared<QTemporaryFile>(
+        QDir::tempPath() + "/briefutil-recipient-XXXXXX.txt");
+    auto body_file = std::make_shared<QTemporaryFile>(
+        QDir::tempPath() + "/briefutil-body-XXXXXX.md");
+    QString temp_error;
+    if (!write_utf8_temp_file(*recipient_file, to, &temp_error)) {
+        emit pdf_generated(false,
+            QString("Could not prepare recipient text for PDF generation: %1").arg(temp_error));
+        return;
+    }
+    if (!write_utf8_temp_file(*body_file, body, &temp_error)) {
+        emit pdf_generated(false,
+            QString("Could not prepare body text for PDF generation: %1").arg(temp_error));
         return;
     }
 
-    emit pdf_generated(true, QString());
+    const sender_profile_t profile = m_profiles[from].profile;
+    QStringList args;
+    args
+        << "--to-file" << recipient_file->fileName()
+        << "--subject" << subject
+        << "--body-file" << body_file->fileName()
+        << "--profile-path" << m_profiles[from].path
+        << "--template-dir" << m_sender_template_dir
+        << "--output-dir" << m_output_dir
+        << "--layout" << m_layout_preset
+        << "--backend" << QString::fromUtf8(pdf_backend_name(backend))
+        << "--font-sans" << QString::fromStdString(m_theme.fonts.sans)
+        << "--font-sans-bold" << QString::fromStdString(m_theme.fonts.sans_bold)
+        << "--font-sans-italic" << QString::fromStdString(m_theme.fonts.sans_italic)
+        << "--font-sans-bold-italic" << QString::fromStdString(m_theme.fonts.sans_bold_italic)
+        << "--font-mono" << QString::fromStdString(m_theme.fonts.mono)
+        << "--body-size" << QString::number(m_theme.typo.body_size_pt, 'g', 12)
+        << "--body-leading" << QString::number(m_theme.typo.body_lead_pt, 'g', 12)
+        << "--header-scale" << QString::number(m_theme.typo.header_scale * 100.0f, 'g', 12)
+        << "--body-scale" << QString::number(m_theme.typo.body_scale * 100.0f, 'g', 12)
+        << "--footer-scale" << QString::number(m_theme.typo.footer_scale * 100.0f, 'g', 12);
+
+    auto process = new QProcess(this);
+    auto timer = std::make_shared<QElapsedTimer>();
+    auto completed = std::make_shared<bool>(false);
+    timer->start();
+
+    process->setProgram(cli_path);
+    process->setArguments(args);
+    process->setProcessChannelMode(QProcess::SeparateChannels);
+
+    connect(process, &QProcess::errorOccurred, this,
+        [this, process, recipient_file, body_file, completed](QProcess::ProcessError error) {
+            if (*completed || error != QProcess::FailedToStart) {
+                return;
+            }
+            *completed = true;
+            emit pdf_generated(
+                false,
+                QString("Could not start the briefutil CLI: %1").arg(process->errorString()));
+            process->deleteLater();
+        });
+
+    connect(process,
+        qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+        this,
+        [this, process, recipient_file, body_file, timer, completed, profile](
+            int exit_code,
+            QProcess::ExitStatus exit_status)
+        {
+            if (*completed) {
+                return;
+            }
+            *completed = true;
+
+            if (exit_status != QProcess::NormalExit || exit_code != 0) {
+                emit pdf_generated(false, cli_failure_message(*process));
+                process->deleteLater();
+                return;
+            }
+
+            qInfo("briefutil: CLI PDF generation finished in %lld ms", timer->elapsed());
+
+            const QString stdout_text = QString::fromUtf8(
+                process->readAllStandardOutput()).trimmed();
+            const QString pdf_path = pdf_path_from_cli_stdout(stdout_text);
+            if (pdf_path.isEmpty()) {
+                emit pdf_generated(
+                    false,
+                    "PDF generation completed but did not report an output path.");
+                process->deleteLater();
+                return;
+            }
+
+            if (!open_generated_pdf(pdf_path)) {
+                emit pdf_generated(
+                    false,
+                    QString::fromStdString(
+                        format_pdf_open_failed(
+                            current_localization(profile).error_pdf_open_failed_format,
+                            pdf_path.toUtf8().toStdString())));
+                process->deleteLater();
+                return;
+            }
+
+            emit pdf_generated(true, QString());
+            process->deleteLater();
+        });
+
+    QTimer::singleShot(300000, process,
+        [this, process, recipient_file, body_file, completed] {
+            if (*completed) {
+                return;
+            }
+            *completed = true;
+            process->kill();
+            emit pdf_generated(false, "PDF generation timed out.");
+            process->deleteLater();
+        });
+
+    process->start();
 }
 
 
@@ -690,13 +853,13 @@ void Proxy::set_font_mono(const QString& v)             { update_font_and_save(m
 
 void Proxy::set_body_size(double v)
 {
-    m_theme.typo.body_size_pt = (float)v;
+    m_theme.typo.body_size_pt = clamp_float((float)v, 6.0f, 24.0f);
     save_settings();
 }
 
 void Proxy::set_body_leading(double v)
 {
-    m_theme.typo.body_lead_pt = (float)v;
+    m_theme.typo.body_lead_pt = clamp_float((float)v, 6.0f, 36.0f);
     save_settings();
 }
 
