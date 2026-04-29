@@ -1,13 +1,12 @@
 #include "proxy.h"
-#include "briefutil/default_profiles.h"
-#include "briefutil/letter_builder.h"
+#include "briefutil/brief_service.h"
 #include "briefutil/localization.h"
+#include "briefutil/path_utils.h"
 #include "briefutil/pdf_backend.h"
-#include "mustermann_signature.png.h"
 #include "briefutil/sender_profile.h"
+#include "briefutil/template_store.h"
 
 #include <QCoreApplication>
-#include <QDateTime>
 #include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
@@ -15,7 +14,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
-#include <QLocale>
 #include <QHash>
 #include <QRegularExpression>
 #include <QSettings>
@@ -33,7 +31,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 
 
 // ============================================================================
@@ -42,46 +39,17 @@
 
 static QString default_sender_template_dir()
 {
-    QString base_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (base_dir.isEmpty()) {
-        base_dir = QDir::homePath() + "/.local/share/briefutil";
-    }
-
-    QString path = QDir::fromNativeSeparators(QDir(base_dir).filePath("templates"));
-    if (!path.endsWith('/')) {
-        path += '/';
-    }
-    return path;
+    return QString::fromStdString(briefutil::default_template_dir());
 }
 
 static QString normalize_profile_language(const QString& language)
 {
-    const QString normalized = language.trimmed().toLower();
-    if (normalized == "de"
-        || normalized == "de-de"
-        || normalized == "german"
-        || normalized == "deutsch")
-    {
-        return "de";
-    }
-    return "en";
-}
-
-static QLocale qlocale_for_profile_language(const QString& language)
-{
-    if (normalize_profile_language(language) == "de") {
-        return QLocale(QLocale::German, QLocale::Germany);
-    }
-    return QLocale(QLocale::English, QLocale::UnitedStates);
+    return QString::fromStdString(briefutil::normalize_language(language.toStdString()));
 }
 
 static bool is_valid_font_config(const font_family_config_t& fc)
 {
-    return !fc.sans.empty()
-        && !fc.sans_bold.empty()
-        && !fc.sans_italic.empty()
-        && !fc.sans_bold_italic.empty()
-        && !fc.mono.empty();
+    return briefutil::is_valid_font_config(fc);
 }
 
 static QString normalize_layout_preset(QString preset)
@@ -95,43 +63,17 @@ static QString normalize_layout_preset(QString preset)
 
 static float font_scale_from_percent(double percent)
 {
-    return static_cast<float>(std::clamp(percent / 100.0, 0.5, 2.0));
+    return briefutil::font_scale_from_percent(percent);
 }
 
 static void ensure_template_dir_ready(const QString& dir_path)
 {
-    QDir templates_dir(dir_path);
-    if (!templates_dir.exists()) {
-        templates_dir.mkpath(".");
+    std::string error;
+    if (!briefutil::ensure_template_dir_ready(dir_path.toStdString(), &error)) {
+        qWarning("briefutil: failed to initialize template directory '%s': %s",
+                 qPrintable(dir_path),
+                 error.c_str());
     }
-
-    auto write_file_if_missing = [&](
-        const QString& path,
-        const char* data,
-        size_t size) {
-        QFileInfo info(path);
-        if (info.exists()) {
-            return;
-        }
-        QFile file(path);
-        if (!file.open(QIODevice::WriteOnly)) {
-            return;
-        }
-        file.write(data, (qint64)size);
-    };
-
-    write_file_if_missing(
-        dir_path + "Max Mustermann.json",
-        k_default_profile_simple_json,
-        std::strlen(k_default_profile_simple_json));
-    write_file_if_missing(
-        dir_path + "Max Mustermann, Mustermann AG.json",
-        k_default_profile_commercial_json,
-        std::strlen(k_default_profile_commercial_json));
-    write_file_if_missing(
-        dir_path + "mustermann_signature.png",
-        (const char*)mustermann_signature_png::data().first,
-        mustermann_signature_png::data().second);
 }
 
 static QString join_lines(const std::vector<std::string>& lines)
@@ -477,7 +419,7 @@ void Proxy::load_settings()
     m_theme.typo.footer_scale = s.value("typo/footer_scale", def_typo.footer_scale).toFloat();
 
     QString saved_dir = s.value("paths/template_dir").toString();
-    if (!saved_dir.isEmpty()) {
+    if (qEnvironmentVariableIsEmpty("BRIEFUTIL_TEMPLATE_DIR") && !saved_dir.isEmpty()) {
         m_sender_template_dir = saved_dir;
     }
 
@@ -500,28 +442,21 @@ void Proxy::save_settings() const
     s.setValue("typo/header_scale",      (double)m_theme.typo.header_scale);
     s.setValue("typo/body_scale",        (double)m_theme.typo.body_scale);
     s.setValue("typo/footer_scale",      (double)m_theme.typo.footer_scale);
-    s.setValue("paths/template_dir",     m_sender_template_dir);
+    if (qEnvironmentVariableIsEmpty("BRIEFUTIL_TEMPLATE_DIR")) {
+        s.setValue("paths/template_dir", m_sender_template_dir);
+    }
     s.setValue("layout/preset",          m_layout_preset);
     s.setValue("appearance/darkMode",    m_dark_mode);
 }
 
 localization_t Proxy::current_localization(const sender_profile_t& profile) const
 {
-    if (normalize_profile_language(QString::fromStdString(profile.language)) == "de") {
-        return german_localization();
-    }
-    return english_localization();
+    return briefutil::localization_for_language(profile.language);
 }
 
 letter_layout_spec_t Proxy::current_layout_spec() const
 {
-    if (m_layout_preset == "din_5008_form_a") {
-        return din_5008_form_a();
-    }
-    if (m_layout_preset == "us_letter") {
-        return us_letter();
-    }
-    return din_5008_form_b();
+    return briefutil::layout_spec_from_name(m_layout_preset.toStdString());
 }
 
 
@@ -531,37 +466,10 @@ letter_layout_spec_t Proxy::current_layout_spec() const
 
 Proxy::Proxy(QObject*)
 {
-    // Output directory. Prefer a portable-launcher root when present, then
-    // look next to the executable, then in the current working directory.
-    auto read_dir_conf = [](const QString& path) -> QString {
-        QFile f(path);
-        if (!f.open(QIODevice::ReadOnly)) return QString();
-        return QString::fromUtf8(f.readAll()).trimmed();
-    };
-
-    QString output_dir;
-    const QString portable_root = qEnvironmentVariable("BRIEFUTIL_PORTABLE_ROOT");
-    if (!portable_root.isEmpty()) {
-        output_dir = read_dir_conf(
-            QDir::fromNativeSeparators(QDir(portable_root).filePath("output_dir.conf")));
-    }
-    if (output_dir.isEmpty()) {
-        output_dir = read_dir_conf(
-            QCoreApplication::applicationDirPath() + "/output_dir.conf");
-    }
-    if (output_dir.isEmpty()) {
-        output_dir = read_dir_conf(
-            QDir::current().filePath("output_dir.conf"));
-    }
-
-    QDir qodir(output_dir);
-    if (!output_dir.isEmpty() && qodir.exists()) {
-        m_output_dir = output_dir;
-    }
-    else {
-        m_output_dir = QDir::homePath() + "/briefutil/output/";
-        qodir = QDir(m_output_dir);
-    }
+    m_output_dir = QString::fromStdString(briefutil::configured_output_dir(
+        QCoreApplication::applicationDirPath().toStdString(),
+        QDir::currentPath().toStdString()));
+    QDir qodir(m_output_dir);
     if (!qodir.exists()) {
         qodir.mkpath(".");
     }
@@ -608,19 +516,16 @@ void Proxy::install_template_watcher()
 void Proxy::discover_profiles()
 {
     m_profiles.clear();
-    QDir templates_dir(m_sender_template_dir);
-    const auto profile_files = templates_dir.entryList({ "*.json" }, QDir::Files, QDir::Name);
-    for (const auto& profile_file : profile_files) {
-        const auto profile_path = templates_dir.filePath(profile_file);
-        auto result = load_sender_profile(profile_path.toStdString());
-        if (result.ok) {
-            m_profiles.push_back({ std::move(result.profile), profile_path });
-        }
-        else {
-            qWarning("briefutil: failed to load profile '%s': %s",
-                     qPrintable(profile_file),
-                     result.error.c_str());
-        }
+    std::vector<std::string> errors;
+    auto profiles = briefutil::discover_profiles(m_sender_template_dir.toStdString(), &errors);
+    for (auto& entry : profiles) {
+        m_profiles.push_back({
+            std::move(entry.profile),
+            QString::fromStdString(entry.path),
+        });
+    }
+    for (const auto& error : errors) {
+        qWarning("briefutil: failed to load profile: %s", error.c_str());
     }
     emit sender_templates_changed();
 }
@@ -642,9 +547,7 @@ QList<QString> Proxy::get_sender_templates() const
 
 static QString sanitize_filename(const QString& input)
 {
-    QString sanitized = input.trimmed();
-    sanitized.replace(QRegularExpression("[<>:\"/\\\\|?*\\x00-\\x1F]"), "_");
-    return sanitized;
+    return QString::fromStdString(briefutil::sanitize_filename_component(input.toStdString()));
 }
 
 static QString unique_profile_file_name(const QDir& dir, const QString& base_name)
@@ -691,29 +594,8 @@ void Proxy::make_pdf(
 
     const auto& profile = m_profiles[from].profile;
 
-    QString prefix = QDateTime::currentDateTime().toString("yyyy-MM-dd HH-mm-ss") + " ";
-    QString filename_slug = sanitize_filename(subject);
-    if (filename_slug.isEmpty()) {
-        filename_slug = "letter";
-    }
-
-    QString pdf_filename = prefix + filename_slug + ".pdf";
-    pdf_filename.replace(QRegularExpression("\\s+"), " ");
-    QString pdf_path = m_output_dir + "/" + pdf_filename;
-
-    QString date_str = qlocale_for_profile_language(
-        QString::fromStdString(profile.language)).toString(
-            QDate::currentDate(),
-            QLocale::LongFormat);
-
     QElapsedTimer timer;
     timer.start();
-
-    letter_input_t input;
-    input.recipient = to.toStdString();
-    input.subject   = subject.toStdString();
-    input.body      = body.toStdString();
-    input.date      = date_str.toStdString();
 
     if (!is_valid_font_config(m_theme.fonts)) {
         emit pdf_generated(false,
@@ -721,8 +603,6 @@ void Proxy::make_pdf(
         return;
     }
 
-    auto loc = current_localization(profile);
-    auto layout = current_layout_spec();
     auto backend = Pdf_backend::Haru;
     if (!pdf_backend_available(backend)) {
         emit pdf_generated(
@@ -731,15 +611,26 @@ void Proxy::make_pdf(
         return;
     }
 
-    auto result = generate_letter_pdf(
-        profile,
-        input,
-        m_sender_template_dir.toStdString(),
-        pdf_path.toUtf8().toStdString(),
-        m_theme,
-        layout,
-        loc,
-        backend);
+    const auto today = QDate::currentDate();
+    briefutil::generation_request_t request;
+    request.profile.profile = profile;
+    request.profile.profile_path = m_profiles[from].path.toStdString();
+    request.profile.profile_base_dir = QFileInfo(m_profiles[from].path)
+        .absoluteDir()
+        .absolutePath()
+        .toStdString();
+    request.recipient = to.toStdString();
+    request.subject = subject.toStdString();
+    request.body = body.toStdString();
+    request.output_dir = m_output_dir.toStdString();
+    request.date_year = today.year();
+    request.date_month = today.month();
+    request.date_day = today.day();
+    request.theme = m_theme;
+    request.layout = current_layout_spec();
+    request.backend = backend;
+
+    auto result = briefutil::generate_brief_pdf(request);
 
     if (!result.ok) {
         emit pdf_generated(false,
@@ -750,13 +641,14 @@ void Proxy::make_pdf(
 
     qInfo("briefutil: native PDF generated in %lld ms", timer.elapsed());
 
+    const QString pdf_path = QString::fromStdString(result.output_path);
     if (!open_generated_pdf(pdf_path)) {
         emit pdf_generated(
             false,
             QString::fromStdString(
                 format_pdf_open_failed(
-                    loc.error_pdf_open_failed_format,
-                    pdf_path.toUtf8().toStdString())));
+                    current_localization(profile).error_pdf_open_failed_format,
+                    result.output_path)));
         return;
     }
 
@@ -1086,9 +978,7 @@ bool Proxy::validate_profile_image_name(const QString& v) const
 {
     auto trimmed = normalize_asset_name(v);
     if (trimmed.isEmpty()) return true;
-    if (QDir::isAbsolutePath(trimmed)) return false;
-    if (trimmed.startsWith("../") || trimmed.contains("/../") || trimmed == "..") return false;
-    if (!trimmed.endsWith(".png", Qt::CaseInsensitive)) return false;
+    if (!briefutil::is_valid_profile_image_name(trimmed.toStdString())) return false;
 
     QFileInfo info(QDir(m_sender_template_dir).filePath(trimmed));
     return info.exists() && info.isFile();

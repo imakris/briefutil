@@ -25,8 +25,10 @@ if(BRIEFUTIL_MARK2HARU_DIR AND EXISTS "${BRIEFUTIL_MARK2HARU_DIR}/CMakeLists.txt
 endif()
 
 add_library(briefutil_core STATIC
+    src/brief_service.cpp
     src/letter_builder.cpp
     src/markdown_parser.cpp
+    src/path_utils.cpp
     src/pdf_haru_support.cpp
     src/pdf_measurement.cpp
     src/pdf_renderer.cpp
@@ -34,6 +36,7 @@ add_library(briefutil_core STATIC
     src/pdf_renderer_mark2haru.cpp
     src/rich_text_layout.cpp
     src/sender_profile.cpp
+    src/template_store.cpp
 )
 
 add_library(briefutil::core ALIAS briefutil_core)
@@ -44,6 +47,7 @@ target_include_directories(briefutil_core
         ${libharu_SOURCE_DIR}/include
         ${libharu_BINARY_DIR}/include
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/embedded
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 

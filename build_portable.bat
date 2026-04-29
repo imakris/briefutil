@@ -3,9 +3,9 @@ REM ========================================================================
 REM build_portable.bat - Build portable distribution of briefutil
 REM ========================================================================
 REM
-REM Creates a self-contained portable directory under dist/ with a single
-REM visible briefutil.exe launcher at the top level and a briefutil_runtime\
-REM directory containing the actual application binary and all Qt/MinGW
+REM Creates a self-contained portable directory under dist/ with a visible
+REM briefutil.exe GUI launcher, a briefutil_cli.bat CLI launcher, and a
+REM briefutil_runtime\ directory containing the real binaries and all Qt/MinGW
 REM runtime dependencies.
 REM
 REM Requires a build_config.bat file with local tool paths.
@@ -101,7 +101,18 @@ if errorlevel 1 (
     echo ERROR: briefutil.exe not found in build output.
     exit /b 1
 )
+copy /y "%BUILD_DIR%\cli\briefutil_cli.exe" "%RUNTIME_DIR%\briefutil_cli.exe" >nul
+if errorlevel 1 (
+    echo ERROR: briefutil_cli.exe not found in build output.
+    exit /b 1
+)
 copy /y "%BUILD_DIR%\app\*.dll" "%RUNTIME_DIR%\" >nul
+
+(
+    echo @echo off
+    echo set "BRIEFUTIL_PORTABLE_ROOT=%%~dp0"
+    echo "%%~dp0briefutil_runtime\briefutil_cli.exe" %%*
+) > "%PORTABLE_DIR%\briefutil_cli.bat"
 
 set MISSING_DIRS=
 for %%D in (platforms imageformats iconengines tls networkinformation generic qml qmltooling) do (

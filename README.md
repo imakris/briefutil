@@ -1,7 +1,7 @@
 # briefutil
 
-`briefutil` is a small Qt Quick desktop utility for turning short letters into
-PDF files.
+`briefutil` is a small utility for turning short letters into PDF files. It
+ships as both a Qt Quick desktop app and a CLI.
 
 Letter layout, markdown body parsing, and PDF rendering are handled natively in
 C++ with Qt 6 and libHaru.
@@ -16,6 +16,7 @@ C++ with Qt 6 and libHaru.
 
 - lets you pick a sender profile from JSON files
 - collects recipient, subject, and body text in a small desktop UI
+- provides `briefutil_cli` for scriptable PDF generation
 - supports Markdown in the letter body (asterisk and underscore variants)
 - generates DIN 5008 form A/B and US Letter PDFs
 - can use either built-in PDF fonts or custom `.ttf` / `.otf` font files
@@ -43,6 +44,7 @@ The project root for the application code is [`briefutil/`](briefutil/).
 That directory contains:
 
 - `app/` for the Qt Quick application, QML, and app resources
+- `cli/` for the command-line frontend
 - `core/` for the reusable `briefutil_core` library
 - `tests/` for development test executables and test data
 - the top-level CMake build entry point
@@ -57,6 +59,7 @@ That directory contains:
   - `Qml`
   - `Quick`
   - `QuickControls2`
+  - `QuickDialogs2`
 - network access on first configure, because CMake fetches:
   - `libHaru`
   - `zlib`
@@ -79,6 +82,14 @@ built as:
 
 ```text
 briefutil/build/app/Release/briefutil.exe
+briefutil/build/cli/Release/briefutil_cli.exe
+```
+
+To build only the core, CLI, and tests without the Qt Quick app:
+
+```powershell
+cmake -S briefutil -B briefutil/build-cli -DCMAKE_PREFIX_PATH="C:/Qt/6.x/<toolchain>" -DBRIEFUTIL_BUILD_GUI=OFF
+cmake --build briefutil/build-cli --config Release --target briefutil_cli
 ```
 
 ## Run
@@ -89,6 +100,27 @@ After building:
 briefutil/build/app/Release/briefutil.exe
 ```
 
+CLI example:
+
+```powershell
+briefutil/build/cli/Release/briefutil_cli.exe `
+  --to "Ioannis Makris\nAm Zirkus 3\n10117 Berlin" `
+  --subject "Example letter" `
+  --body-file body.md `
+  --output example.pdf
+```
+
+Common CLI options:
+
+- `--to TEXT`, `--to-file PATH`, or stdin for the recipient block
+- `--subject TEXT`
+- `--body TEXT` or `--body-file PATH`
+- `--profile ID`
+- `--template-dir PATH`
+- `--output PATH` or `--output-dir PATH`
+- `--header-scale PCT`, `--body-scale PCT`, `--footer-scale PCT`
+- `--force` to replace an existing `--output` file
+
 On Windows, the CMake build also runs Qt deployment steps so the build output
 contains the required Qt DLLs, plugins, and QML modules.
 
@@ -97,11 +129,13 @@ contains the required Qt DLLs, plugins, and QML modules.
 ```text
 dist/portable/
   briefutil.exe
+  briefutil_cli.bat
   briefutil_runtime/
 ```
 
 The visible top-level `briefutil.exe` is a launcher. The real Qt application
 binary plus all DLLs, plugins, and QML files live in `briefutil_runtime/`.
+`briefutil_cli.bat` starts the CLI from the same runtime directory.
 
 ## Runtime data
 
@@ -123,6 +157,13 @@ Generated PDFs are written by default to:
 
 ```text
 %USERPROFILE%/briefutil/output/
+```
+
+The template and output locations can also be overridden for one process:
+
+```powershell
+$env:BRIEFUTIL_TEMPLATE_DIR = "C:/work/briefutil/templates"
+$env:BRIEFUTIL_OUTPUT_DIR = "C:/work/briefutil/output"
 ```
 
 The app also stores UI and typography settings with `QSettings`, including:
@@ -200,8 +241,13 @@ The CMake project also defines a few development-only test executables:
 
 - `test_renderer`
 - `test_letter_builder`
+- `test_brief_service`
+- `test_cli`
 - `test_markdown_parser`
 - `test_md_to_pdf`
+- `test_path_utils`
+- `test_template_store`
+- `test_unicode_output_path`
 
 Typical examples:
 

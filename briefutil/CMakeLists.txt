@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 cmake_policy(SET CMP0074 NEW)
 
+option(BRIEFUTIL_BUILD_GUI "Build the Qt Quick GUI frontend" ON)
+
 # ============================================================================
 # libHaru (static, with PNG support via zlib + libpng)
 # ============================================================================
@@ -88,7 +90,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickDialogs2)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+if(BRIEFUTIL_BUILD_GUI)
+    find_package(Qt6 REQUIRED COMPONENTS Gui Qml Quick QuickControls2 QuickDialogs2)
+endif()
 get_filename_component(BRIEFUTIL_QT_BIN_DIR "${Qt6_DIR}/../../../bin" ABSOLUTE)
 set(BRIEFUTIL_WINDEPLOYQT "${BRIEFUTIL_QT_BIN_DIR}/windeployqt.exe")
 get_filename_component(BRIEFUTIL_CXX_COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
@@ -122,7 +127,10 @@ endfunction()
 enable_testing()
 
 add_subdirectory(core)
-add_subdirectory(app)
+if(BRIEFUTIL_BUILD_GUI)
+    add_subdirectory(app)
+endif()
+add_subdirectory(cli)
 add_subdirectory(tests)
 
 # ============================================================================
