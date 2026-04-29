@@ -97,14 +97,21 @@ endif()
 get_filename_component(BRIEFUTIL_QT_BIN_DIR "${Qt6_DIR}/../../../bin" ABSOLUTE)
 set(BRIEFUTIL_WINDEPLOYQT "${BRIEFUTIL_QT_BIN_DIR}/windeployqt.exe")
 get_filename_component(BRIEFUTIL_CXX_COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+set(BRIEFUTIL_COMPILER_RUNTIME_DLLS
+    libc++.dll
+    libunwind.dll
+    libgcc_s_seh-1.dll
+    libstdc++-6.dll
+    libwinpthread-1.dll
+)
 
 # ============================================================================
 # Shared helper: copy runtime DLLs for an executable target
 # ============================================================================
 
-function(briefutil_copy_runtime_dlls target)
+function(briefutil_copy_compiler_runtime_dlls target)
     if(WIN32)
-        foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
+        foreach(_runtime_dll IN LISTS BRIEFUTIL_COMPILER_RUNTIME_DLLS)
             if(EXISTS "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}")
                 add_custom_command(TARGET ${target} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -114,6 +121,12 @@ function(briefutil_copy_runtime_dlls target)
                 )
             endif()
         endforeach()
+    endif()
+endfunction()
+
+function(briefutil_copy_runtime_dlls target)
+    if(WIN32)
+        briefutil_copy_compiler_runtime_dlls(${target})
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:${target}>
@@ -121,6 +134,18 @@ function(briefutil_copy_runtime_dlls target)
             COMMAND_EXPAND_LISTS
             VERBATIM
         )
+    endif()
+endfunction()
+
+function(briefutil_install_compiler_runtime_dlls)
+    if(WIN32)
+        foreach(_runtime_dll IN LISTS BRIEFUTIL_COMPILER_RUNTIME_DLLS)
+            if(EXISTS "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}")
+                install(FILES "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}"
+                    DESTINATION bin
+                )
+            endif()
+        endforeach()
     endif()
 endfunction()
 
@@ -132,6 +157,7 @@ if(BRIEFUTIL_BUILD_GUI)
     add_subdirectory(app)
 endif()
 add_subdirectory(tests)
+briefutil_install_compiler_runtime_dlls()
 
 # ============================================================================
 # Packaging

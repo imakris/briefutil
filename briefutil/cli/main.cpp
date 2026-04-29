@@ -22,9 +22,11 @@ struct cli_options_t
     std::string recipient;
     std::string recipient_file;
     bool recipient_source_provided = false;
+    bool recipient_text_provided = false;
     std::string subject = "Letter";
     std::string body;
     std::string body_file;
+    bool body_text_provided = false;
     std::string profile_id;
     std::string profile_path;
     std::string template_dir;
@@ -197,6 +199,7 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             if (!value) return std::nullopt;
             options.recipient = decode_text_argument(*value);
             options.recipient_source_provided = true;
+            options.recipient_text_provided = true;
         }
         else if (arg == "--to-file") {
             auto value = read_value("--to-file");
@@ -213,6 +216,7 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
             auto value = read_value("--body");
             if (!value) return std::nullopt;
             options.body = decode_text_argument(*value);
+            options.body_text_provided = true;
         }
         else if (arg == "--body-file") {
             auto value = read_value("--body-file");
@@ -359,6 +363,18 @@ int main(int argc, char** argv)
     }
     if (!options.profile_path.empty() && !options.profile_id.empty()) {
         std::cerr << "Use either --profile or --profile-path, not both.\n";
+        return 2;
+    }
+    if (options.recipient_text_provided && !options.recipient_file.empty()) {
+        std::cerr << "Use either --to or --to-file, not both.\n";
+        return 2;
+    }
+    if (options.body_text_provided && !options.body_file.empty()) {
+        std::cerr << "Use either --body or --body-file, not both.\n";
+        return 2;
+    }
+    if (!options.output_path.empty() && !options.output_dir.empty()) {
+        std::cerr << "Use either --output or --output-dir, not both.\n";
         return 2;
     }
 

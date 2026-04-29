@@ -1,4 +1,5 @@
 #include "proxy.h"
+#include "cli_output.h"
 #include "briefutil/brief_service.h"
 #include "briefutil/localization.h"
 #include "briefutil/path_utils.h"
@@ -641,30 +642,19 @@ static bool write_utf8_temp_file(
     return true;
 }
 
-static QString cli_failure_message(QProcess& process)
+static QString cli_failure_message(QProcess& process, const QString& process_error = {})
 {
     const QString stderr_text = QString::fromUtf8(process.readAllStandardError()).trimmed();
     if (!stderr_text.isEmpty()) {
         return stderr_text;
     }
+    if (!process_error.isEmpty()) {
+        return QString("PDF generation failed: %1").arg(process_error);
+    }
     if (process.error() != QProcess::UnknownError) {
         return process.errorString();
     }
     return QString("PDF generation failed with exit code %1.").arg(process.exitCode());
-}
-
-static QString pdf_path_from_cli_stdout(const QString& stdout_text)
-{
-    const auto lines = stdout_text.split('\n', Qt::SkipEmptyParts);
-    for (const QString& line : lines) {
-        const QString candidate = line.trimmed();
-        if (candidate.endsWith(".pdf", Qt::CaseInsensitive) &&
-            QFileInfo(candidate).isFile())
-        {
-            return candidate;
-        }
-    }
-    return {};
 }
 
 void Proxy::make_pdf(
@@ -740,6 +730,7 @@ void Proxy::make_pdf(
     auto process = new QProcess(this);
     auto timer = std::make_shared<QElapsedTimer>();
     auto completed = std::make_shared<bool>(false);
+    auto process_error = std::make_shared<QString>();
     timer->start();
 
     process->setProgram(cli_path);
@@ -747,21 +738,30 @@ void Proxy::make_pdf(
     process->setProcessChannelMode(QProcess::SeparateChannels);
 
     connect(process, &QProcess::errorOccurred, this,
-        [this, process, recipient_file, body_file, completed](QProcess::ProcessError error) {
-            if (*completed || error != QProcess::FailedToStart) {
+        [this, process, recipient_file, body_file, completed, process_error](
+            QProcess::ProcessError error)
+        {
+            if (*completed) {
+                return;
+            }
+            const QString error_text = process->errorString();
+            if (process_error->isEmpty() && !error_text.isEmpty()) {
+                *process_error = error_text;
+            }
+            if (error != QProcess::FailedToStart) {
                 return;
             }
             *completed = true;
             emit pdf_generated(
                 false,
-                QString("Could not start the briefutil CLI: %1").arg(process->errorString()));
+                QString("Could not start the briefutil CLI: %1").arg(*process_error));
             process->deleteLater();
         });
 
     connect(process,
         qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
         this,
-        [this, process, recipient_file, body_file, timer, completed, profile](
+        [this, process, recipient_file, body_file, timer, completed, process_error, profile](
             int exit_code,
             QProcess::ExitStatus exit_status)
         {
@@ -771,7 +771,7 @@ void Proxy::make_pdf(
             *completed = true;
 
             if (exit_status != QProcess::NormalExit || exit_code != 0) {
-                emit pdf_generated(false, cli_failure_message(*process));
+                emit pdf_generated(false, cli_failure_message(*process, *process_error));
                 process->deleteLater();
                 return;
             }
@@ -780,7 +780,7 @@ void Proxy::make_pdf(
 
             const QString stdout_text = QString::fromUtf8(
                 process->readAllStandardOutput()).trimmed();
-            const QString pdf_path = pdf_path_from_cli_stdout(stdout_text);
+            const QString pdf_path = briefutil_pdf_path_from_cli_stdout(stdout_text);
             if (pdf_path.isEmpty()) {
                 emit pdf_generated(
                     false,

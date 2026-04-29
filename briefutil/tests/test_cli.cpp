@@ -76,6 +76,12 @@ int main(int argc, char* argv[])
         standard_output.trimmed().split('\n', Qt::SkipEmptyParts).size() == 1,
         "CLI smoke should print exactly one generated path");
     require(
+        standard_output.trimmed().startsWith(output_dir),
+        "CLI smoke stdout path should be inside BRIEFUTIL_OUTPUT_DIR");
+    require(
+        standard_output.trimmed().endsWith(".pdf", Qt::CaseInsensitive),
+        "CLI smoke stdout path should point at a PDF");
+    require(
         QFile::exists(standard_output.trimmed()),
         "CLI smoke stdout path should exist");
     require(
@@ -99,6 +105,33 @@ int main(int argc, char* argv[])
     require(
         QFile::exists(unicode_output),
         "CLI should write to the exact Unicode --output path");
+    exit_code = run_cli(
+        {
+            "--to",
+            "Ioannis Makris",
+            "--subject",
+            QString::fromUtf8("M\xc3\xa4rz Pr\xc3\xbc" "fung Auto"),
+        },
+        template_dir,
+        output_dir,
+        nullptr,
+        &standard_output);
+    require(exit_code == 0, "CLI should auto-generate Unicode output names");
+    require(
+        standard_output.trimmed().startsWith(output_dir),
+        "CLI Unicode auto stdout path should be inside BRIEFUTIL_OUTPUT_DIR");
+    require(
+        standard_output.trimmed().split('\n', Qt::SkipEmptyParts).size() == 1,
+        "CLI Unicode auto stdout path should be a single line");
+    require(
+        standard_output.trimmed().endsWith(".pdf", Qt::CaseInsensitive),
+        "CLI Unicode auto stdout path should point at a PDF");
+    require(
+        standard_output.contains(QString::fromUtf8("M\xc3\xa4rz")),
+        "CLI Unicode auto stdout path should preserve non-ASCII subject text");
+    require(
+        QFile::exists(standard_output.trimmed()),
+        "CLI Unicode auto stdout path should exist");
     const QString fixed_output = root.filePath("fixed-output.pdf");
     exit_code = run_cli(
         { "--to", "A", "--subject", "Fixed", "--output", fixed_output },
@@ -114,6 +147,11 @@ int main(int argc, char* argv[])
     require(
         QFile::exists(standard_output.trimmed()),
         "CLI stdout path should exist");
+    QString error;
+    const QString empty_recipient_file = root.filePath("empty-recipient.txt");
+    QFile file(empty_recipient_file);
+    require(file.open(QIODevice::WriteOnly), "could not create empty recipient file");
+    file.close();
     exit_code = run_cli(
         { "--to", "A", "--subject", "Fixed", "--output", fixed_output },
         template_dir,
@@ -124,11 +162,31 @@ int main(int argc, char* argv[])
         template_dir,
         output_dir);
     require(exit_code == 0, "CLI --force should replace an existing --output path");
+    const QString conflict_output = root.filePath("conflict-output.pdf");
+    exit_code = run_cli(
+        { "--to", "A", "--output", conflict_output, "--output-dir", output_dir },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "CLI should reject combined --output and --output-dir");
+    require(error.contains("either --output or --output-dir"),
+            "combined output options should explain the error");
 
-    QString error;
     exit_code = run_cli({ "--to", "A", "--header-scale", "abc" }, template_dir, output_dir, &error);
     require(exit_code == 2, "invalid numeric option should exit 2");
     require(error.contains("must be a number"), "invalid numeric option should explain the error");
+    exit_code = run_cli({ "--to", "A", "--layout", "unknown" }, template_dir, output_dir, &error);
+    require(exit_code == 2, "invalid layout should exit 2");
+    require(error.contains("--layout must be"), "invalid layout should explain the error");
+    exit_code = run_cli({ "--to", "A", "--backend", "unknown" }, template_dir, output_dir, &error);
+    require(exit_code == 2, "invalid backend should exit 2");
+    require(error.contains("--backend must be"), "invalid backend should explain the error");
+    exit_code = run_cli({ "--to", "A", "--bogus" }, template_dir, output_dir, &error);
+    require(exit_code == 2, "unknown option should exit 2");
+    require(error.contains("Unknown option"), "unknown option should explain the error");
+    exit_code = run_cli({ "--to", "A", "--body-size" }, template_dir, output_dir, &error);
+    require(exit_code == 2, "missing option value should exit 2");
+    require(error.contains("requires a value"), "missing option value should explain the error");
     exit_code = run_cli({ "--to", "A", "--body-size", "0" }, template_dir, output_dir, &error);
     require(exit_code == 2, "out-of-range body size should exit 2");
     require(error.contains("between 6 and 24"), "out-of-range body size should explain the limit");
@@ -179,6 +237,29 @@ int main(int argc, char* argv[])
         output_dir);
     require(exit_code == 0, "CLI should accept exact profile and GUI typography arguments");
     require(QFile::exists(profile_font_output), "CLI exact profile output should exist");
+    exit_code = run_cli(
+        { "--to", "A", "--profile-path", root.filePath("missing-profile.json") },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "missing --profile-path file should exit 2");
+    require(error.contains("Could not load sender profile"),
+            "missing --profile-path file should explain the error");
+    const QString malformed_profile_path = root.filePath("malformed-profile.json");
+    QFile malformed_profile_file(malformed_profile_path);
+    require(
+        malformed_profile_file.open(QIODevice::WriteOnly),
+        "could not create malformed profile file");
+    malformed_profile_file.write("{");
+    malformed_profile_file.close();
+    exit_code = run_cli(
+        { "--to", "A", "--profile-path", malformed_profile_path },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "malformed --profile-path file should exit 2");
+    require(error.contains("Could not load sender profile"),
+            "malformed --profile-path file should explain the error");
     const QString not_a_template_dir = root.filePath("not-a-template-dir");
     QFile not_a_template_dir_file(not_a_template_dir);
     require(
@@ -203,6 +284,14 @@ int main(int argc, char* argv[])
         exit_code == 0 && QFile::exists(exact_profile_output),
         "CLI --profile-path should not require template directory initialization");
     exit_code = run_cli(
+        { "--to", "A", "--template-dir", not_a_template_dir },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 1, "CLI should fail when template initialization cannot use a path");
+    require(error.contains("Could not initialize template directory"),
+            "template initialization failure should explain the error");
+    exit_code = run_cli(
         { "--to", "A", "--profile", "Max Mustermann", "--profile-path", profile_path },
         template_dir,
         output_dir,
@@ -210,15 +299,43 @@ int main(int argc, char* argv[])
     require(exit_code == 2, "CLI should reject combined --profile and --profile-path");
     require(error.contains("either --profile or --profile-path"),
             "combined profile options should explain the error");
+    exit_code = run_cli(
+        { "--to", "A", "--to-file", empty_recipient_file },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "CLI should reject combined --to and --to-file");
+    require(error.contains("either --to or --to-file"),
+            "combined recipient options should explain the error");
+    exit_code = run_cli(
+        { "--to", "A", "--body", "Inline", "--body-file", empty_recipient_file },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "CLI should reject combined --body and --body-file");
+    require(error.contains("either --body or --body-file"),
+            "combined body options should explain the error");
+    exit_code = run_cli(
+        { "--to-file", root.filePath("missing-recipient.txt") },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "CLI should reject missing --to-file paths");
+    require(error.contains("Could not read recipient file"),
+            "missing recipient file should explain the error");
+    exit_code = run_cli(
+        { "--to", "A", "--body-file", root.filePath("missing-body.md") },
+        template_dir,
+        output_dir,
+        &error);
+    require(exit_code == 2, "CLI should reject missing --body-file paths");
+    require(error.contains("Could not read body file"),
+            "missing body file should explain the error");
     exit_code = run_cli({ "--to", "A", "--profile", "Does Not Exist" }, template_dir, output_dir);
     require(exit_code == 2, "CLI unknown profile should exit 2");
     exit_code = run_cli({ "--help" }, template_dir, output_dir);
     require(exit_code == 0, "CLI --help should exit 0");
 
-    const QString empty_recipient_file = root.filePath("empty-recipient.txt");
-    QFile file(empty_recipient_file);
-    require(file.open(QIODevice::WriteOnly), "could not create empty recipient file");
-    file.close();
     const QString empty_recipient_output = root.filePath("empty-recipient.pdf");
     exit_code = run_cli(
         { "--to-file", empty_recipient_file, "--output", empty_recipient_output },

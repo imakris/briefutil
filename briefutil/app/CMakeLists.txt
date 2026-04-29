@@ -1,6 +1,7 @@
 qt_add_executable(briefutil
     WIN32
     MANUAL_FINALIZATION
+    cli_output.cpp
     main.cpp
     proxy.cpp
     resources/qml.qrc
@@ -35,23 +36,7 @@ add_dependencies(briefutil briefutil_cli_companion)
 if(WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
     target_sources(briefutil PRIVATE resources/briefutil.rc)
-    foreach(_runtime_dll IN ITEMS libc++.dll libunwind.dll)
-        if(EXISTS "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}")
-            add_custom_command(TARGET briefutil POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${BRIEFUTIL_CXX_COMPILER_DIR}/${_runtime_dll}"
-                    "$<TARGET_FILE_DIR:briefutil>"
-                VERBATIM
-            )
-        endif()
-    endforeach()
-    add_custom_command(TARGET briefutil POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:briefutil>
-            $<TARGET_FILE_DIR:briefutil>
-        COMMAND_EXPAND_LISTS
-        VERBATIM
-    )
+    briefutil_copy_runtime_dlls(briefutil)
     if(EXISTS "${BRIEFUTIL_WINDEPLOYQT}")
         add_custom_command(TARGET briefutil POST_BUILD
             COMMAND "${BRIEFUTIL_WINDEPLOYQT}"
