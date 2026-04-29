@@ -13,6 +13,8 @@ ApplicationWindow {
     property bool darkMode: false
     property bool hasTemplates: false
     property bool isBusy: false
+    property bool goButtonTipPinned: false
+    property string goButtonTip: ""
     property var appProxy: proxy
 
     onDarkModeChanged: {
@@ -48,9 +50,18 @@ ApplicationWindow {
 
         function onPdf_generated(success, message) {
             root.isBusy = false
-            if (!success && message.length > 0) {
-                console.warn("PDF generation failed: " + message)
+            if (success) {
+                root.goButtonTip = ""
+                root.goButtonTipPinned = false
+                goButtonTipTimer.stop()
+                return
             }
+            root.goButtonTip = message.length > 0
+                ? message
+                : "PDF generation failed."
+            console.warn("PDF generation failed: " + root.goButtonTip)
+            root.goButtonTipPinned = true
+            goButtonTipTimer.restart()
         }
 
         function onSender_templates_changed() {
@@ -60,6 +71,13 @@ ApplicationWindow {
 
     background: Rectangle {
         color: root.palette.window
+    }
+
+    Timer {
+        id: goButtonTipTimer
+        interval: 7000
+        repeat: false
+        onTriggered: root.goButtonTipPinned = false
     }
 
     component StyledComboBox: ComboBox {
@@ -93,7 +111,7 @@ ApplicationWindow {
             }
 
             contentItem: Text {
-                text: modelData[""]
+                text: modelData
                 color: root.palette.text
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -143,22 +161,19 @@ ApplicationWindow {
         var currentIndex = w_from.currentIndex
         var currentText = w_from.currentText
         var options = proxy.get_sender_templates()
-        w_from.model.clear()
-        for (var i = 0; i < options.length; i++) {
-            w_from.model.append({"": options[i]})
-        }
+        w_from.model = options
 
         var newIndex = -1
-        if (currentIndex >= 0 && currentIndex < options.length) {
-            newIndex = currentIndex
-        }
-        else {
-            for (var j = 0; j < options.length; j++) {
-                if (options[j] === currentText) {
-                    newIndex = j
+        if (currentText.length > 0) {
+            for (var i = 0; i < options.length; i++) {
+                if (options[i] === currentText) {
+                    newIndex = i
                     break
                 }
             }
+        }
+        if (newIndex < 0 && currentIndex >= 0 && currentIndex < options.length) {
+            newIndex = currentIndex
         }
         if (newIndex < 0 && options.length > 0) {
             newIndex = 0
@@ -184,9 +199,7 @@ ApplicationWindow {
                 id: w_from
                 Layout.fillWidth: true
                 Layout.preferredHeight: 28
-
-                model: ListModel {
-                }
+                model: []
 
                 Component.onCompleted: {
                     root.refreshSenderTemplates()
@@ -432,6 +445,10 @@ ApplicationWindow {
                 id: button
                 text: root.isBusy ? "PLEASE WAIT" : "GO"
                 enabled: root.hasTemplates && !root.isBusy
+                hoverEnabled: true
+                ToolTip.visible: root.goButtonTip.length > 0
+                    && (button.hovered || root.goButtonTipPinned)
+                ToolTip.text: root.goButtonTip
 
                 background: Rectangle {
                     implicitWidth: 90
@@ -455,6 +472,9 @@ ApplicationWindow {
                     if (root.isBusy || !root.hasTemplates) {
                         return;
                     }
+                    root.goButtonTip = ""
+                    root.goButtonTipPinned = false
+                    goButtonTipTimer.stop()
                     root.isBusy = true
                     proxy.make_pdf(w_from.currentIndex, w_to.text, w_subject.text, w_body.text)
                 }

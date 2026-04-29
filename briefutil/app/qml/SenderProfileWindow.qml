@@ -19,6 +19,7 @@ Window {
 
     property bool _initialized: false
     property int _newProfileIndex: -1
+    property string savedProfileId: ""
 
     property color textColor:      darkMode ? "#ffffff" : "#000000"
     property color dimTextColor:   darkMode ? "#cccccc" : "#333333"
@@ -43,12 +44,17 @@ Window {
     property string footerLines: ""
 
     readonly property bool isCommercial: profileStyle === "commercial"
-    readonly property bool profileIdOk: profileId.trim().length > 0
-        && !(proxyObj && proxyObj.profile_name_exists(profileId.trim(), profileIndex))
+    readonly property bool profileIdDuplicate:
+        profileNameInUse(profileId.trim(), savedProfileId)
+    readonly property bool profileIdOk: profileId.trim().length > 0 && !profileIdDuplicate
+    readonly property string profileIdErrorText: profileId.trim().length === 0
+        ? "Display name is required."
+        : (profileIdDuplicate ? "Another sender profile already uses this display name." : "")
     readonly property bool signatureImageOk: proxyObj ? proxyObj.validate_profile_image_name(signatureImage) : true
     readonly property bool logoImageOk: proxyObj ? proxyObj.validate_profile_image_name(logoImage) : true
     readonly property bool topRuleColorOk: proxyObj ? proxyObj.validate_hex_color(topRuleColor) : true
-    readonly property bool profileCanSave: profileIdOk && signatureImageOk && logoImageOk && topRuleColorOk
+    readonly property bool profileCanSave: profileIdOk && signatureImageOk
+        && (!isCommercial || (logoImageOk && topRuleColorOk))
 
     color: darkMode ? "#2d2d2d" : "#eeeeee"
 
@@ -67,6 +73,7 @@ Window {
 
     function resetProfileFields() {
         profileId = ""
+        savedProfileId = ""
         profileStyle = "simple"
         senderLines = ""
         email = ""
@@ -133,12 +140,18 @@ Window {
     Connections {
         target: proxyObj
         function onSender_templates_changed() {
-            editorWin.refreshProfileList()
+            var lookupId = editorWin.profileIdOk
+                ? editorWin.profileId
+                : editorWin.savedProfileId
+            var selectedIndex = editorWin.refreshProfileList(lookupId)
+            if (selectedIndex >= 0 && selectedIndex !== editorWin.profileIndex) {
+                editorWin.profileIndex = selectedIndex
+            }
         }
     }
 
-    function refreshProfileList() {
-        if (!proxyObj || !profileCombo) return
+    function refreshProfileList(preferredId) {
+        if (!proxyObj || !profileCombo) return -1
         var templates = proxyObj.get_sender_templates()
         var items = []
         for (var i = 0; i < templates.length; i++) {
@@ -147,16 +160,29 @@ Window {
         profileCombo.model = items
         if (items.length === 0) {
             profileCombo.currentIndex = -1
-            return
+            return -1
         }
 
-        var selectedIndex = profileIndex
+        var selectedIndex = -1
+        var wantedId = preferredId ? preferredId.trim() : ""
+        if (wantedId.length > 0) {
+            for (var j = 0; j < templates.length; j++) {
+                if (templates[j] === wantedId) {
+                    selectedIndex = j
+                    break
+                }
+            }
+        }
+        if (selectedIndex < 0) {
+            selectedIndex = profileIndex
+        }
         if (selectedIndex < 0) {
             selectedIndex = 0
         } else if (selectedIndex >= items.length) {
             selectedIndex = items.length - 1
         }
         profileCombo.currentIndex = selectedIndex
+        return selectedIndex
     }
 
     function cleanupNewProfile() {
@@ -185,6 +211,7 @@ Window {
             return
         }
         profileId = profile.id || ""
+        savedProfileId = profileId.trim()
         profileStyle = profile.style || "simple"
         senderLines = profile.senderLines || ""
         email = profile.email || ""
@@ -220,6 +247,20 @@ Window {
         saveTimer.restart()
     }
 
+    function profileNameInUse(name, excludedName) {
+        if (!proxyObj || name.length === 0) {
+            return false
+        }
+        var excluded = excludedName ? excludedName.trim() : ""
+        var templates = proxyObj.get_sender_templates()
+        for (var i = 0; i < templates.length; i++) {
+            if (templates[i] === name && templates[i] !== excluded) {
+                return true
+            }
+        }
+        return false
+    }
+
     function saveProfile() {
         if (!_initialized || !proxyObj || profileIndex < 0 || !profileCanSave) return
         var ok = proxyObj.save_sender_profile(profileIndex, {
@@ -239,6 +280,15 @@ Window {
         })
         if (!ok) {
             console.warn("Failed to save sender profile")
+            return
+        }
+        var savedId = profileId.trim()
+        savedProfileId = savedId
+        if (profileId !== savedId) {
+            _initialized = false
+            profileId = savedId
+            if (idField) idField.text = savedId
+            _initialized = true
         }
     }
 
@@ -275,8 +325,12 @@ Window {
     component StyledTextField: TextField {
         id: styledField
         property bool valid: true
+        property string errorText: ""
+        hoverEnabled: true
         selectByMouse: true
         color: editorWin.textColor
+        ToolTip.visible: !valid && hovered && errorText.length > 0
+        ToolTip.text: errorText
         background: Rectangle {
             color: styledField.valid ? editorWin.fieldBg : editorWin.invalidFieldBg
             border.width: 1
@@ -288,10 +342,14 @@ Window {
     component StyledTextArea: TextArea {
         id: styledArea
         property bool valid: true
+        property string errorText: ""
+        hoverEnabled: true
         selectByMouse: true
         selectByKeyboard: true
         wrapMode: TextEdit.Wrap
         color: editorWin.textColor
+        ToolTip.visible: !valid && hovered && errorText.length > 0
+        ToolTip.text: errorText
         background: Rectangle {
             color: styledArea.valid ? editorWin.fieldBg : editorWin.invalidFieldBg
             border.width: 1
@@ -535,6 +593,7 @@ Window {
                         id: idField
                         Layout.fillWidth: true
                         valid: editorWin.profileIdOk
+                        errorText: editorWin.profileIdErrorText
                         text: editorWin.profileId
                         onTextChanged: {
                             editorWin.profileId = text
@@ -614,6 +673,7 @@ Window {
                         Layout.fillWidth: true
                         visible: editorWin.isCommercial
                         valid: editorWin.topRuleColorOk
+                        errorText: "Use a color in #RRGGBB format."
                         text: editorWin.topRuleColor
                         placeholderText: "#C8C8C8"
                         onTextChanged: {
@@ -674,6 +734,7 @@ Window {
                         id: signatureImageField
                         Layout.fillWidth: true
                         valid: editorWin.signatureImageOk
+                        errorText: "Use an existing PNG filename in the template directory, or leave this empty."
                         text: editorWin.signatureImage
                         placeholderText: "relative PNG filename"
                         onTextChanged: {
@@ -698,6 +759,7 @@ Window {
                         Layout.fillWidth: true
                         visible: editorWin.isCommercial
                         valid: editorWin.logoImageOk
+                        errorText: "Use an existing PNG filename in the template directory, or leave this empty."
                         text: editorWin.logoImage
                         placeholderText: "relative PNG filename"
                         onTextChanged: {

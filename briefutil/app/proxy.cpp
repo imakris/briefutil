@@ -905,19 +905,21 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     }
     updated.signature_image = signature_image.toStdString();
 
-    auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
-    if (!validate_profile_image_name(logo_image)) {
-        return false;
-    }
-    updated.logo_image = logo_image.toStdString();
     updated.signer_title = profile_data.value("signerTitle").toString().trimmed().toStdString();
     updated.footer_lines = split_profile_lines(profile_data.value("footerLines").toString());
 
-    color_t top_rule_color;
-    if (!parse_hex_color(profile_data.value("topRuleColor").toString(), top_rule_color)) {
-        return false;
+    auto logo_image = normalize_asset_name(profile_data.value("logoImage").toString());
+    if (updated.style == Profile_style::COMMERCIAL) {
+        if (!validate_profile_image_name(logo_image)) {
+            return false;
+        }
+        color_t top_rule_color;
+        if (!parse_hex_color(profile_data.value("topRuleColor").toString(), top_rule_color)) {
+            return false;
+        }
+        updated.top_rule_color = top_rule_color;
     }
-    updated.top_rule_color = top_rule_color;
+    updated.logo_image = logo_image.toStdString();
 
     // If the id changed, rename the backing JSON file as well so that the
     // template directory stays consistent with the in-memory profile list.

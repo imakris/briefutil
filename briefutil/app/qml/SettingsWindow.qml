@@ -363,6 +363,7 @@ Window {
             property alias label: lbl.text
             property alias value: field.text
             property bool valid: true
+            property string errorText: "Use a built-in PDF font, installed font name, or existing .ttf/.otf file."
             spacing: 8
             Layout.fillWidth: true
 
@@ -374,8 +375,11 @@ Window {
             TextField {
                 id: field
                 Layout.fillWidth: true
+                hoverEnabled: true
                 selectByMouse: true
                 placeholderText: "Built-in PDF font, installed font, or .ttf/.otf path"
+                ToolTip.visible: !fontRow.valid && hovered
+                ToolTip.text: fontRow.errorText
                 background: Rectangle {
                     color: fontRow.valid ? settingsWin.fieldBg : settingsWin.invalidFieldBg
                     border.width: 1
@@ -488,7 +492,10 @@ Window {
                 id: templateDirField
                 Layout.fillWidth: true
                 text: settingsWin.templateDir
+                hoverEnabled: true
                 selectByMouse: true
+                ToolTip.visible: !settingsWin.templateDirOk && hovered
+                ToolTip.text: "Enter an absolute path on an existing drive, or leave this empty."
                 onTextChanged: settingsWin.templateDir = text
                 onEditingFinished: {
                     if (settingsWin._initialized && settingsWin.proxyObj && settingsWin.templateDirOk) {
