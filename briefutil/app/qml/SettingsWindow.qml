@@ -8,7 +8,7 @@ Window {
     id: settingsWin
 
     width: 520
-    height: 560
+    height: 620
     title: "Settings"
 
     required property var proxyObj
@@ -53,6 +53,9 @@ Window {
     property string fontMono: ""
     property double bodySize: 10
     property double bodyLeading: 12
+    property double headerFontScalePercent: 100
+    property double bodyFontScalePercent: 100
+    property double footerFontScalePercent: 100
     property string templateDir: ""
     property string layoutPreset: "din_5008_form_b"
 
@@ -131,6 +134,21 @@ Window {
     onBodyLeadingChanged: {
         if (_initialized && proxyObj) proxyObj.set_body_leading(bodyLeading)
     }
+    onHeaderFontScalePercentChanged: {
+        if (_initialized && proxyObj) {
+            proxyObj.set_header_font_scale_percent(headerFontScalePercent)
+        }
+    }
+    onBodyFontScalePercentChanged: {
+        if (_initialized && proxyObj) {
+            proxyObj.set_body_font_scale_percent(bodyFontScalePercent)
+        }
+    }
+    onFooterFontScalePercentChanged: {
+        if (_initialized && proxyObj) {
+            proxyObj.set_footer_font_scale_percent(footerFontScalePercent)
+        }
+    }
 
     Component.onCompleted: {
         if (!proxyObj) return
@@ -142,6 +160,9 @@ Window {
         fontMono           = proxyObj.get_font_mono()
         bodySize           = proxyObj.get_body_size()
         bodyLeading        = proxyObj.get_body_leading()
+        headerFontScalePercent = proxyObj.get_header_font_scale_percent()
+        bodyFontScalePercent   = proxyObj.get_body_font_scale_percent()
+        footerFontScalePercent = proxyObj.get_footer_font_scale_percent()
         templateDir        = proxyObj.get_template_dir()
         layoutPreset       = proxyObj.get_layout_preset()
         syncLayoutPresetCombo()
@@ -429,6 +450,46 @@ Window {
                 to: 36
                 value: settingsWin.bodyLeading
                 onValueChanged: settingsWin.bodyLeading = value
+            }
+        }
+
+        GridLayout {
+            columns: 2
+            columnSpacing: 10
+            rowSpacing: 8
+            Layout.fillWidth: true
+
+            Label {
+                text: "Header scale (%)"
+                color: settingsWin.dimTextColor
+            }
+            StyledSpinBox {
+                from: 50
+                to: 200
+                value: Math.round(settingsWin.headerFontScalePercent)
+                onValueChanged: settingsWin.headerFontScalePercent = value
+            }
+
+            Label {
+                text: "Body scale (%)"
+                color: settingsWin.dimTextColor
+            }
+            StyledSpinBox {
+                from: 50
+                to: 200
+                value: Math.round(settingsWin.bodyFontScalePercent)
+                onValueChanged: settingsWin.bodyFontScalePercent = value
+            }
+
+            Label {
+                text: "Footer scale (%)"
+                color: settingsWin.dimTextColor
+            }
+            StyledSpinBox {
+                from: 50
+                to: 200
+                value: Math.round(settingsWin.footerFontScalePercent)
+                onValueChanged: settingsWin.footerFontScalePercent = value
             }
         }
 

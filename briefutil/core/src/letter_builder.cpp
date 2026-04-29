@@ -5,6 +5,7 @@
 #include "briefutil/pdf_renderer.h"
 #include "rich_text_layout.h"
 
+#include <cstddef>
 #include <utility>
 
 
@@ -43,6 +44,62 @@ static std::string build_sender_text(const sender_profile_t& profile)
     return text;
 }
 
+static float footer_block_height_mm(
+    const sender_profile_t& profile,
+    const typography_config_t& typo,
+    const letter_layout_spec_t& L,
+    float body_width_mm,
+    const font_family_config_t& fonts,
+    Pdf_backend pdf_backend,
+    bool include_page_number)
+{
+    float height_mm = 0.0f;
+    if (include_page_number) {
+        height_mm += pt_to_mm(typo.footer_size_pt);
+    }
+
+    if (profile.style != Profile_style::COMMERCIAL
+        || profile.footer_lines.empty())
+    {
+        return height_mm;
+    }
+
+    if (height_mm > 0.0f) {
+        height_mm += L.footer_line_gap_mm;
+    }
+
+    for (std::size_t i = 0; i < profile.footer_lines.size(); ++i) {
+        const auto footer_metrics = measure_text(
+            pdf_backend,
+            profile.footer_lines[i],
+            Font_id::SANS,
+            typo.footer_text_size_pt,
+            typo.footer_text_size_pt,
+            body_width_mm,
+            true,
+            fonts);
+        height_mm += pt_to_mm(footer_metrics.height_pt);
+        if (i + 1 < profile.footer_lines.size()) {
+            height_mm += 1.0f;
+        }
+    }
+    return height_mm;
+}
+
+static float footer_top_y_mm(
+    const sender_profile_t& profile,
+    const typography_config_t& typo,
+    const letter_layout_spec_t& L,
+    float body_width_mm,
+    const font_family_config_t& fonts,
+    Pdf_backend pdf_backend,
+    bool include_page_number)
+{
+    return L.page_height_mm - L.footer_margin_mm
+        - footer_block_height_mm(
+            profile, typo, L, body_width_mm, fonts, pdf_backend, include_page_number);
+}
+
 
 // ============================================================================
 // Letter builder
@@ -57,10 +114,9 @@ build_letter_result_t build_letter(
     const localization_t& loc,
     Pdf_backend pdf_backend)
 {
-    const auto& typo = theme.typo;
+    const auto typo = scaled_typography(theme.typo);
     const auto& L = layout;
     float body_width_mm = L.page_width_mm - L.margin_left_mm - L.margin_right_mm;
-    float footer_y_base = L.page_height_mm - L.footer_margin_mm;
 
     document_t doc;
     doc.page_width_mm  = L.page_width_mm;
@@ -164,20 +220,44 @@ build_letter_result_t build_letter(
     lp.loc         = loc;
     lp.pdf_backend = pdf_backend;
 
-    float page_bottom = footer_y_base - L.page_bottom_buffer_mm;
+    auto make_body_layout = [&](bool include_page_number) {
+        const float page_bottom = footer_top_y_mm(
+            profile,
+            typo,
+            L,
+            body_width_mm,
+            theme.fonts,
+            pdf_backend,
+            include_page_number) - L.page_bottom_buffer_mm;
+        auto result = layout_body(
+            body_blocks,
+            lp,
+            body_y_mm,
+            page_bottom,
+            L.cont_top_mm,
+            page_bottom);
+        if (!result.error.empty()) {
+            return result;
+        }
 
-    auto body_layout = layout_body(body_blocks, lp,
-                                   body_y_mm, page_bottom,
-                                   L.cont_top_mm, page_bottom);
+        if (result.last_page_used_mm + total_closing_mm > page_bottom) {
+            result.pages.push_back({});
+            result.last_page_used_mm = L.cont_top_mm;
+        }
+        return result;
+    };
+
+    auto body_layout = make_body_layout(false);
 
     if (!body_layout.error.empty()) {
         return { {}, body_layout.error };
     }
 
-    // If closing doesn't fit on the last page, add a continuation page for it
-    if (body_layout.last_page_used_mm + total_closing_mm > page_bottom) {
-        body_layout.pages.push_back({});
-        body_layout.last_page_used_mm = L.cont_top_mm;
+    if (body_layout.pages.size() > 1) {
+        body_layout = make_body_layout(true);
+        if (!body_layout.error.empty()) {
+            return { {}, body_layout.error };
+        }
     }
 
     int total_pages = (int)body_layout.pages.size();
@@ -311,10 +391,18 @@ build_letter_result_t build_letter(
         }
 
         // -- Footer --
-        float footer_y = footer_y_base;
+        const bool include_page_number = total_pages > 1;
+        float footer_y = footer_top_y_mm(
+            profile,
+            typo,
+            L,
+            body_width_mm,
+            theme.fonts,
+            pdf_backend,
+            include_page_number);
 
         // Page number (only on multi-page)
-        if (total_pages > 1) {
+        if (include_page_number) {
             std::string page_num = format_page_number(loc.page_number_format,
                                                        pi + 1, total_pages);
             auto page_num_metrics = measure_text(
@@ -323,13 +411,14 @@ build_letter_result_t build_letter(
                 Font_id::SANS,
                 typo.footer_size_pt,
                 0,
-                200,
+                body_width_mm,
                 false,
                 theme.fonts);
+            const float page_num_width_mm = pt_to_mm(page_num_metrics.width_pt);
             float page_num_x = L.page_width_mm - L.margin_right_mm
-                - pt_to_mm(page_num_metrics.width_pt);
+                - page_num_width_mm;
             page.elements.push_back(text_block_t{
-                page_num_x, footer_y, body_width_mm,
+                page_num_x, footer_y, page_num_width_mm,
                 page_num,
                 Font_id::SANS, typo.footer_size_pt, 0,
                 k_black, false
@@ -340,14 +429,23 @@ build_letter_result_t build_letter(
         // Commercial footer lines (on every page)
         if (profile.style == Profile_style::COMMERCIAL) {
             for (const auto& fl : profile.footer_lines) {
+                const auto footer_metrics = measure_text(
+                    pdf_backend,
+                    fl,
+                    Font_id::SANS,
+                    typo.footer_text_size_pt,
+                    typo.footer_text_size_pt,
+                    body_width_mm,
+                    true,
+                    theme.fonts);
                 page.elements.push_back(text_block_t{
                     L.margin_left_mm, footer_y, body_width_mm,
                     fl,
                     Font_id::SANS, typo.footer_text_size_pt,
                     typo.footer_text_size_pt,
-                    L.footer_color, false
+                    L.footer_color, true
                 });
-                footer_y += pt_to_mm(typo.footer_text_size_pt) + 1.0f;
+                footer_y += pt_to_mm(footer_metrics.height_pt) + 1.0f;
             }
         }
 

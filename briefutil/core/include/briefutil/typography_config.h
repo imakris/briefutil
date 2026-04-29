@@ -57,6 +57,9 @@ struct typography_config_t
     // Body text
     float body_size_pt    = 10.0f;
     float body_lead_pt    = 12.0f;
+    float header_scale    = 1.0f;
+    float body_scale      = 1.0f;
+    float footer_scale    = 1.0f;
 
     // Heading scale factors (relative to body_size_pt)
     float heading1_scale  = 1.6f;
@@ -84,6 +87,24 @@ struct typography_config_t
 };
 
 inline typography_config_t default_typography() { return {}; }
+
+inline typography_config_t scaled_typography(typography_config_t typo)
+{
+    typo.body_size_pt *= typo.body_scale;
+    typo.body_lead_pt *= typo.body_scale;
+
+    typo.sender_size_pt *= typo.header_scale;
+    typo.sender_lead_pt *= typo.header_scale;
+    typo.return_size_pt *= typo.header_scale;
+    typo.recip_size_pt *= typo.header_scale;
+    typo.recip_lead_pt *= typo.header_scale;
+    typo.date_size_pt *= typo.header_scale;
+
+    typo.footer_size_pt *= typo.footer_scale;
+    typo.footer_text_size_pt *= typo.footer_scale;
+
+    return typo;
+}
 
 
 // ============================================================================

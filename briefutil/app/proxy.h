@@ -42,6 +42,9 @@ public:
     Q_INVOKABLE QString get_font_mono() const;
     Q_INVOKABLE double  get_body_size() const;
     Q_INVOKABLE double  get_body_leading() const;
+    Q_INVOKABLE double  get_header_font_scale_percent() const;
+    Q_INVOKABLE double  get_body_font_scale_percent() const;
+    Q_INVOKABLE double  get_footer_font_scale_percent() const;
     Q_INVOKABLE QString get_template_dir() const;
     Q_INVOKABLE QString get_layout_preset() const;
 
@@ -52,6 +55,9 @@ public:
     Q_INVOKABLE void set_font_mono(const QString& v);
     Q_INVOKABLE void set_body_size(double v);
     Q_INVOKABLE void set_body_leading(double v);
+    Q_INVOKABLE void set_header_font_scale_percent(double v);
+    Q_INVOKABLE void set_body_font_scale_percent(double v);
+    Q_INVOKABLE void set_footer_font_scale_percent(double v);
     Q_INVOKABLE void set_template_dir(const QString& v);
     Q_INVOKABLE void set_layout_preset(const QString& v);
 

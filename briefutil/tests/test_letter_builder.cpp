@@ -431,6 +431,34 @@ int main(int argc, char* argv[])
         bool found_fold1 = false;
         bool found_fold2 = false;
         bool found_punch = false;
+        bool found_first_footer_line = false;
+        bool found_second_footer_line = false;
+        const auto default_layout = din_5008_form_b();
+        const auto default_typo = default_typography();
+        const float default_body_width_mm = default_layout.page_width_mm
+            - default_layout.margin_left_mm
+            - default_layout.margin_right_mm;
+        const auto first_footer_metrics = measure_text(
+            Pdf_backend::Haru,
+            lr.profile.footer_lines[0],
+            Font_id::SANS,
+            default_typo.footer_text_size_pt,
+            default_typo.footer_text_size_pt,
+            default_body_width_mm,
+            true);
+        const auto second_footer_metrics = measure_text(
+            Pdf_backend::Haru,
+            lr.profile.footer_lines[1],
+            Font_id::SANS,
+            default_typo.footer_text_size_pt,
+            default_typo.footer_text_size_pt,
+            default_body_width_mm,
+            true);
+        const float first_footer_height_mm = pt_to_mm(first_footer_metrics.height_pt);
+        const float second_footer_height_mm = pt_to_mm(second_footer_metrics.height_pt);
+        const float expected_footer_y = default_layout.page_height_mm
+            - default_layout.footer_margin_mm
+            - (first_footer_height_mm + 1.0f + second_footer_height_mm);
         for (const auto& element : doc.pages[0].elements) {
             if (const auto* text = std::get_if<text_block_t>(&element)) {
                 if (text->text == "Musterstr. 6\n12345 Musterstadt\n\nkontakt@muster-ag.de") {
@@ -467,6 +495,45 @@ int main(int argc, char* argv[])
                     if (!nearly_equal(text->x_mm, 25.0f) || !nearly_equal(text->y_mm, 104.0f)) {
                         std::fprintf(stderr, "FAIL: subject line is not at the DIN content start: x=%.2f y=%.2f\n",
                                      text->x_mm, text->y_mm);
+                        return 1;
+                    }
+                }
+
+                if (text->text == lr.profile.footer_lines[0]) {
+                    found_first_footer_line = true;
+                    if (!nearly_equal(text->x_mm, default_layout.margin_left_mm)
+                        || !nearly_equal(text->y_mm, expected_footer_y)
+                        || !nearly_equal(text->width_mm, default_body_width_mm)
+                        || !text->wrap) {
+                        std::fprintf(
+                            stderr,
+                            "FAIL: first commercial footer line is not within the A4 page margins: "
+                            "x=%.2f y=%.2f width=%.2f\n",
+                            text->x_mm,
+                            text->y_mm,
+                            text->width_mm);
+                        return 1;
+                    }
+                }
+
+                if (text->text == lr.profile.footer_lines[1]) {
+                    found_second_footer_line = true;
+                    if (!text->wrap) {
+                        std::fprintf(
+                            stderr,
+                            "FAIL: second commercial footer line is not wrapped to the A4 content width\n");
+                        return 1;
+                    }
+                    const float footer_bottom = text->y_mm + second_footer_height_mm;
+                    const float expected_footer_bottom = default_layout.page_height_mm
+                        - default_layout.footer_margin_mm;
+                    if (!nearly_equal(footer_bottom, expected_footer_bottom)) {
+                        std::fprintf(
+                            stderr,
+                            "FAIL: commercial footer bottom margin is incorrect: "
+                            "bottom=%.2f expected=%.2f\n",
+                            footer_bottom,
+                            expected_footer_bottom);
                         return 1;
                     }
                 }
@@ -530,6 +597,10 @@ int main(int argc, char* argv[])
         }
         if (!found_fold1 || !found_fold2 || !found_punch) {
             std::fprintf(stderr, "FAIL: DIN fold/punch marks not found\n");
+            return 1;
+        }
+        if (!found_first_footer_line || !found_second_footer_line) {
+            std::fprintf(stderr, "FAIL: commercial footer lines not found\n");
             return 1;
         }
 
@@ -687,6 +758,11 @@ int main(int argc, char* argv[])
         bool found_profile_closing = false;
         bool found_localized_closing = false;
         bool found_page_number = false;
+        const auto default_layout = din_5008_form_b();
+        const auto default_typo = default_typography();
+        const float expected_page_number_y = default_layout.page_height_mm
+            - default_layout.footer_margin_mm
+            - pt_to_mm(default_typo.footer_size_pt);
         for (const auto& page : br.doc.pages) {
             for (const auto& element : page.elements) {
                 if (const auto* text = std::get_if<text_block_t>(&element)) {
@@ -695,6 +771,15 @@ int main(int argc, char* argv[])
                     if (text->text.find("Sheet ") == 0
                         && text->text.find("/") != std::string::npos) {
                         found_page_number = true;
+                        if (!nearly_equal(text->y_mm, expected_page_number_y)) {
+                            std::fprintf(
+                                stderr,
+                                "FAIL: page number footer does not respect the A4 bottom margin: "
+                                "y=%.2f expected=%.2f\n",
+                                text->y_mm,
+                                expected_page_number_y);
+                            return 1;
+                        }
                     }
                 }
             }
@@ -982,6 +1067,68 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Profile save/load preserves empty sender/footer vectors\n");
+    }
+
+    // -- Test 10: section font scaling affects header, body, and footer text --
+    {
+        sender_profile_t profile;
+        profile.id = "Scale Test";
+        profile.style = Profile_style::COMMERCIAL;
+        profile.sender_lines = { "Scaled Header" };
+        profile.return_address_line = "Scaled Header";
+        profile.signer_name = "Scaled Signer";
+        profile.footer_lines = { "Scaled Footer" };
+
+        letter_input_t input;
+        input.recipient = "Scaled Recipient";
+        input.subject = "Scaled Subject";
+        input.date = "27. April 2026";
+        input.body = "Scaled body.";
+
+        auto theme = default_theme();
+        theme.typo.header_scale = 1.2f;
+        theme.typo.body_scale = 1.3f;
+        theme.typo.footer_scale = 1.4f;
+
+        auto br = build_letter(
+            profile,
+            input,
+            "",
+            theme,
+            din_5008_form_b(),
+            default_localization(),
+            Pdf_backend::Haru);
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: scaled typography build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        const auto default_typo = default_typography();
+        bool found_scaled_header = false;
+        bool found_scaled_body = false;
+        bool found_scaled_footer = false;
+        for (const auto& element : br.doc.pages[0].elements) {
+            if (const auto* text = std::get_if<text_block_t>(&element)) {
+                if (text->text == "Scaled Header"
+                    && nearly_equal(text->size_pt, default_typo.sender_size_pt * 1.2f)) {
+                    found_scaled_header = true;
+                }
+                if (text->text == "Scaled Subject"
+                    && nearly_equal(text->size_pt, default_typo.body_size_pt * 1.3f)) {
+                    found_scaled_body = true;
+                }
+                if (text->text == "Scaled Footer"
+                    && nearly_equal(text->size_pt, default_typo.footer_text_size_pt * 1.4f)) {
+                    found_scaled_footer = true;
+                }
+            }
+        }
+
+        if (!found_scaled_header || !found_scaled_body || !found_scaled_footer) {
+            std::fprintf(stderr, "FAIL: section font scaling was not applied\n");
+            return 1;
+        }
+        std::printf("[OK] Section font scaling applied\n");
     }
 
     std::printf("\nAll letter-builder tests passed.\n");

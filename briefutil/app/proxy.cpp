@@ -93,6 +93,11 @@ static QString normalize_layout_preset(QString preset)
     return "din_5008_form_b";
 }
 
+static float font_scale_from_percent(double percent)
+{
+    return static_cast<float>(std::clamp(percent / 100.0, 0.5, 2.0));
+}
+
 static void ensure_template_dir_ready(const QString& dir_path)
 {
     QDir templates_dir(dir_path);
@@ -467,6 +472,9 @@ void Proxy::load_settings()
     auto def_typo = default_typography();
     m_theme.typo.body_size_pt = s.value("typo/body_size",    def_typo.body_size_pt).toFloat();
     m_theme.typo.body_lead_pt = s.value("typo/body_leading", def_typo.body_lead_pt).toFloat();
+    m_theme.typo.header_scale = s.value("typo/header_scale", def_typo.header_scale).toFloat();
+    m_theme.typo.body_scale   = s.value("typo/body_scale",   def_typo.body_scale).toFloat();
+    m_theme.typo.footer_scale = s.value("typo/footer_scale", def_typo.footer_scale).toFloat();
 
     QString saved_dir = s.value("paths/template_dir").toString();
     if (!saved_dir.isEmpty()) {
@@ -489,6 +497,9 @@ void Proxy::save_settings() const
     s.setValue("fonts/mono",             m_font_mono_input);
     s.setValue("typo/body_size",         (double)m_theme.typo.body_size_pt);
     s.setValue("typo/body_leading",      (double)m_theme.typo.body_lead_pt);
+    s.setValue("typo/header_scale",      (double)m_theme.typo.header_scale);
+    s.setValue("typo/body_scale",        (double)m_theme.typo.body_scale);
+    s.setValue("typo/footer_scale",      (double)m_theme.typo.footer_scale);
     s.setValue("paths/template_dir",     m_sender_template_dir);
     s.setValue("layout/preset",          m_layout_preset);
     s.setValue("appearance/darkMode",    m_dark_mode);
@@ -764,6 +775,9 @@ QString Proxy::get_font_sans_bold_italic() const { return m_font_sans_bold_itali
 QString Proxy::get_font_mono() const             { return m_font_mono_input; }
 double  Proxy::get_body_size() const             { return m_theme.typo.body_size_pt; }
 double  Proxy::get_body_leading() const          { return m_theme.typo.body_lead_pt; }
+double  Proxy::get_header_font_scale_percent() const { return m_theme.typo.header_scale * 100.0; }
+double  Proxy::get_body_font_scale_percent() const   { return m_theme.typo.body_scale * 100.0; }
+double  Proxy::get_footer_font_scale_percent() const { return m_theme.typo.footer_scale * 100.0; }
 QString Proxy::get_template_dir() const          { return m_sender_template_dir; }
 QString Proxy::get_layout_preset() const         { return m_layout_preset; }
 
@@ -791,6 +805,24 @@ void Proxy::set_body_size(double v)
 void Proxy::set_body_leading(double v)
 {
     m_theme.typo.body_lead_pt = (float)v;
+    save_settings();
+}
+
+void Proxy::set_header_font_scale_percent(double v)
+{
+    m_theme.typo.header_scale = font_scale_from_percent(v);
+    save_settings();
+}
+
+void Proxy::set_body_font_scale_percent(double v)
+{
+    m_theme.typo.body_scale = font_scale_from_percent(v);
+    save_settings();
+}
+
+void Proxy::set_footer_font_scale_percent(double v)
+{
+    m_theme.typo.footer_scale = font_scale_from_percent(v);
     save_settings();
 }
 
