@@ -1,441 +1,385 @@
-# mark2haru Backend Strategy
+# mark2haru Migration Plan
 
-## Purpose
+## Goal
 
-This note describes the shortest technically correct path to using `mark2haru`
-as the PDF backend for `briefutil`.
+`briefutil` should use `mark2haru` as its only PDF/font engine.
 
-The core idea remains correct:
+`briefutil` remains responsible for the letter product:
 
-- do not route `briefutil` back through Markdown
-- do not replace `briefutil`'s letter semantics, parser, or layout rules
-- do reuse `mark2haru`'s PDF writing and TrueType text machinery
+- sender profiles
+- DIN 5008 and US Letter layout specs
+- recipient, subject, date, footer, fold-mark, logo, and signature placement
+- body Markdown parsing and letter-specific rich text layout
+- CLI, GUI, output-path handling, and user-facing messages
 
-But the integration is **not** a simple render-time backend swap.
-`briefutil` currently depends on libHaru during layout and pagination, not only
-when writing the final PDF.
+`mark2haru` becomes responsible for the lower-level PDF engine:
 
-## What Is Already True
-
-`briefutil` already has a useful drawing model:
-
-- `Document`
-- `Page`
-- `Page_element`
-
-That is the right target for a second backend.
-
-`mark2haru` already has most of the low-level drawing primitives needed for
-that target:
-
+- TrueType font loading and text measurement
+- Unicode PDF text output
+- PDF object writing
 - positioned text drawing
-- top-origin coordinates
-- line drawing
-- filled rectangles
-- embedded TrueType Unicode output
-
-So the high-level reuse direction is still:
-
-- `briefutil` owns semantics and layout
-- `mark2haru` provides PDF/font/drawing machinery
-
-## What Is Not True Yet
-
-The current seam is only a **drawing seam**, not a full backend seam.
-
-Today `briefutil` performs layout with Haru-owned measurement functions:
-
-- `measure_text()`
-- `wrap_text()`
-- `measure_png()`
-
-Those functions now live in the shared measurement layer
-(`core/include/briefutil/pdf_measurement.h`, `core/src/pdf_measurement.cpp`,
-and Haru-specific helpers in `core/src/pdf_haru_support.h/.cpp`), and they are
-called from:
-
-- `rich_text_layout.cpp`
-- `letter_builder.cpp`
-
-That means line breaks, table widths, footer placement, closing fit, and page
-breaks are decided before rendering, using Haru metrics.
-
-If `briefutil` keeps measuring with Haru and only swaps the final renderer to
-`mark2haru`, the output may look plausible but will be subtly wrong:
-
-- line breaks can drift
-- table row heights can drift
-- page counts can drift
-- closing/signature fit can drift
-- footer and page-number placement can drift
-
-So the real prerequisite is to decouple **measurement + rendering**, not only
-rendering.
-
-## Current Primitive Inventory
-
-From `briefutil`'s `Page_element` model:
-
-| `briefutil` element | `mark2haru` primitive | Status |
-| --- | --- | --- |
-| `Text_block` | `draw_text` plus backend-side wrapping | possible after measurement refactor |
-| `Text_span` | `draw_text` | already maps cleanly |
-| `line_segment_t` | `stroke_line` | already maps cleanly |
-| `filled_rect_t` | `fill_rect` | already maps cleanly |
-| `Image_block` | no current primitive | missing |
-
-Color, line width, and font-style slot mapping are also straightforward:
-
-- `SANS` <-> `Regular`
-- `SANS_BOLD` <-> `Bold`
-- `SANS_ITALIC` <-> `Italic`
-- `SANS_BOLD_ITALIC` <-> `BoldItalic`
-- `MONO` <-> `Mono`
-
-`mark2haru`'s top-origin `y_top_pt` drawing API is also compatible with
-`briefutil`'s top-left page coordinates after the usual mm->pt conversion.
-
-## Hard Preconditions
-
-These are not optional risks. They are concrete pieces of missing work.
-
-### 1. Backend-Agnostic Text Measurement
-
-`briefutil` needs a measurement API that is not owned by `pdf_renderer_haru`.
-
-At minimum, the backend-selected measurement layer must provide:
-
-- text width
-- wrapped height
-- line count
-- wrapping behavior compatible with the backend renderer
-
-On the `mark2haru` side, that measurement facility must not be tied to a
-`PdfWriter` instance, to a specific page size, or to per-document writer
-lifetime.
-Font loading and font metric access need their own reusable context.
-
-This must be wired into:
-
-- `rich_text_layout`
-- `letter_builder`
-- page-number measurement
-- return-line underline measurement
-
-Until this exists, a second PDF backend is incomplete.
-
-### 2. PNG Image Support in `mark2haru`
-
-Current `briefutil` output depends on images for:
-
-- signature image
-- optional logo image
-- body images
-
-Current `mark2haru` has no image embedding or image drawing support.
-
-So parity requires real PNG support inside `mark2haru`, including:
-
-- loading image bytes
-- creating PDF image objects
-- placing/scaling them on the page
-
-This is a prerequisite for real letter output, not a later polish item.
-
-### 3. Font Configuration Compatibility
-
-`briefutil`'s font model is per-slot and already public:
-
-- each slot may be a base-14 PDF font name
-- or a concrete `.ttf` / `.otf` path
-
-Current `mark2haru` does not expose that model.
-It searches for a fixed set of font filenames under one root directory and
-embeds TrueType fonts only.
-
-To serve as a `briefutil` backend, `mark2haru` must accept explicit per-slot
-font configuration for:
-
-- regular
-- bold
-- italic
-- bold italic
-- mono
-
-The remaining policy question must be made explicit:
-
-- if `briefutil` passes a base-14 name such as `Helvetica`, either reject it,
-  or map it deterministically to a configured TrueType replacement
-
-This is not a hypothetical corner case.
-`briefutil`'s current default font family already uses base-14 names.
-
-So Phase 1 must choose and document one concrete policy up front.
-The recommended policy is:
-
-- keep explicit `.ttf` / `.otf` values as-is
-- map the known `briefutil` defaults (`Helvetica`, `Helvetica-Bold`,
-  `Helvetica-Oblique`, `Helvetica-BoldOblique`, `Courier`) deterministically
-  to the `mark2haru` font slots
-
-That keeps the default caller path usable while still letting explicit TrueType
-paths pass through unchanged.
-
-### 4. Unicode-Safe File Paths
-
-`briefutil` already supports Unicode output paths on Windows.
-
-`mark2haru` currently reads and writes files through narrow `std::string`
-paths. That is not an acceptable drop in behavior for the `briefutil`
-integration path.
-
-The `mark2haru` side must preserve Unicode-safe handling for:
-
-- output PDF paths
-- input image paths
-- configured font paths
-
-### 5. Library Boundary
-
-Current `mark2haru` is built as an executable.
-`briefutil` needs a linkable library surface.
-
-That means:
-
-- split reusable code into a library target
-- keep the CLI as a thin wrapper on top
-
-The reusable part should be:
-
-- `pdf_writer`
-- `ttf_font`
-- a measurement context separate from `PdfWriter`
-- backend measurement helpers
-- document renderer helpers
-
-The Markdown CLI should remain a separate frontend layer on top of that.
-
-Two concrete loose ends also need to be handled:
-
-- the current executable-only post-build font copy step should stay with the
-  CLI target, not with the reusable library target
-- the integration mode must be chosen explicitly: `add_subdirectory`,
-  `FetchContent`, or installed package consumption
-
-## Recommended Architecture
-
-Do not introduce a grand new document model.
-`briefutil` already has the right one.
-
-Do introduce a minimal backend-selected API for the parts currently tied to
-Haru.
-
-A realistic target looks more like this:
-
-```cpp
-enum class Pdf_backend
-{
-    Haru,
-    Mark2haru,
-};
-
-struct text_metrics_t
-{
-    float width_pt;
-    float height_pt;
-    int   line_count;
-};
-
-text_metrics_t measure_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float leading_pt,
-    float max_width_mm,
-    bool wrap,
-    const Font_family_config& fonts,
-    Pdf_backend backend);
-
-std::vector<std::string> wrap_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float max_width_mm,
-    const Font_family_config& fonts,
-    Pdf_backend backend);
-
-Render_result render_document_to_pdf(
-    const Document& doc,
-    const std::string& output_path,
-    const Font_family_config& fonts,
-    const Localization& loc,
-    Pdf_backend backend);
+- line, rectangle, and image drawing
+- PNG decoding and embedding
+
+The implementation should not route `briefutil` letters through
+`mark2haru::render_markdown_to_pdf()`. That renderer is useful for
+`mark2haru`'s standalone Markdown tool, but it does not model letter semantics.
+
+## Current State
+
+The local `mark2haru` checkout already provides most of what `briefutil` needs:
+
+- a linkable `mark2haru::mark2haru` target
+- `mark2haru::Measurement_context`
+- `measure_text_width()`
+- `mark2haru::Pdf_writer`
+- `draw_text()`
+- `draw_png()`
+- `fill_rect()`
+- `stroke_rect()`
+- `std::filesystem::path` based file IO
+- bundled DejaVu font slots
+
+The current `briefutil` integration does not build when enabled with:
+
+```powershell
+-DBRIEFUTIL_MARK2HARU_DIR=C:/plms/bsd_licensed/mark2haru
 ```
 
-The exact dispatch mechanism can be a backend enum plus switch, or a small
-backend object.
-The important point is shared signatures and shared call sites, not a specific
-function-pointer pattern.
+The adapter in `briefutil/core/src/pdf_renderer_mark2haru.cpp` expects writer
+methods that current `mark2haru::Pdf_writer` does not expose:
 
-And PNG probing should be moved out of the Haru backend header into a shared
-utility, because PNG dimension reading is not inherently Haru-specific.
+- `set_fill_color()`
+- `set_stroke_color()`
+- `set_line_width()`
+- `stroke_line()`
 
-Measurement should remain locale-agnostic.
-Localized strings are produced upstream in `briefutil`, then measured and
-rendered as plain UTF-8 text.
+This is adapter drift, not a fundamental blocker. Current `mark2haru` accepts
+color and line width directly in `fill_rect()` and `stroke_rect()`, and
+`draw_text()` can be extended to accept color.
 
-This keeps the seam small:
+There is also a packaging gap: `mark2haru` copies bundled DejaVu fonts only for
+its own CLI target. When consumed as a library, those fonts are not installed or
+copied into `briefutil`'s runtime tree. The migration must make bundled fonts a
+library/runtime asset, not a side effect of building the `mark2haru` CLI.
 
-- shared document model
-- shared font config
-- shared localization
-- backend-selected text measurement
-- shared PNG probing
-- backend-selected PDF rendering
+## Target Architecture
 
-## What Should Stay Unchanged
+The target has one PDF engine and no backend switch.
 
-These pieces already express the application correctly and should remain in
-place:
+`briefutil_core` links to `mark2haru::mark2haru` directly. The Haru renderer,
+Haru measurement cache, Haru support helpers, and backend enum are removed.
 
-- `briefutil` markdown parser
-- `briefutil` body content model
-- `briefutil` rich text layout rules
-- `briefutil` letter builder
-- `briefutil` letter layout specs
-- `briefutil` sender profile concepts
+The retained flow is:
 
-The point of the integration is to swap out the PDF/font backend, not to
-rebuild application logic.
+```text
+sender profile + letter input
+    -> briefutil letter_builder
+    -> briefutil document_t / page_element_t
+    -> mark2haru-backed measurement and rendering
+    -> PDF file
+```
 
-## `mark2haru` Refactor Scope
+The document/page-element model stays in `briefutil` because it is the bridge
+between letter layout and the PDF writer.
 
-The useful internal split in `mark2haru` is smaller than a three-layer rewrite.
-`PdfWriter` already is most of the drawing context.
+## Required mark2haru Changes
 
-The practical split is:
+### 1. Add Colored Text Drawing
 
-1. PDF/font core
-   - `pdf_writer`
-   - `ttf_font`
-   - image support
-   - measurement helpers
-2. Frontends
-   - current Markdown frontend and CLI
-   - foreign `Document` renderer used by `briefutil`
+Add a text drawing overload or color parameter to `mark2haru::Pdf_writer`.
 
-That is enough.
+The needed shape is:
 
-## Revised Integration Plan
+```cpp
+void draw_text(
+    double x_pt,
+    double y_top_pt,
+    double size_pt,
+    Pdf_font font,
+    const std::string& text,
+    const color_t& color);
+```
 
-### Phase 0: Extract the Real Seam
+The existing `draw_text()` can delegate to the colored form with black.
 
-Before adding a second renderer:
+`briefutil` needs colored text for:
 
-1. keep `text_metrics_t`, `measure_text()`, and `wrap_text()` in the shared
-   `pdf_measurement` seam instead of regressing them back into Haru-only code
-2. move `image_dimensions_t` and `measure_png()` into a shared utility
-3. make `rich_text_layout` and `letter_builder` depend on backend-selected
-   measurement functions instead of directly depending on Haru
+- return-address text
+- commercial footer text
+- missing-image placeholders
+- any future document element that carries `color_t`
 
-This is the actual prerequisite.
+### 2. Add Line Drawing or Use Thin Rectangles
 
-### Phase 1: Make `mark2haru` Consumable
+Prefer adding a direct `stroke_line()` primitive to `mark2haru::Pdf_writer`:
 
-Refactor `mark2haru` so `briefutil` can link to it:
+```cpp
+void stroke_line(
+    double x1_pt,
+    double y1_top_pt,
+    double x2_pt,
+    double y2_top_pt,
+    const color_t& color,
+    double line_width_pt);
+```
 
-1. build a library target, not only an executable
-2. expose explicit per-slot font configuration
-3. preserve Unicode-safe path handling
-4. add PNG image embedding/drawing
-5. add a reusable measurement context separate from `PdfWriter`, with helpers
-   that satisfy `briefutil`'s metric contract
+This maps directly to `briefutil::line_segment_t`, including fold marks and
+table borders. Thin rectangles are possible, but they are a weaker model for
+general line segments.
 
-Only after this phase does `mark2haru` have the minimum capability set needed
-by `briefutil`.
+### 3. Keep Measurement Context Independent
 
-### Phase 2: Add `pdf_renderer_mark2haru`
+`mark2haru::Measurement_context` already has the right ownership shape.
+`briefutil` should use it for all text measurement and wrapping decisions.
 
-Now add the second backend on the `briefutil` side:
+No `briefutil` layout code should use PDF-writer state for metrics.
 
-1. implement backend measurement using `mark2haru`
-2. implement `render_document` over `Document` / `Page_element`
-3. keep `pdf_renderer_haru` alongside it
-4. make backend choice available in tests and dev tools first
+### 4. Package Bundled Fonts as Runtime Assets
 
-At this point, `briefutil` can perform end-to-end layout and rendering against
-either backend without mixing Haru measurement with `mark2haru` drawing.
+Move the bundled DejaVu fonts from a CLI-only post-build copy into a reusable
+dependency asset path.
 
-### Phase 3: Verify Parity
+The required outcome is:
 
-Check parity on the actual things that matter:
+- `mark2haru` installs or exports its bundled font directory as package data
+- `briefutil` copies those fonts into the normal app, CLI, install, and portable
+  runtime layouts
+- `briefutil` passes the runtime font directory to
+  `mark2haru::Measurement_context`
+- PDF generation works on a clean machine without relying on system fonts or a
+  build-tree source path
 
-- line breaks
-- table row heights
-- page count
-- footer placement
-- closing/signature fit
-- logo/signature/body image placement
-- font selection behavior
-- Unicode output correctness
-- Unicode output path handling
+The portable layout should have a stable font directory under
+`briefutil_runtime`, for example:
 
-Avoid byte-exact PDF comparisons.
-They are too brittle.
+```text
+briefutil_runtime/
+  fonts/
+    DejaVuSans.ttf
+    DejaVuSans-Bold.ttf
+    DejaVuSans-Oblique.ttf
+    DejaVuSans-BoldOblique.ttf
+    DejaVuSansMono.ttf
+```
 
-Instead, validate:
+The installed layout should use the same runtime lookup policy rather than a
+compile-time absolute source path.
 
-- test corpus output success
-- cross-backend parity on the same corpus
-- page counts
-- selected geometric assertions
-- presence of expected strings and images where practical
+## Required briefutil Changes
 
-### Phase 4: Switch Default Only After Evidence
+### 1. Make mark2haru Mandatory in CMake
 
-Only after Phase 3 is solid:
+Replace the optional `BRIEFUTIL_MARK2HARU_DIR` path with a mandatory dependency.
 
-- switch default backend to `mark2haru`
-- remove Haru later when it is genuinely unnecessary
+Recommended local-development path:
 
-## Testing Implications
+- use `FetchContent_Declare(mark2haru SOURCE_DIR ...)` when a local checkout is
+  configured
+- otherwise use the canonical public repository URL
 
-Current smoke coverage is too weak for this migration.
+Then link:
 
-The backend work should add or extend tests so both backends are exercised for:
+```cmake
+target_link_libraries(briefutil_core
+    PUBLIC
+        Qt6::Core
+    PRIVATE
+        mark2haru::mark2haru
+)
+```
 
-- renderer smoke tests
-- full letter-builder tests
-- Markdown-to-letter PDF tests
-- Unicode output path tests
-- image rendering tests
-- cross-backend element-stream parity checks on the same input corpus
+Remove the libHaru, zlib, and libpng `FetchContent` blocks from `briefutil`.
+`mark2haru` owns its own compression and PNG internals.
 
-The important comparison is not "does it emit a PDF header."
-The important comparison is "does layout stay correct when measurement and
-rendering use the same backend."
+### 2. Remove Backend Selection
 
-The cheapest direct drift detector is:
+Remove these public concepts from `briefutil`:
 
-- build the same `Document` or letter corpus through both backends
-- compare page counts
-- compare element counts per page
-- compare element positions and sizes within a small tolerance
+- `Pdf_backend`
+- `pdf_backend_available()`
+- CLI `--backend`
+- backend-specific defaults in public APIs
+- conditional `BRIEFUTIL_HAS_MARK2HARU` paths
 
-## Bottom Line
+All generation should use mark2haru.
 
-The strategic direction is still:
+The removal must include every caller, not only CLI/core code:
 
-- keep `briefutil`'s parser, layout, and letter semantics
-- do not route through Markdown again
-- reuse `mark2haru` as the lower-level PDF backend
+- `briefutil/app/proxy.cpp`
+- `briefutil/app/proxy.h`
+- QML-facing validation or settings text that mentions backend behavior
+- CLI help and parser
+- tests that pass or assert backend-specific options
 
-But the truthful implementation plan is:
+### 3. Replace Measurement Implementation
 
-- first extract measurement out of the Haru backend
-- then add missing `mark2haru` capabilities: PNG images, explicit font slots,
-  Unicode-safe paths, and backend-compatible measurement helpers
-- only then add `pdf_renderer_mark2haru`
+Keep the high-level `briefutil` measurement functions if they help isolate
+layout code:
 
-That is the shortest path that is technically honest and unlikely to produce
-subtle layout regressions.
+- `pdf_measurement_ready()`
+- `measure_text()`
+- `wrap_text()`
+
+But implement them only with `mark2haru::Measurement_context`.
+
+This keeps `letter_builder.cpp` and `rich_text_layout.cpp` stable while
+removing the duplicate Haru path.
+
+### 4. Retarget Font Configuration
+
+The font model must match mark2haru's actual capabilities.
+
+The new `briefutil` policy is:
+
+- bundled DejaVu fonts are the default
+- explicit configured fonts must resolve to TrueType `.ttf` files
+- PDF Base-14 names such as `Helvetica` and `Courier` are not renderer inputs
+- CFF-backed `.otf` files are not accepted unless mark2haru grows real CFF
+  parsing and `/FontFile3` embedding first
+
+This requires updates to:
+
+- `default_font_family()`
+- `looks_like_font_file()`
+- `is_valid_font_config()`
+- CLI `--font-*` help and validation
+- GUI font validation and help text
+- saved settings handling
+
+Existing saved Base-14 values should be mapped to the bundled default font slots
+or cleared so the bundled defaults apply. No compatibility layer is needed
+beyond making the current configuration valid under the new model.
+
+### 5. Replace Rendering Implementation
+
+Replace `render_pdf()` with a mark2haru-only renderer over `document_t`.
+
+Each `page_element_t` maps as follows:
+
+| `briefutil` element | mark2haru call |
+| --- | --- |
+| `text_block_t` | wrap if needed, then `draw_text()` |
+| `text_span_t` | `draw_text()` |
+| `line_segment_t` | `stroke_line()` |
+| `filled_rect_t` | `fill_rect()` |
+| `image_block_t` | `draw_png()` |
+
+Keep missing-image placeholder behavior in `briefutil` so localization stays
+owned by the application.
+
+### 6. Remove Haru Files
+
+Delete these files after the mark2haru renderer is passing tests:
+
+- `briefutil/core/src/pdf_haru_support.h`
+- `briefutil/core/src/pdf_haru_support.cpp`
+- `briefutil/core/src/pdf_renderer_haru.cpp`
+
+Then simplify:
+
+- `briefutil/core/src/pdf_renderer.cpp`
+- `briefutil/core/src/pdf_measurement.cpp`
+- `briefutil/core/include/briefutil/pdf_renderer.h`
+- `briefutil/core/include/briefutil/pdf_measurement.h`
+- `briefutil/core/include/briefutil/letter_builder.h`
+- `briefutil/core/include/briefutil/brief_service.h`
+- CLI help and parsing
+- README backend/font documentation
+
+## Implementation Phases
+
+### Phase 1: Update mark2haru Primitives
+
+Make the small writer API additions:
+
+1. colored text drawing
+2. direct line drawing
+3. bundled-font install/export support
+4. tests that prove colored text and line output affect the emitted PDF
+
+The new primitive tests should inspect generated PDF content after stream
+inflation or use another deterministic check. Header-only smoke tests are not
+enough. The tests must fail if:
+
+- colored text is emitted as black
+- a line draw call emits no stroke operator
+- line coordinates or width are ignored
+
+Run mark2haru tests.
+
+### Phase 2: Repair briefutil's mark2haru Adapter
+
+Configure `briefutil` with the local mark2haru checkout and make the current
+mark2haru adapter build.
+
+At this point, do not remove Haru yet. The purpose of this phase is to establish
+a passing mark2haru path before deleting the duplicate engine.
+
+Run:
+
+```powershell
+cmake --build <mark2haru-enabled-briefutil-build> --target check
+ctest --test-dir <mark2haru-enabled-briefutil-build> --output-on-failure
+```
+
+### Phase 3: Switch briefutil to One Engine
+
+Remove the backend enum and Haru files, make mark2haru mandatory, and update all
+callers to the single-engine API.
+
+This phase should delete more code than it adds.
+
+Run the full briefutil test suite, including GUI-proxy and CLI tests that prove
+no removed backend option is still passed internally.
+
+### Phase 4: Clean Documentation and Packaging
+
+Update:
+
+- README build requirements
+- CLI help
+- GUI settings/help text
+- portable build script
+- CMake packaging
+- any strategy or architecture notes that still describe multiple PDF engines
+
+Run the portable build path after the normal test suite passes. Verify the
+portable output contains the bundled fonts and can generate a PDF with no
+system-font dependency.
+
+## Verification Checklist
+
+The final implementation must verify:
+
+- full `briefutil` `check` target builds
+- full `briefutil` CTest suite passes
+- full `mark2haru` CTest suite passes
+- CLI PDF generation works
+- GUI PDF generation works
+- generated PDFs open
+- Unicode output path test passes
+- signature image rendering works
+- commercial logo rendering works
+- body image rendering works
+- multi-page letters preserve page numbers and footer placement
+- tables preserve row height and page-break behavior
+- bundled default fonts work from normal, installed, and portable runtime
+  layouts
+- configurable font slots work with explicit `.ttf` paths
+- `.otf`, PDF Base-14 names, and unresolved installed font names are rejected or
+  migrated to the bundled defaults according to the new font policy
+
+PDF byte-for-byte comparisons are not useful here. Use behavioral assertions,
+render success, page-count checks, and targeted document-element geometry checks.
+
+## Review Notes
+
+This plan intentionally removes the duplicate PDF engine instead of preserving a
+runtime backend choice. `briefutil` and `mark2haru` are both owned projects, and
+the target design should reflect the desired architecture directly.
+
+Reviewer findings should focus on correctness, build feasibility, missing
+required work, and test gaps. Subjective preferences about keeping multiple PDF
+engines, adding optional dependency modes, or preserving removed switches are out
+of scope for this plan.
