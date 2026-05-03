@@ -48,8 +48,19 @@ int main(int argc, char* argv[])
         QFile::exists(QDir(env_template_dir).filePath("mustermann_signature.png")),
         "default signature image should be seeded");
     require(
+        QFile::exists(QDir(env_template_dir).filePath(".briefutil_templates_initialized")),
+        "template initialization marker should be written");
+    require(
         briefutil::discover_profiles(env_template_dir.toStdString()).size() >= 2,
         "seeded profiles should be discoverable");
+    const QString simple_profile_path = QDir(env_template_dir).filePath("Max Mustermann.json");
+    require(QFile::remove(simple_profile_path), "could not delete default profile");
+    require(
+        briefutil::ensure_template_dir_ready(env_template_dir.toStdString(), &error),
+        "template initialization should still succeed after deleting a profile");
+    require(
+        !QFile::exists(simple_profile_path),
+        "deleted default profile should not be restored after initialization");
     QFile bad_profile(QDir(env_template_dir).filePath("bad.json"));
     require(bad_profile.open(QIODevice::WriteOnly), "could not create malformed profile");
     bad_profile.write("{");

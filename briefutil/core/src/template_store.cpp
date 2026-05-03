@@ -15,6 +15,8 @@
 
 namespace briefutil {
 
+static constexpr const char* k_template_init_marker = ".briefutil_templates_initialized";
+
 static std::string with_trailing_slash(QString path)
 {
     path = QDir::fromNativeSeparators(path);
@@ -110,16 +112,15 @@ static bool write_file_if_missing(
     return true;
 }
 
-bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
+static bool template_dir_has_entries(const QDir& templates_dir)
 {
-    QDir templates_dir(QString::fromStdString(dir_path));
-    if (!templates_dir.exists() && !templates_dir.mkpath(".")) {
-        if (error) {
-            *error = "Could not create template directory.";
-        }
-        return false;
-    }
+    return !templates_dir.entryList(
+            QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)
+        .empty();
+}
 
+static bool seed_default_templates(QDir& templates_dir, std::string* error)
+{
     return write_file_if_missing(
             templates_dir.filePath("Max Mustermann.json"),
             k_default_profile_simple_json,
@@ -135,6 +136,31 @@ bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
             reinterpret_cast<const char*>(mustermann_signature_png::data().first),
             mustermann_signature_png::data().second,
             error);
+}
+
+bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
+{
+    QDir templates_dir(QString::fromStdString(dir_path));
+    const bool dir_existed = templates_dir.exists();
+    if (!dir_existed && !templates_dir.mkpath(".")) {
+        if (error) {
+            *error = "Could not create template directory.";
+        }
+        return false;
+    }
+
+    const auto marker_path = templates_dir.filePath(k_template_init_marker);
+    if (QFileInfo::exists(marker_path)) {
+        return true;
+    }
+
+    if (!dir_existed || !template_dir_has_entries(templates_dir)) {
+        if (!seed_default_templates(templates_dir, error)) {
+            return false;
+        }
+    }
+
+    return write_file_if_missing(marker_path, "", 0, error);
 }
 
 std::vector<Profile_entry> discover_profiles(
