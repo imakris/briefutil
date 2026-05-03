@@ -13,7 +13,7 @@ C++ with Qt 6 and mark2haru.
 The letter above produces a PDF like this:
 
 <p align="center">
-  <img src="example.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
+  <img src="example_output.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
 </p>
 
 ## What it does
