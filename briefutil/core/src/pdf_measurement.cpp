@@ -15,24 +15,24 @@
 
 struct Pdf_measure_context
 {
-    std::shared_ptr<const mark2haru::Measurement_context> metrics;
-    Font_family_config current_fc;
-    std::string last_error;
+    std::shared_ptr<const mark2haru::Measurement_context> m_metrics;
+    Font_family_config m_current_fc;
+    std::string m_last_error;
 
     bool init(const Font_family_config& fc)
     {
-        last_error.clear();
-        metrics = make_mark2haru_measurement_context(fc, &last_error);
-        if (!metrics) {
+        m_last_error.clear();
+        m_metrics = make_mark2haru_measurement_context(fc, &m_last_error);
+        if (!m_metrics) {
             return false;
         }
-        current_fc = fc;
+        m_current_fc = fc;
         return true;
     }
 
     bool ready() const
     {
-        return metrics && metrics->loaded();
+        return m_metrics && m_metrics->loaded();
     }
 };
 
@@ -43,16 +43,16 @@ static Pdf_measure_context& get_measure_context(
     static Pdf_measure_context ctx;
 
     bool need_init = !ctx.ready();
-    if (!need_init && fc != ctx.current_fc) {
+    if (!need_init && fc != ctx.m_current_fc) {
         need_init = true;
     }
 
     if (need_init) {
         ctx.init(fc);
         if (!ctx.ready() && detail) {
-            *detail = ctx.last_error.empty()
+            *detail = ctx.m_last_error.empty()
                 ? "Failed to initialize the PDF measurement context."
-                : ctx.last_error;
+                : ctx.m_last_error;
         }
     }
 
@@ -96,7 +96,7 @@ text_metrics_t measure_text(
 
     std::vector<std::string> lines;
     if (wrap) {
-        lines = wrap_mark2haru_text(*ctx.metrics, text, font, size_pt, max_width_mm);
+        lines = wrap_mark2haru_text(*ctx.m_metrics, text, font, size_pt, max_width_mm);
     }
     else {
         lines = split_lines(text);
@@ -106,7 +106,7 @@ text_metrics_t measure_text(
     for (const auto& line : lines) {
         max_w = std::max(
             max_w,
-            static_cast<float>(ctx.metrics->measure_text_width(pdf_font, line, size_pt)));
+            static_cast<float>(ctx.m_metrics->measure_text_width(pdf_font, line, size_pt)));
     }
 
     const int line_count = static_cast<int>(lines.size());
@@ -127,7 +127,7 @@ std::vector<std::string> wrap_text(
     if (!ctx.ready()) {
         return {};
     }
-    return wrap_mark2haru_text(*ctx.metrics, text, font, size_pt, max_width_mm);
+    return wrap_mark2haru_text(*ctx.m_metrics, text, font, size_pt, max_width_mm);
 }
 
 
@@ -154,7 +154,7 @@ image_dimensions_t measure_png(const std::string& path)
         return empty;
     }
 
-    static const unsigned char k_png_sig[8] = {
+    static constexpr unsigned char k_png_sig[8] = {
         0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
     };
     auto* d = reinterpret_cast<const unsigned char*>(header.constData());

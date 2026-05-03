@@ -64,13 +64,13 @@ static inline std::filesystem::path mark2haru_runtime_font_dir()
     return {};
 }
 
-static inline mark2haru::font_source_t mark2haru_font_source(const std::string& value)
+static inline mark2haru::Font_source mark2haru_font_source(const std::string& value)
 {
     if (value.empty()) {
         return {};
     }
 
-    return mark2haru::font_source_t::from_path(
+    return mark2haru::Font_source::from_path(
         qstring_to_path(QString::fromUtf8(value.c_str())));
 }
 
@@ -86,9 +86,9 @@ static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
     }
 }
 
-static inline mark2haru::font_family_config_t mark2haru_font_family(const Font_family_config& fonts)
+static inline mark2haru::Font_family_config mark2haru_font_family(const Font_family_config& fonts)
 {
-    mark2haru::font_family_config_t family;
+    mark2haru::Font_family_config family;
     family.regular = mark2haru_font_source(fonts.sans);
     family.bold = mark2haru_font_source(fonts.sans_bold);
     family.italic = mark2haru_font_source(fonts.sans_italic);

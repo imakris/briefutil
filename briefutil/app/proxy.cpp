@@ -190,7 +190,7 @@ static Font_role font_role_from_string(const QString& role)
 
 static bool is_base14_font_name(const std::string& s)
 {
-    static const char* k_base14[] = {
+    static constexpr const char* k_base14[] = {
         "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
         "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
         "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
@@ -1237,8 +1237,8 @@ void Proxy::set_window_dark_mode(QWindow* window, bool dark)
     }
     HWND hwnd = reinterpret_cast<HWND>(window->winId());
     BOOL useDarkMode = dark ? TRUE : FALSE;
-    constexpr DWORD DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+    constexpr DWORD k_dwmwa_use_immersive_dark_mode = 20;
+    DwmSetWindowAttribute(hwnd, k_dwmwa_use_immersive_dark_mode,
                           &useDarkMode, sizeof(useDarkMode));
 #else
     Q_UNUSED(window);

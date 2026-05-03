@@ -15,8 +15,8 @@
 #include <utility>
 
 
-static const color_t k_black       = { 0, 0, 0 };
-static const color_t k_footer_col  = { 9.0f/255, 92.0f/255, 105.0f/255 };
+static constexpr color_t k_black      = { 0, 0, 0 };
+static constexpr color_t k_footer_col = { 9.0f/255, 92.0f/255, 105.0f/255 };
 
 int main(int argc, char* argv[])
 {

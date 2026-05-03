@@ -240,27 +240,27 @@ static std::vector<Laid_out_line> layout_runs(
 
 struct Page_cursor
 {
-    float y_mm;
-    float bottom_mm;
-    int   page_index = 0;
-    std::vector<std::vector<Page_element>>* pages;
+    float m_y_mm;
+    float m_bottom_mm;
+    int   m_page_index = 0;
+    std::vector<std::vector<Page_element>>* m_pages;
 
-    float cont_top_mm;
-    float cont_bottom_mm;
+    float m_cont_top_mm;
+    float m_cont_bottom_mm;
 
     bool fits(float height_mm) const
     {
-        return y_mm + height_mm <= bottom_mm;
+        return m_y_mm + height_mm <= m_bottom_mm;
     }
 
     void new_page()
     {
-        page_index++;
-        if (page_index >= (int)pages->size()) {
-            pages->push_back({});
+        m_page_index++;
+        if (m_page_index >= (int)m_pages->size()) {
+            m_pages->push_back({});
         }
-        y_mm = cont_top_mm;
-        bottom_mm = cont_bottom_mm;
+        m_y_mm = m_cont_top_mm;
+        m_bottom_mm = m_cont_bottom_mm;
     }
 
     void ensure_space(float height_mm)
@@ -272,7 +272,7 @@ struct Page_cursor
 
     std::vector<Page_element>& current_elements()
     {
-        return (*pages)[page_index];
+        return (*m_pages)[m_page_index];
     }
 
     void emit_lines(const std::vector<Laid_out_line>& lines)
@@ -283,11 +283,11 @@ struct Page_cursor
             }
             for (const auto& span : line.spans) {
                 current_elements().push_back(Text_span{
-                    span.x_mm, y_mm, span.text,
+                    span.x_mm, m_y_mm, span.text,
                     span.font, span.size_pt, span.color
                 });
             }
-            y_mm += line.height_mm;
+            m_y_mm += line.height_mm;
         }
     }
 };
@@ -533,12 +533,12 @@ Layout_result layout_body(
     result.pages.push_back({});   // first page
 
     Page_cursor cursor;
-    cursor.y_mm = first_page_top_mm;
-    cursor.bottom_mm = first_page_bottom_mm;
-    cursor.page_index = 0;
-    cursor.pages = &result.pages;
-    cursor.cont_top_mm = cont_page_top_mm;
-    cursor.cont_bottom_mm = cont_page_bottom_mm;
+    cursor.m_y_mm = first_page_top_mm;
+    cursor.m_bottom_mm = first_page_bottom_mm;
+    cursor.m_page_index = 0;
+    cursor.m_pages = &result.pages;
+    cursor.m_cont_top_mm = cont_page_top_mm;
+    cursor.m_cont_bottom_mm = cont_page_bottom_mm;
 
     for (const auto& block : blocks) {
         if (!result.error.empty()) {
@@ -559,7 +559,7 @@ Layout_result layout_body(
                     params.body_color,
                     params.fonts);
                 cursor.emit_lines(lines);
-                cursor.y_mm += params.typo.paragraph_space_mm;
+                cursor.m_y_mm += params.typo.paragraph_space_mm;
 
             }
             else
@@ -569,7 +569,7 @@ Layout_result layout_body(
                 float space_before = heading_space_before(b.level);
 
                 cursor.ensure_space(space_before + pt_to_mm(hlead));
-                cursor.y_mm += space_before;
+                cursor.m_y_mm += space_before;
 
                 auto lines = layout_runs(
                     b.runs,
@@ -594,7 +594,7 @@ Layout_result layout_body(
                 }
 
                 cursor.emit_lines(lines);
-                cursor.y_mm += params.typo.heading_space_after_mm;
+                cursor.m_y_mm += params.typo.heading_space_after_mm;
 
             }
             else
@@ -618,7 +618,7 @@ Layout_result layout_body(
                     }
 
                     cursor.current_elements().push_back(Text_span{
-                        params.left_mm + k_bullet_offset_mm, cursor.y_mm,
+                        params.left_mm + k_bullet_offset_mm, cursor.m_y_mm,
                         marker, Font_id::SANS, params.typo.body_size_pt,
                         params.body_color
                     });
@@ -633,9 +633,9 @@ Layout_result layout_body(
                         params.body_color,
                         params.fonts);
                     cursor.emit_lines(lines);
-                    cursor.y_mm += params.typo.list_item_space_mm;
+                    cursor.m_y_mm += params.typo.list_item_space_mm;
                 }
-                cursor.y_mm += params.typo.paragraph_space_mm;
+                cursor.m_y_mm += params.typo.paragraph_space_mm;
 
             }
             else
@@ -671,10 +671,10 @@ Layout_result layout_body(
                     cursor.new_page();
                 }
 
-                cursor.y_mm += 2.0f;
+                cursor.m_y_mm += 2.0f;
 
                 // If still too tall for a full fresh page, scale to fit
-                float avail = cursor.bottom_mm - cursor.y_mm - 2.0f;
+                float avail = cursor.m_bottom_mm - cursor.m_y_mm - 2.0f;
                 if (img_height_mm > avail && avail > 0) {
                     float scale = avail / img_height_mm;
                     img_height_mm *= scale;
@@ -682,11 +682,11 @@ Layout_result layout_body(
                 }
 
                 cursor.current_elements().push_back(Image_block{
-                    params.left_mm, cursor.y_mm, img_width_mm,
+                    params.left_mm, cursor.m_y_mm, img_width_mm,
                     img_path
                 });
 
-                cursor.y_mm += img_height_mm + 2.0f;
+                cursor.m_y_mm += img_height_mm + 2.0f;
 
             }
             else
@@ -708,7 +708,7 @@ Layout_result layout_body(
                         std::vector<Page_element> row_elements;
                         float row_h = layout_table_row(
                             b.rows[row_index], tl,
-                            params.left_mm, cursor.y_mm,
+                            params.left_mm, cursor.m_y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm,
                             is_header_row,
@@ -716,7 +716,7 @@ Layout_result layout_body(
                         for (auto& elem : row_elements) {
                             cursor.current_elements().push_back(std::move(elem));
                         }
-                        cursor.y_mm += row_h;
+                        cursor.m_y_mm += row_h;
                         return row_h;
                     };
 
@@ -728,7 +728,7 @@ Layout_result layout_body(
                         std::vector<Page_element> probe;
                         float row_h = layout_table_row(
                             b.rows[ri], tl,
-                            params.left_mm, cursor.y_mm,
+                            params.left_mm, cursor.m_y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm, is_header,
                             params.fonts, probe);
@@ -747,11 +747,11 @@ Layout_result layout_body(
                             for (auto& elem : probe) {
                                 cursor.current_elements().push_back(std::move(elem));
                             }
-                            cursor.y_mm += row_h;
+                            cursor.m_y_mm += row_h;
                         }
                     }
                 }
-                cursor.y_mm += params.typo.paragraph_space_mm;
+                cursor.m_y_mm += params.typo.paragraph_space_mm;
 
             }
             else
@@ -772,14 +772,14 @@ Layout_result layout_body(
                 size_t li = 0;
                 while (li < code_lines.size()) {
                     // How many lines fit on the current page?
-                    float avail = cursor.bottom_mm - cursor.y_mm
+                    float avail = cursor.m_bottom_mm - cursor.m_y_mm
                         - 2 * k_code_pad_mm;
                     int lines_fit = std::max(1, (int)(avail / line_h_mm));
 
                     // If nothing fits, move to next page
                     if (avail < line_h_mm + 2 * k_code_pad_mm) {
                         cursor.new_page();
-                        avail = cursor.bottom_mm - cursor.y_mm
+                        avail = cursor.m_bottom_mm - cursor.m_y_mm
                             - 2 * k_code_pad_mm;
                         lines_fit = std::max(1, (int)(avail / line_h_mm));
                     }
@@ -792,13 +792,13 @@ Layout_result layout_body(
 
                     // Background rectangle for this chunk
                     cursor.current_elements().push_back(filled_rect_t{
-                        params.left_mm, cursor.y_mm,
+                        params.left_mm, cursor.m_y_mm,
                         params.width_mm, chunk_h,
                         k_code_bg
                     });
 
                     // Code text lines
-                    float code_y = cursor.y_mm + k_code_pad_mm;
+                    float code_y = cursor.m_y_mm + k_code_pad_mm;
                     for (int ci = 0; ci < chunk; ci++) {
                         cursor.current_elements().push_back(Text_span{
                             params.left_mm + k_code_pad_mm, code_y,
@@ -808,14 +808,14 @@ Layout_result layout_body(
                         code_y += line_h_mm;
                     }
 
-                    cursor.y_mm += chunk_h;
+                    cursor.m_y_mm += chunk_h;
                     li += chunk;
                 }
-                cursor.y_mm += params.typo.paragraph_space_mm;
+                cursor.m_y_mm += params.typo.paragraph_space_mm;
             }
         }, block);
     }
 
-    result.last_page_used_mm = cursor.y_mm;
+    result.last_page_used_mm = cursor.m_y_mm;
     return result;
 }

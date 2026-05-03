@@ -43,11 +43,11 @@ std::string localized_date(int year, int month, int day, const std::string& lang
         day = now.day();
     }
 
-    static const char* k_en_months[] = {
+    static constexpr const char* k_en_months[] = {
         "", "January", "February", "March", "April", "May", "June", "July",
         "August", "September", "October", "November", "December"
     };
-    static const char* k_de_months[] = {
+    static constexpr const char* k_de_months[] = {
         "", "Januar", "Februar", "M\xc3\xa4rz", "April", "Mai", "Juni", "Juli",
         "August", "September", "Oktober", "November", "Dezember"
     };
