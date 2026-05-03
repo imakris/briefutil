@@ -461,7 +461,8 @@ Window {
             Label {
                 Layout.row: 0
                 Layout.column: 0
-                text: "Base"
+                Layout.preferredWidth: 48
+                text: "Base:"
                 color: settingsWin.dimTextColor
             }
             Label {
@@ -499,7 +500,8 @@ Window {
             Label {
                 Layout.row: 1
                 Layout.column: 0
-                text: "Scale"
+                Layout.preferredWidth: 48
+                text: "Scale:"
                 color: settingsWin.dimTextColor
             }
             Label {
