@@ -7,8 +7,12 @@ import QtQuick.Dialogs
 Window {
     id: editorWin
 
+    readonly property int contentMargin: 15
+    readonly property int minimumContentHeight: 480
+
     width: 680
     height: 760
+    minimumHeight: minimumContentHeight
     title: profileId.trim().length > 0 ? "Sender Profile: " + profileId : "Sender Profile"
 
     required property var proxyObj
@@ -18,6 +22,7 @@ Window {
     signal windowClosed()
 
     property bool _initialized: false
+    property bool _resizePending: false
     property int _newProfileIndex: -1
     property string savedProfileId: ""
 
@@ -58,11 +63,33 @@ Window {
 
     color: darkMode ? "#2d2d2d" : "#eeeeee"
 
+    function scheduleContentResize() {
+        if (_resizePending) {
+            return
+        }
+        _resizePending = true
+        Qt.callLater(function() {
+            _resizePending = false
+            resizeToContent()
+        })
+    }
+
+    function resizeToContent() {
+        var contentHeight = contentColumn.implicitHeight + contentMargin * 2
+        var screenHeight = Screen.availableHeight > 0 ? Screen.availableHeight : Screen.height
+        var maximumHeight = screenHeight > 0
+            ? Math.max(minimumContentHeight, screenHeight - 80)
+            : contentHeight
+        height = Math.ceil(Math.min(Math.max(contentHeight, minimumContentHeight), maximumHeight))
+    }
+
     onDarkModeChanged: {
         if (proxyObj) {
             proxyObj.set_window_dark_mode(editorWin, darkMode)
         }
     }
+
+    onProfileStyleChanged: scheduleContentResize()
 
     onProfileIndexChanged: {
         if (profileCombo && profileCombo.currentIndex !== profileIndex) {
@@ -163,6 +190,7 @@ Window {
             profileCombo.currentIndex = profileIndex
         }
         loadProfile()
+        scheduleContentResize()
     }
 
     Connections {
@@ -300,6 +328,7 @@ Window {
         }
 
         _initialized = true
+        scheduleContentResize()
     }
 
     function scheduleSave() {
@@ -541,7 +570,7 @@ Window {
     ScrollView {
         id: editorScroll
         anchors.fill: parent
-        anchors.margins: 15
+        anchors.margins: editorWin.contentMargin
         clip: true
         rightPadding: 14
         contentWidth: availableWidth
