@@ -106,6 +106,11 @@ if errorlevel 1 (
     echo ERROR: briefutil_cli.exe not found in build output.
     exit /b 1
 )
+copy /y "%BUILD_DIR%\app\briefutil_app_build_info.ini" "%RUNTIME_DIR%\briefutil_app_build_info.ini" >nul
+if errorlevel 1 (
+    echo ERROR: briefutil_app_build_info.ini not found in build output.
+    exit /b 1
+)
 copy /y "%BUILD_DIR%\app\*.dll" "%RUNTIME_DIR%\" >nul
 if exist "%BUILD_DIR%\app\fonts" (
     xcopy /e /i /q /y "%BUILD_DIR%\app\fonts" "%RUNTIME_DIR%\fonts" >nul

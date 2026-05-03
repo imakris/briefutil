@@ -439,6 +439,23 @@ ApplicationWindow {
                 }
             }
 
+            Label {
+                id: buildInfoLabel
+                Layout.leftMargin: 8
+                Layout.alignment: Qt.AlignVCenter
+                text: proxy.get_build_caption()
+                color: root.darkMode ? "#b8b8b8" : "#666666"
+                font.pixelSize: 10
+                horizontalAlignment: Text.AlignLeft
+                verticalAlignment: Text.AlignVCenter
+                ToolTip.visible: buildInfoHover.hovered
+                ToolTip.text: proxy.get_build_details()
+
+                HoverHandler {
+                    id: buildInfoHover
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             Button {

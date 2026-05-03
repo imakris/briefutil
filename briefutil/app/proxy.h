@@ -32,6 +32,8 @@ public:
     Q_INVOKABLE void set_window_dark_mode(QWindow* window, bool dark);
     Q_INVOKABLE void save_dark_mode(bool dark);
     Q_INVOKABLE bool load_dark_mode() const;
+    Q_INVOKABLE QString get_build_caption() const;
+    Q_INVOKABLE QString get_build_details() const;
 
     // Settings
     Q_INVOKABLE QString get_font_sans() const;
@@ -95,6 +97,8 @@ private:
     QString m_font_sans_bold_italic_input;
     QString m_font_mono_input;
     QString m_layout_preset = "din_5008_form_b";
+    QString m_build_caption;
+    QString m_build_details;
     Theme_config m_theme;
     bool m_dark_mode = false;
     QFileSystemWatcher* m_template_watcher = nullptr;

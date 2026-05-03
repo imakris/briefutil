@@ -35,6 +35,9 @@
 #include <cmath>
 #include <memory>
 
+#ifndef BRIEFUTIL_VERSION_STRING
+#define BRIEFUTIL_VERSION_STRING "unknown"
+#endif
 
 // ============================================================================
 // Settings persistence
@@ -82,6 +85,30 @@ static void ensure_template_dir_ready(const QString& dir_path)
                  qPrintable(dir_path),
                  error.c_str());
     }
+}
+
+static QString build_info_value(QSettings& settings, const QString& key, const QString& fallback)
+{
+    auto value = settings.value("build/" + key);
+    if (!value.isValid() || value.toString().trimmed().isEmpty()) {
+        return fallback;
+    }
+    return value.toString();
+}
+
+static QString default_build_info_path()
+{
+    return QCoreApplication::applicationDirPath() + "/briefutil_app_build_info.ini";
+}
+
+static QString build_caption(const QString& version)
+{
+    return QStringLiteral("v%1").arg(version);
+}
+
+static QString build_details(const QString& version, const QString& commit, const QString& timestamp)
+{
+    return QStringLiteral("briefutil %1\nCommit %2\nBuilt %3").arg(version, commit, timestamp);
 }
 
 static QString join_lines(const std::vector<std::string>& lines)
@@ -522,6 +549,15 @@ Proxy::Proxy(QObject*)
     m_output_dir = QString::fromStdString(briefutil::configured_output_dir(
         QCoreApplication::applicationDirPath().toStdString(),
         QDir::currentPath().toStdString()));
+    QSettings build_info(default_build_info_path(), QSettings::IniFormat);
+    auto version = build_info_value(
+        build_info, "version", QStringLiteral(BRIEFUTIL_VERSION_STRING));
+    auto commit = build_info_value(build_info, "git_commit", QStringLiteral("unknown"));
+    auto timestamp = build_info_value(
+        build_info, "build_timestamp", QStringLiteral("unknown"));
+    m_build_caption = build_caption(version);
+    m_build_details = build_details(version, commit, timestamp);
+
     QDir qodir(m_output_dir);
     if (!qodir.exists()) {
         qodir.mkpath(".");
@@ -1255,4 +1291,14 @@ void Proxy::save_dark_mode(bool dark)
 bool Proxy::load_dark_mode() const
 {
     return m_dark_mode;
+}
+
+QString Proxy::get_build_caption() const
+{
+    return m_build_caption;
+}
+
+QString Proxy::get_build_details() const
+{
+    return m_build_details;
 }

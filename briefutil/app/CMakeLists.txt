@@ -11,6 +11,9 @@ target_include_directories(briefutil PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/resources
 )
+target_compile_definitions(briefutil PRIVATE
+    BRIEFUTIL_VERSION_STRING="${PROJECT_VERSION}"
+)
 
 target_link_libraries(briefutil
     PRIVATE
@@ -24,6 +27,18 @@ target_link_libraries(briefutil
 
 briefutil_copy_mark2haru_fonts(briefutil)
 
+find_package(Git QUIET)
+add_custom_target(briefutil_build_info
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:briefutil>"
+    COMMAND ${CMAKE_COMMAND}
+        "-DBRIEFUTIL_VERSION=${PROJECT_VERSION}"
+        "-DBRIEFUTIL_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+        "-DBRIEFUTIL_GIT_EXECUTABLE=${GIT_EXECUTABLE}"
+        "-DBRIEFUTIL_BUILD_INFO_FILE=$<TARGET_FILE_DIR:briefutil>/briefutil_app_build_info.ini"
+        -P "${PROJECT_SOURCE_DIR}/cmake/write_build_info.cmake"
+    VERBATIM
+)
+
 add_custom_target(briefutil_cli_companion
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "$<TARGET_FILE_DIR:briefutil>"
@@ -33,7 +48,7 @@ add_custom_target(briefutil_cli_companion
     DEPENDS briefutil_cli
     VERBATIM
 )
-add_dependencies(briefutil briefutil_cli_companion)
+add_dependencies(briefutil briefutil_build_info briefutil_cli_companion)
 
 if(WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
