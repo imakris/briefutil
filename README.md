@@ -257,6 +257,14 @@ briefutil/build/tests/Release/test_letter_builder.exe briefutil/build/tests/Rele
 briefutil/build/tests/Release/test_md_to_pdf.exe briefutil/tests/data/test_sample.md briefutil/build/tests/Release/md.pdf
 ```
 
+## Contributing
+
+This project follows the Varinomics coding style guideline. The canonical
+guideline is maintained in the
+[varinomics-standards](https://github.com/Varinomics/varinomics-standards)
+repository. More information about Varinomics is available at
+[varinomics.com](https://varinomics.com/).
+
 ## Install / package
 
 Install:
