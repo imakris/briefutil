@@ -7,6 +7,8 @@ import QtQuick.Dialogs
 Window {
     id: settingsWin
 
+    readonly property int contentMargin: 15
+
     width: 520
     height: 620
     title: "Settings"
@@ -176,6 +178,11 @@ Window {
         templateDir        = proxyObj.get_template_dir()
         layoutPreset       = proxyObj.get_layout_preset()
         syncLayoutPresetCombo()
+        Qt.callLater(function() {
+            var defaultHeight = Math.ceil(contentLayout.implicitHeight + contentMargin * 2)
+            settingsWin.height = defaultHeight
+            settingsWin.minimumHeight = defaultHeight
+        })
         _initialized = true
     }
 
@@ -340,8 +347,9 @@ Window {
     }
 
     ColumnLayout {
+        id: contentLayout
         anchors.fill: parent
-        anchors.margins: 15
+        anchors.margins: settingsWin.contentMargin
         spacing: 8
 
         RowLayout {
@@ -607,5 +615,7 @@ Window {
                 }
             }
         }
+
+        Item { Layout.fillHeight: true }
     }
 }
