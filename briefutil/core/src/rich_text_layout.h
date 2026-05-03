@@ -1,9 +1,11 @@
 #pragma once
 
-#include "briefutil/body_content_model.h"
 #include "briefutil/document_model.h"
 #include "briefutil/localization.h"
 #include "briefutil/typography_config.h"
+
+#include <mark2haru/markdown.h>
+
 #include <string>
 #include <vector>
 
@@ -40,7 +42,7 @@ struct Layout_result
     std::string error;
 };
 
-Layout_result layout_body(const std::vector<Body_block>& blocks,
+Layout_result layout_body(const std::vector<mark2haru::Block>& blocks,
                           const Layout_params& params,
                           float first_page_top_mm,
                           float first_page_bottom_mm,

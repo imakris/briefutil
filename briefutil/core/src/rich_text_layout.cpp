@@ -1,5 +1,8 @@
 #include "rich_text_layout.h"
 #include "briefutil/pdf_measurement.h"
+#include "pdf_mark2haru_support.h"
+
+#include <mark2haru/table_layout.h>
 
 #include <algorithm>
 #include <climits>
@@ -53,13 +56,13 @@ static int saturating_list_marker_number(int start_number, size_t item_index)
 // Inline style to Font_id mapping
 // ============================================================================
 
-static Font_id font_for_style(Inline_style style)
+static Font_id font_for_style(mark2haru::Inline_style style)
 {
     switch (style) {
-        case Inline_style::BOLD:        return Font_id::SANS_BOLD;
-        case Inline_style::ITALIC:      return Font_id::SANS_ITALIC;
-        case Inline_style::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
-        case Inline_style::CODE:        return Font_id::MONO;
+        case mark2haru::Inline_style::BOLD:        return Font_id::SANS_BOLD;
+        case mark2haru::Inline_style::ITALIC:      return Font_id::SANS_ITALIC;
+        case mark2haru::Inline_style::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
+        case mark2haru::Inline_style::CODE:        return Font_id::MONO;
         default:                        return Font_id::SANS;
     }
 }
@@ -88,12 +91,12 @@ struct Laid_out_line
 // ============================================================================
 // Inline layout - break text runs into positioned lines
 //
-// Operates on a flat list of Text_run values. Wraps greedily within max_width_mm.
+// Operates on a flat list of inline runs. Wraps greedily within max_width_mm.
 // Each run's text may contain newlines (hard line breaks).
 // ============================================================================
 
 static std::vector<Laid_out_line> layout_runs(
-    const std::vector<Text_run>& runs,
+    const std::vector<mark2haru::Inline_run>& runs,
     float left_mm, float max_width_mm,
     float size_pt, float lead_pt, color_t color,
     const Font_family_config& fonts = default_font_family())
@@ -293,227 +296,67 @@ struct Page_cursor
 };
 
 
-// ============================================================================
-// Table layout helpers
-// ============================================================================
-
-// Measure the minimum width of a cell: the widest single unbreakable token
-static float cell_min_width(
-    const std::vector<Text_run>& runs,
-    float size_pt,
-    const Font_family_config& fonts)
+static Font_id font_from_mark2haru(mark2haru::Pdf_font font)
 {
-    float max_word = 0;
-    for (const auto& run : runs) {
-        Font_id fid = font_for_style(run.style);
-        for_each_word(run.text, [&](const std::string& word) {
-            auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
-            max_word = std::max(max_word, pt_to_mm(m.width_pt));
-        });
+    switch (font) {
+        case mark2haru::Pdf_font::BOLD:        return Font_id::SANS_BOLD;
+        case mark2haru::Pdf_font::ITALIC:      return Font_id::SANS_ITALIC;
+        case mark2haru::Pdf_font::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
+        case mark2haru::Pdf_font::MONO:        return Font_id::MONO;
+        case mark2haru::Pdf_font::REGULAR:
+        default:                               return Font_id::SANS;
     }
-    return max_word;
 }
 
-static float cell_preferred_width(
-    const std::vector<Text_run>& runs,
-    float size_pt,
-    const Font_family_config& fonts)
+static color_t color_from_mark2haru(const mark2haru::color_t& color)
 {
-    float total = 0;
-    for (const auto& run : runs) {
-        Font_id fid = font_for_style(run.style);
-        auto m = measure_text(run.text, fid, size_pt, 0, 1000, false, fonts);
-        total += pt_to_mm(m.width_pt);
-    }
-    return total;
-}
-
-struct Table_layout_info
-{
-    int num_cols = 0;
-    std::vector<float> col_widths_mm;
-    bool valid = false;
-};
-
-static Table_layout_info compute_table_columns(
-    const Table_block& tb,
-    float available_mm,
-    float size_pt,
-    float cell_pad_mm,
-    const Font_family_config& fonts)
-{
-    if (tb.rows.empty()) {
-        return {};
-    }
-
-    int num_cols = 0;
-    for (const auto& row : tb.rows) {
-        num_cols = std::max(num_cols, (int)row.cells.size());
-    }
-    if (num_cols == 0) {
-        return {};
-    }
-
-    float pad = 2 * cell_pad_mm;
-    std::vector<float> min_widths(num_cols, 0);
-    std::vector<float> pref_widths(num_cols, 0);
-
-    for (const auto& row : tb.rows) {
-        for (int c = 0; c < (int)row.cells.size() && c < num_cols; c++) {
-            float cmin = cell_min_width(row.cells[c].runs, size_pt, fonts) + pad;
-            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, fonts) + pad;
-            min_widths[c] = std::max(min_widths[c], cmin);
-            pref_widths[c] = std::max(pref_widths[c], cpref);
-        }
-    }
-
-    // Check if minimum widths fit
-    float total_min = 0;
-    for (float w : min_widths) {
-        total_min += w;
-    }
-    if (total_min > available_mm) {
-        return {};  // table too wide
-    }
-
-    // Check if preferred widths fit
-    float total_pref = 0;
-    for (float w : pref_widths) {
-        total_pref += w;
-    }
-
-    Table_layout_info info;
-    info.num_cols = num_cols;
-    info.valid = true;
-
-    if (total_pref <= available_mm) {
-        info.col_widths_mm = pref_widths;
-    }
-    else {
-        // Shrink proportionally, but never below minimum
-        float excess = total_pref - available_mm;
-        float shrinkable = total_pref - total_min;
-
-        info.col_widths_mm.resize(num_cols);
-        for (int c = 0; c < num_cols; c++) {
-            float room = pref_widths[c] - min_widths[c];
-            float reduction = (shrinkable > 0)
-                ? excess * (room / shrinkable) : 0;
-            info.col_widths_mm[c] = pref_widths[c] - reduction;
-        }
-    }
-
-    return info;
-}
-
-// Lay out a single table row and return its height
-static float layout_table_row(const Table_row& row,
-                              const Table_layout_info& tl,
-                              float left_mm, float y_mm,
-                              float size_pt, float lead_pt, color_t color,
-                              float cell_pad_mm, bool is_header,
-                              const Font_family_config& fonts,
-                              std::vector<Page_element>& elements)
-{
-    float row_height = pt_to_mm(lead_pt);
-    float x = left_mm;
-
-    // First pass: wrap cell contents and find tallest cell
-    struct Cell_layout
-    {
-        std::vector<Laid_out_line> lines;
-        float height_mm;
+    return {
+        static_cast<float>(color.r),
+        static_cast<float>(color.g),
+        static_cast<float>(color.b)
     };
-    std::vector<Cell_layout> cell_layouts;
+}
 
-    for (int c = 0; c < tl.num_cols; c++) {
-        Cell_layout cl;
-        float cell_content_w = tl.col_widths_mm[c] - 2 * cell_pad_mm;
-
-        std::vector<Text_run> runs;
-        if (c < (int)row.cells.size()) {
-            runs = row.cells[c].runs;
-        }
-
-        // For header cells, force bold
-        if (is_header) {
-            for (auto& r : runs) {
-                if (r.style == Inline_style::NORMAL)
-                    r.style = Inline_style::BOLD;
-                else
-                if (r.style == Inline_style::ITALIC)
-                    r.style = Inline_style::BOLD_ITALIC;
-            }
-        }
-
-        cl.lines = layout_runs(
-            runs,
-            0,
-            cell_content_w,
-            size_pt,
-            lead_pt,
-            color,
-            fonts);
-        cl.height_mm = 0;
-        for (const auto& line : cl.lines) {
-            cl.height_mm += line.height_mm;
-        }
-        row_height = std::max(row_height, cl.height_mm + 2 * cell_pad_mm);
-        cell_layouts.push_back(std::move(cl));
-    }
-
-    // Second pass: emit cell content and borders
-    x = left_mm;
-    for (int c = 0; c < tl.num_cols; c++) {
-        float cell_x = x + cell_pad_mm;
-        float cell_y = y_mm + cell_pad_mm;
-
-        // Emit cell text spans (offset by cell position)
-        for (const auto& line : cell_layouts[c].lines) {
-            for (const auto& span : line.spans) {
+static void append_mark2haru_table_elements(
+    const mark2haru::Table_row_layout& row_layout,
+    std::vector<Page_element>& elements)
+{
+    for (const auto& element : row_layout.elements) {
+        std::visit([&](const auto& value) {
+            using Element_type = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Element_type, mark2haru::Table_text_span>) {
                 elements.push_back(Text_span{
-                    cell_x + span.x_mm, cell_y,
-                    span.text, span.font, span.size_pt, span.color
+                    pt_to_mm(static_cast<float>(value.x_pt)),
+                    pt_to_mm(static_cast<float>(value.y_pt)),
+                    value.text,
+                    font_from_mark2haru(value.font),
+                    static_cast<float>(value.size_pt),
+                    color_from_mark2haru(value.color)
                 });
             }
-            cell_y += line.height_mm;
-        }
-
-        x += tl.col_widths_mm[c];
+            else
+            if constexpr (std::is_same_v<Element_type, mark2haru::table_line_t>) {
+                elements.push_back(line_segment_t{
+                    pt_to_mm(static_cast<float>(value.x1_pt)),
+                    pt_to_mm(static_cast<float>(value.y1_pt)),
+                    pt_to_mm(static_cast<float>(value.x2_pt)),
+                    pt_to_mm(static_cast<float>(value.y2_pt)),
+                    static_cast<float>(value.width_pt),
+                    color_from_mark2haru(value.color)
+                });
+            }
+            else
+            if constexpr (std::is_same_v<Element_type, mark2haru::table_fill_rect_t>) {
+                elements.push_back(filled_rect_t{
+                    pt_to_mm(static_cast<float>(value.x_pt)),
+                    pt_to_mm(static_cast<float>(value.y_pt)),
+                    pt_to_mm(static_cast<float>(value.width_pt)),
+                    pt_to_mm(static_cast<float>(value.height_pt)),
+                    color_from_mark2haru(value.color)
+                });
+            }
+        }, element);
     }
-
-    // Draw cell borders
-    color_t border_color = { 0.5f, 0.5f, 0.5f };
-    float table_right = left_mm;
-    for (int c = 0; c < tl.num_cols; c++) {
-        table_right += tl.col_widths_mm[c];
-    }
-
-    // Top border of row
-    elements.push_back(line_segment_t{
-        left_mm, y_mm, table_right, y_mm,
-        k_table_border_width_pt, border_color
-    });
-
-    // Bottom border of row
-    elements.push_back(line_segment_t{
-        left_mm, y_mm + row_height, table_right, y_mm + row_height,
-        k_table_border_width_pt, border_color
-    });
-
-    // Vertical borders
-    x = left_mm;
-    for (int c = 0; c <= tl.num_cols; c++) {
-        elements.push_back(line_segment_t{
-            x, y_mm, x, y_mm + row_height,
-            k_table_border_width_pt, border_color
-        });
-        if (c < tl.num_cols) {
-            x += tl.col_widths_mm[c];
-        }
-    }
-
-    return row_height;
 }
 
 
@@ -522,7 +365,7 @@ static float layout_table_row(const Table_row& row,
 // ============================================================================
 
 Layout_result layout_body(
-    const std::vector<Body_block>& blocks,
+    const std::vector<mark2haru::Block>& blocks,
     const Layout_params& params,
     float first_page_top_mm,
     float first_page_bottom_mm,
@@ -548,7 +391,7 @@ Layout_result layout_body(
         std::visit([&](const auto& b) {
             using Block_type = std::decay_t<decltype(b)>;
 
-            if constexpr (std::is_same_v<Block_type, Paragraph_block>) {
+            if constexpr (std::is_same_v<Block_type, mark2haru::Paragraph_block>) {
                 cursor.ensure_space(pt_to_mm(params.typo.body_lead_pt));
                 auto lines = layout_runs(
                     b.runs,
@@ -563,7 +406,7 @@ Layout_result layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<Block_type, Heading_block>) {
+            if constexpr (std::is_same_v<Block_type, mark2haru::Heading_block>) {
                 float hsize = heading_size(params.typo, params.typo.body_size_pt, b.level);
                 float hlead = hsize * 1.2f;
                 float space_before = heading_space_before(b.level);
@@ -598,7 +441,7 @@ Layout_result layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<Block_type, List_block>) {
+            if constexpr (std::is_same_v<Block_type, mark2haru::List_block>) {
                 float item_left = params.left_mm + params.typo.list_indent_mm;
                 float item_width = params.width_mm - params.typo.list_indent_mm;
 
@@ -639,7 +482,7 @@ Layout_result layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<Block_type, Image_content_block>) {
+            if constexpr (std::is_same_v<Block_type, mark2haru::Image_content_block>) {
                 std::string img_path = b.path;
                 bool is_absolute = (!b.path.empty() &&
                     (b.path[0] == '/' || b.path[0] == '\\' ||
@@ -690,48 +533,68 @@ Layout_result layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<Block_type, Table_block>) {
-                auto tl = compute_table_columns(
+            if constexpr (std::is_same_v<Block_type, mark2haru::Table_block>) {
+                std::string detail;
+                const auto metrics = make_mark2haru_measurement_context(params.fonts, &detail);
+                if (!metrics) {
+                    result.error = detail.empty()
+                        ? "PDF measurement is unavailable."
+                        : detail;
+                    return;
+                }
+
+                mark2haru::table_style_t table_style;
+                table_style.text_size_pt = params.typo.body_size_pt;
+                table_style.text_leading_pt = params.typo.body_lead_pt;
+                table_style.cell_padding_pt = mm_to_pt(params.typo.table_cell_pad_mm);
+                table_style.border_width_pt = k_table_border_width_pt;
+                table_style.text_color = {
+                    params.body_color.r,
+                    params.body_color.g,
+                    params.body_color.b
+                };
+
+                auto table_columns = mark2haru::compute_table_columns(
                     b,
-                    params.width_mm,
-                    params.typo.body_size_pt,
-                    params.typo.table_cell_pad_mm,
-                    params.fonts);
-                if (!tl.valid) {
+                    mm_to_pt(params.width_mm),
+                    table_style,
+                    *metrics);
+                if (!table_columns.valid) {
                     result.error = params.loc.error_table_too_wide;
                     return;
                 }
                 else {
                     int header_rows = b.has_header ? 1 : 0;
 
-                    auto emit_row = [&](int row_index, bool is_header_row) {
-                        std::vector<Page_element> row_elements;
-                        float row_h = layout_table_row(
-                            b.rows[row_index], tl,
-                            params.left_mm, cursor.m_y_mm,
-                            params.typo.body_size_pt, params.typo.body_lead_pt,
-                            params.body_color, params.typo.table_cell_pad_mm,
-                            is_header_row,
-                            params.fonts, row_elements);
-                        for (auto& elem : row_elements) {
-                            cursor.current_elements().push_back(std::move(elem));
-                        }
+                    auto emit_row = [&](int row_index) {
+                        const auto row_layout = mark2haru::layout_table_row(
+                            b,
+                            row_index,
+                            table_columns,
+                            mm_to_pt(params.left_mm),
+                            mm_to_pt(cursor.m_y_mm),
+                            table_style,
+                            *metrics);
+                        append_mark2haru_table_elements(
+                            row_layout,
+                            cursor.current_elements());
+                        const float row_h = pt_to_mm(static_cast<float>(row_layout.height_pt));
                         cursor.m_y_mm += row_h;
                         return row_h;
                     };
 
-                    for (int ri = 0; ri < (int)b.rows.size(); ri++) {
-                        bool is_header = (ri < header_rows);
-
+                    for (int ri = 0; ri < static_cast<int>(b.rows.size()); ri++) {
                         // Lay out the row into a temporary buffer to get the
                         // real height before committing to the page.
-                        std::vector<Page_element> probe;
-                        float row_h = layout_table_row(
-                            b.rows[ri], tl,
-                            params.left_mm, cursor.m_y_mm,
-                            params.typo.body_size_pt, params.typo.body_lead_pt,
-                            params.body_color, params.typo.table_cell_pad_mm, is_header,
-                            params.fonts, probe);
+                        const auto probe = mark2haru::layout_table_row(
+                            b,
+                            ri,
+                            table_columns,
+                            mm_to_pt(params.left_mm),
+                            mm_to_pt(cursor.m_y_mm),
+                            table_style,
+                            *metrics);
+                        const float row_h = pt_to_mm(static_cast<float>(probe.height_pt));
 
                         // If the row doesn't fit, move to the next page,
                         // re-emit the header rows on the new page, and then
@@ -739,14 +602,14 @@ Layout_result layout_body(
                         if (!cursor.fits(row_h)) {
                             cursor.new_page();
                             for (int hi = 0; hi < header_rows && hi < ri; hi++) {
-                                emit_row(hi, true);
+                                emit_row(hi);
                             }
-                            emit_row(ri, is_header);
+                            emit_row(ri);
                         }
                         else {
-                            for (auto& elem : probe) {
-                                cursor.current_elements().push_back(std::move(elem));
-                            }
+                            append_mark2haru_table_elements(
+                                probe,
+                                cursor.current_elements());
                             cursor.m_y_mm += row_h;
                         }
                     }
@@ -755,7 +618,7 @@ Layout_result layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<Block_type, Code_block>) {
+            if constexpr (std::is_same_v<Block_type, mark2haru::Code_block>) {
                 // Code block: monospace font, light grey background.
                 // Split across pages line-by-line if needed.
                 static constexpr float k_code_pad_mm = 3.0f;
@@ -812,6 +675,10 @@ Layout_result layout_body(
                     li += chunk;
                 }
                 cursor.m_y_mm += params.typo.paragraph_space_mm;
+            }
+            else
+            if constexpr (std::is_same_v<Block_type, mark2haru::Page_break_block>) {
+                cursor.new_page();
             }
         }, block);
     }

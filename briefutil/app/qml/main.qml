@@ -297,86 +297,109 @@ ApplicationWindow {
             Layout.topMargin: 10
         }
         ScrollView {
+            id: bodyScroll
+
             Layout.fillWidth: true
             Layout.fillHeight: true
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: Math.max(
+                availableHeight,
+                w_body.contentHeight + 16)
             ScrollBar.horizontal.policy: ScrollBar.AsNeeded
             ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            TextArea {
-                id: w_body
-                wrapMode: TextEdit.WordWrap
-                selectByMouse: true
-                selectByKeyboard: true
-                background: Rectangle {
-                    color: root.palette.base
-                    border.width: 1
-                    border.color: root.darkMode ? "#555555" : "#c0c0c0"
-                }
+            Binding {
+                target: bodyScroll.contentItem
+                property: "boundsBehavior"
+                value: Flickable.StopAtBounds
+            }
 
-                TapHandler {
-                    acceptedButtons: Qt.RightButton
-                    onTapped: function(eventPoint) {
-                        bodyContextMenu.x = eventPoint.position.x
-                        bodyContextMenu.y = eventPoint.position.y
-                        bodyContextMenu.open()
+            Rectangle {
+                width: bodyScroll.availableWidth
+                height: bodyScroll.contentHeight
+                color: root.palette.base
+                border.width: 1
+                border.color: root.darkMode ? "#555555" : "#c0c0c0"
+
+                TextEdit {
+                    id: w_body
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    clip: true
+                    wrapMode: TextEdit.WordWrap
+                    selectByMouse: true
+                    selectByKeyboard: true
+                    textFormat: TextEdit.PlainText
+                    color: root.palette.text
+                    selectedTextColor: root.palette.highlightedText
+                    selectionColor: root.palette.highlight
+
+                    TapHandler {
+                        acceptedButtons: Qt.RightButton
+                        onTapped: function(eventPoint) {
+                            bodyContextMenu.x = eventPoint.position.x
+                            bodyContextMenu.y = eventPoint.position.y
+                            bodyContextMenu.open()
+                        }
                     }
-                }
 
-                Menu {
-                    id: bodyContextMenu
+                    Menu {
+                        id: bodyContextMenu
 
-                    component StyledMenuItem: MenuItem {
-                        id: styledItem
+                        component StyledMenuItem: MenuItem {
+                            id: styledItem
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 30
+                                color: styledItem.highlighted
+                                    ? (root.darkMode ? "#505050" : "#d0d0d0")
+                                    : (root.darkMode ? "#2d2d2d" : "#eeeeee")
+                            }
+                            contentItem: Text {
+                                text: styledItem.text
+                                color: styledItem.enabled
+                                    ? (root.darkMode ? "#ffffff" : "#000000")
+                                    : (root.darkMode ? "#888888" : "#999999")
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 8
+                            }
+                        }
+
                         background: Rectangle {
                             implicitWidth: 150
-                            implicitHeight: 30
-                            color: styledItem.highlighted
-                                ? (root.darkMode ? "#505050" : "#d0d0d0")
-                                : (root.darkMode ? "#2d2d2d" : "#eeeeee")
+                            color: root.darkMode ? "#2d2d2d" : "#eeeeee"
+                            border.color: root.darkMode ? "#555555" : "#b0b0b0"
+                            border.width: 1
+                            radius: 4
                         }
-                        contentItem: Text {
-                            text: styledItem.text
-                            color: styledItem.enabled
-                                ? (root.darkMode ? "#ffffff" : "#000000")
-                                : (root.darkMode ? "#888888" : "#999999")
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 8
-                        }
-                    }
 
-                    background: Rectangle {
-                        implicitWidth: 150
-                        color: root.darkMode ? "#2d2d2d" : "#eeeeee"
-                        border.color: root.darkMode ? "#555555" : "#b0b0b0"
-                        border.width: 1
-                        radius: 4
-                    }
-
-                    StyledMenuItem {
-                        text: "Cut"
-                        enabled: w_body.selectedText.length > 0
-                        onTriggered: w_body.cut()
-                    }
-                    StyledMenuItem {
-                        text: "Copy"
-                        enabled: w_body.selectedText.length > 0
-                        onTriggered: w_body.copy()
-                    }
-                    StyledMenuItem {
-                        text: "Paste"
-                        enabled: w_body.canPaste
-                        onTriggered: w_body.paste()
-                    }
-                    MenuSeparator {
-                        contentItem: Rectangle {
-                            implicitWidth: 150
-                            implicitHeight: 1
-                            color: root.darkMode ? "#555555" : "#b0b0b0"
+                        StyledMenuItem {
+                            text: "Cut"
+                            enabled: w_body.selectedText.length > 0
+                            onTriggered: w_body.cut()
                         }
-                    }
-                    StyledMenuItem {
-                        text: "Select All"
-                        onTriggered: w_body.selectAll()
+                        StyledMenuItem {
+                            text: "Copy"
+                            enabled: w_body.selectedText.length > 0
+                            onTriggered: w_body.copy()
+                        }
+                        StyledMenuItem {
+                            text: "Paste"
+                            enabled: w_body.canPaste
+                            onTriggered: w_body.paste()
+                        }
+                        MenuSeparator {
+                            contentItem: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 1
+                                color: root.darkMode ? "#555555" : "#b0b0b0"
+                            }
+                        }
+                        StyledMenuItem {
+                            text: "Select All"
+                            onTriggered: w_body.selectAll()
+                        }
                     }
                 }
             }

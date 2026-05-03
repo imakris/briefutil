@@ -951,6 +951,93 @@ int main(int argc, char* argv[])
         std::printf("[OK] Section font scaling applied\n");
     }
 
+    // -- Test 11: table columns expand only when that reduces table height --
+    {
+        QString tmp_dir = QDir::tempPath() + "/briefutil_test_table_height";
+        QDir().mkpath(tmp_dir);
+
+        QString profile_path = tmp_dir + "/test_profile.json";
+        QFile f(profile_path);
+        if (!f.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "FAIL: cannot write table-height test profile: %s\n",
+                         qs(profile_path).c_str());
+            return 1;
+        }
+        f.write(k_default_profile_simple_json);
+        f.close();
+
+        auto lr = load_sender_profile(qs(profile_path));
+        if (!lr.ok) {
+            std::fprintf(stderr, "FAIL: table-height profile load: %s\n",
+                         lr.error.c_str());
+            return 1;
+        }
+        lr.profile.signature_image.clear();
+
+        Letter_input input;
+        input.recipient = "Gartenbau Lindenhof\nFrau Clara Berg\n"
+                          "Amselweg 17\n50672 K\xc3\xb6ln";
+        input.subject = "Bepflanzung der K\xc3\xbc" "bel";
+        input.date = "3. Mai 2026";
+        input.body =
+            "## \xc3\x9c" "bersicht\n\n"
+            "| Pflanze | Standort | Hinweis |\n"
+            "| --- | --- | --- |\n"
+            "| Lavendel | sonnig | sparsam gie\xc3\x9f" "en |\n"
+            "| Thymian | sonnig | gut f\xc3\xbc" "r Insekten |\n"
+            "| Erdbeeren | halbschattig | regelm\xc3\xa4\xc3\x9f" "ig ernten |\n";
+
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: table-height build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        bool found_unwrapped_hint = false;
+        bool found_split_regular = false;
+        bool found_split_harvest = false;
+        bool found_header_fill = false;
+        for (const auto& page : br.doc.pages) {
+            for (const auto& element : page.elements) {
+                if (const auto* span = std::get_if<Text_span>(&element)) {
+                    if (span->text == "regelm\xc3\xa4\xc3\x9f" "ig ernten") {
+                        found_unwrapped_hint = true;
+                    }
+                    if (span->text == "regelm\xc3\xa4\xc3\x9f" "ig") {
+                        found_split_regular = true;
+                    }
+                    if (span->text == "ernten") {
+                        found_split_harvest = true;
+                    }
+                }
+                if (const auto* rect = std::get_if<filled_rect_t>(&element)) {
+                    const bool mildly_grey =
+                        nearly_equal(rect->color.r, 0.94f)
+                        && nearly_equal(rect->color.g, 0.94f)
+                        && nearly_equal(rect->color.b, 0.94f);
+                    if (mildly_grey && rect->width_mm > 0.0f && rect->height_mm > 0.0f) {
+                        found_header_fill = true;
+                    }
+                }
+            }
+        }
+
+        if (!found_unwrapped_hint || (found_split_regular && found_split_harvest)) {
+            std::fprintf(
+                stderr,
+                "FAIL: table column expansion did not keep 'regelmaessig ernten' on one line\n");
+            return 1;
+        }
+        if (!found_header_fill) {
+            std::fprintf(stderr, "FAIL: table header fill was not emitted\n");
+            return 1;
+        }
+        std::printf("[OK] Table columns expand when doing so reduces row height\n");
+
+        QFile::remove(profile_path);
+        QDir().rmdir(tmp_dir);
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

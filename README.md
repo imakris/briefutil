@@ -243,7 +243,6 @@ The CMake project also defines a few development-only test executables:
 - `test_letter_builder`
 - `test_brief_service`
 - `test_cli`
-- `test_markdown_parser`
 - `test_md_to_pdf`
 - `test_path_utils`
 - `test_template_store`
@@ -252,7 +251,6 @@ The CMake project also defines a few development-only test executables:
 Typical examples:
 
 ```powershell
-briefutil/build/tests/Release/test_markdown_parser.exe
 briefutil/build/tests/Release/test_letter_builder.exe briefutil/build/tests/Release/sample.pdf
 briefutil/build/tests/Release/test_md_to_pdf.exe briefutil/tests/data/test_sample.md briefutil/build/tests/Release/md.pdf
 ```

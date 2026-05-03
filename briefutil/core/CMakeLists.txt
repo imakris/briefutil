@@ -1,7 +1,6 @@
 add_library(briefutil_core STATIC
     src/brief_service.cpp
     src/letter_builder.cpp
-    src/markdown_parser.cpp
     src/path_utils.cpp
     src/pdf_measurement.cpp
     src/pdf_renderer_mark2haru.cpp

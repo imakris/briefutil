@@ -1,9 +1,10 @@
 #include "briefutil/letter_builder.h"
 #include "briefutil/localization.h"
-#include "briefutil/markdown_parser.h"
 #include "briefutil/pdf_measurement.h"
 #include "briefutil/pdf_renderer.h"
 #include "rich_text_layout.h"
+
+#include <mark2haru/markdown.h>
 
 #include <cstddef>
 #include <utility>
@@ -201,7 +202,7 @@ Build_letter_result build_letter(
         + signer_height_mm + layout.closing_extra_room_mm;
 
     // Parse and lay out the body using the markdown-aware layout engine
-    auto body_blocks = parse_markdown(input.body);
+    auto body_blocks = mark2haru::parse_markdown(input.body);
 
     Layout_params lp;
     lp.left_mm     = layout.margin_left_mm;
