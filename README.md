@@ -7,7 +7,7 @@ Letter layout, markdown body parsing, and PDF rendering are handled natively in
 C++ with Qt 6 and mark2haru.
 
 <p align="center">
-  <img src="sample_screenshot.png" alt="Application screenshot" style="max-width: 100%; height: auto;">
+  <img src="sample_screenshot.png" alt="Application screenshot" width="640">
 </p>
 
 The letter above produces a PDF like this:
