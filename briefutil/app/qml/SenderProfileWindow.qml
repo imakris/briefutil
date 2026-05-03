@@ -9,10 +9,20 @@ Window {
 
     readonly property int contentMargin: 15
     readonly property int minimumContentHeight: 480
+    readonly property int availableContentHeight: {
+        var screenHeight = Screen.availableHeight > 0 ? Screen.availableHeight : Screen.height
+        return screenHeight > 0
+            ? Math.max(minimumContentHeight, screenHeight - 40)
+            : 100000
+    }
+    readonly property int contentDrivenHeight: Math.ceil(Math.min(
+        Math.max(contentColumn.implicitHeight + contentMargin * 2, minimumContentHeight),
+        availableContentHeight))
 
     width: 680
-    height: 760
+    height: contentDrivenHeight
     minimumHeight: minimumContentHeight
+    maximumHeight: availableContentHeight
     title: profileId.trim().length > 0 ? "Sender Profile: " + profileId : "Sender Profile"
 
     required property var proxyObj
@@ -22,7 +32,6 @@ Window {
     signal windowClosed()
 
     property bool _initialized: false
-    property bool _resizePending: false
     property int _newProfileIndex: -1
     property string savedProfileId: ""
 
@@ -63,33 +72,11 @@ Window {
 
     color: darkMode ? "#2d2d2d" : "#eeeeee"
 
-    function scheduleContentResize() {
-        if (_resizePending) {
-            return
-        }
-        _resizePending = true
-        Qt.callLater(function() {
-            _resizePending = false
-            resizeToContent()
-        })
-    }
-
-    function resizeToContent() {
-        var contentHeight = contentColumn.implicitHeight + contentMargin * 2
-        var screenHeight = Screen.availableHeight > 0 ? Screen.availableHeight : Screen.height
-        var maximumHeight = screenHeight > 0
-            ? Math.max(minimumContentHeight, screenHeight - 80)
-            : contentHeight
-        height = Math.ceil(Math.min(Math.max(contentHeight, minimumContentHeight), maximumHeight))
-    }
-
     onDarkModeChanged: {
         if (proxyObj) {
             proxyObj.set_window_dark_mode(editorWin, darkMode)
         }
     }
-
-    onProfileStyleChanged: scheduleContentResize()
 
     onProfileIndexChanged: {
         if (profileCombo && profileCombo.currentIndex !== profileIndex) {
@@ -190,7 +177,6 @@ Window {
             profileCombo.currentIndex = profileIndex
         }
         loadProfile()
-        scheduleContentResize()
     }
 
     Connections {
@@ -328,7 +314,6 @@ Window {
         }
 
         _initialized = true
-        scheduleContentResize()
     }
 
     function scheduleSave() {
