@@ -73,9 +73,9 @@ public:
     Q_INVOKABLE QString import_template_image(const QUrl& source_url) const;
 
 private:
-    struct sender_profile_entry_t
+    struct Sender_profile_entry
     {
-        sender_profile_t profile;
+        Sender_profile profile;
         QString path;
     };
 
@@ -84,18 +84,18 @@ private:
     void discover_profiles();
     void update_font_and_save(QString& slot, const QString& v);
     void install_template_watcher();
-    localization_t current_localization(const sender_profile_t& profile) const;
+    Localization current_localization(const Sender_profile& profile) const;
 
     QString m_sender_template_dir;
     QString m_output_dir;
-    std::vector<sender_profile_entry_t> m_profiles;
+    std::vector<Sender_profile_entry> m_profiles;
     QString m_font_sans_input;
     QString m_font_sans_bold_input;
     QString m_font_sans_italic_input;
     QString m_font_sans_bold_italic_input;
     QString m_font_mono_input;
     QString m_layout_preset = "din_5008_form_b";
-    theme_config_t m_theme;
+    Theme_config m_theme;
     bool m_dark_mode = false;
     QFileSystemWatcher* m_template_watcher = nullptr;
     QTimer* m_discover_timer = nullptr;

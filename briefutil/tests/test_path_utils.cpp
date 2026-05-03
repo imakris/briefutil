@@ -14,16 +14,16 @@ static void require(bool condition, const char* message)
 
 int main()
 {
-    using briefutil::path_class_t;
+    using briefutil::Path_class;
 
     require(
-        briefutil::classify_windows_path("C:/tmp/out.pdf") == path_class_t::Absolute,
+        briefutil::classify_windows_path("C:/tmp/out.pdf") == Path_class::ABSOLUTE,
         "drive absolute path should be absolute");
     require(
-        briefutil::classify_windows_path("C:tmp/out.pdf") == path_class_t::DriveRelative,
+        briefutil::classify_windows_path("C:tmp/out.pdf") == Path_class::DRIVE_RELATIVE,
         "drive-relative path should be detected");
     require(
-        briefutil::classify_windows_path("/tmp/out.pdf") == path_class_t::DriveRootRelative,
+        briefutil::classify_windows_path("/tmp/out.pdf") == Path_class::DRIVE_ROOT_RELATIVE,
         "drive-root-relative path should be detected");
     require(
         briefutil::is_current_drive_dependent_windows_path("\\tmp\\out.pdf"),

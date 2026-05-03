@@ -6,7 +6,7 @@
 
 
 // ============================================================================
-// Inline parsing — bold, italic, bold+italic
+// Inline parsing - bold, italic, bold+italic
 // ============================================================================
 
 static bool starts_with(const std::string& s, size_t pos, const char* prefix)
@@ -22,8 +22,12 @@ static size_t find_closing(const std::string& s, size_t start, const char* delim
     size_t dlen = std::strlen(delim);
     size_t pos = start;
     while (pos + dlen <= s.size()) {
-        if (s[pos] == '\n') return std::string::npos;
-        if (s.compare(pos, dlen, delim) == 0) return pos;
+        if (s[pos] == '\n') {
+            return std::string::npos;
+        }
+        if (s.compare(pos, dlen, delim) == 0) {
+            return pos;
+        }
         pos++;
     }
     return std::string::npos;
@@ -39,9 +43,9 @@ static bool is_word_char(char c)
         || (c >= '0' && c <= '9');
 }
 
-static std::vector<text_run_t> parse_inline(const std::string& text)
+static std::vector<Text_run> parse_inline(const std::string& text)
 {
-    std::vector<text_run_t> runs;
+    std::vector<Text_run> runs;
     size_t i = 0;
     std::string current;
 
@@ -59,7 +63,9 @@ static std::vector<text_run_t> parse_inline(const std::string& text)
     auto find_closing_underscore = [&](size_t start, size_t delim_len) -> size_t {
         size_t pos = start;
         while (pos + delim_len <= text.size()) {
-            if (text[pos] == '\n') return std::string::npos;
+            if (text[pos] == '\n') {
+                return std::string::npos;
+            }
             bool all_underscore = true;
             for (size_t k = 0; k < delim_len; k++) {
                 if (text[pos + k] != '_') { all_underscore = false; break; }
@@ -164,7 +170,7 @@ static std::vector<text_run_t> parse_inline(const std::string& text)
             }
         }
 
-        // Link: [display text](url) — print "display text (url)" so the
+        // Link: [display text](url) - print "display text (url)" so the
         // URL is not silently lost. If the display text already equals the
         // URL (autolinks like [http://x](http://x)) we don't duplicate it.
         if (text[i] == '[') {
@@ -219,7 +225,7 @@ enum class Line_type
     TEXT,
 };
 
-struct classified_line_t
+struct Classified_line
 {
     Line_type   type;
     std::string content;      // trimmed/extracted content
@@ -230,7 +236,9 @@ struct classified_line_t
 static std::string trim(const std::string& s)
 {
     size_t start = s.find_first_not_of(" \t\r");
-    if (start == std::string::npos) return "";
+    if (start == std::string::npos) {
+        return "";
+    }
     size_t end = s.find_last_not_of(" \t\r");
     return s.substr(start, end - start + 1);
 }
@@ -238,14 +246,18 @@ static std::string trim(const std::string& s)
 static bool is_table_separator_line(const std::string& line)
 {
     auto trimmed = trim(line);
-    if (trimmed.empty() || trimmed[0] != '|') return false;
+    if (trimmed.empty() || trimmed[0] != '|') {
+        return false;
+    }
     for (char c : trimmed) {
-        if (c != '|' && c != '-' && c != ':' && c != ' ') return false;
+        if (c != '|' && c != '-' && c != ':' && c != ' ') {
+            return false;
+        }
     }
     return true;
 }
 
-static classified_line_t classify_line(const std::string& line)
+static Classified_line classify_line(const std::string& line)
 {
     auto trimmed = trim(line);
 
@@ -268,7 +280,7 @@ static classified_line_t classify_line(const std::string& line)
 
     // Bullet list: - item, + item, or * item
     // "* " is a bullet. "**" (no space) is bold. "* **bold**" is a bullet
-    // whose content starts with bold — the space after * is the key
+    // whose content starts with bold; the space after * is the key
     // distinguisher.
     if ((trimmed[0] == '-' || trimmed[0] == '+' || trimmed[0] == '*') &&
         trimmed.size() > 1 && trimmed[1] == ' ') {
@@ -278,7 +290,9 @@ static classified_line_t classify_line(const std::string& line)
     // Ordered list: 1. item
     if (trimmed[0] >= '0' && trimmed[0] <= '9') {
         size_t i = 0;
-        while (i < trimmed.size() && trimmed[i] >= '0' && trimmed[i] <= '9') i++;
+        while (i < trimmed.size() && trimmed[i] >= '0' && trimmed[i] <= '9') {
+            i++;
+        }
         if (i < trimmed.size() && trimmed[i] == '.' &&
             i + 1 < trimmed.size() && trimmed[i + 1] == ' ') {
             int num = 0;
@@ -325,7 +339,7 @@ static classified_line_t classify_line(const std::string& line)
 
 // split_lines() from document_model.h is used instead of a local copy
 
-static image_content_block_t parse_image_line(const std::string& line)
+static Image_content_block parse_image_line(const std::string& line)
 {
     // ![alt](path)
     size_t alt_start = 2;
@@ -344,11 +358,15 @@ static std::vector<std::string> split_table_cells(const std::string& row)
     std::vector<std::string> cells;
     // Skip leading |
     size_t i = 0;
-    if (i < row.size() && row[i] == '|') i++;
+    if (i < row.size() && row[i] == '|') {
+        i++;
+    }
 
     while (i < row.size()) {
         size_t pipe = row.find('|', i);
-        if (pipe == std::string::npos) break;
+        if (pipe == std::string::npos) {
+            break;
+        }
         cells.push_back(trim(row.substr(i, pipe - i)));
         i = pipe + 1;
     }
@@ -360,9 +378,9 @@ static std::vector<std::string> split_table_cells(const std::string& row)
 // Main parser
 // ============================================================================
 
-std::vector<body_block_t> parse_markdown(const std::string& input)
+std::vector<Body_block> parse_markdown(const std::string& input)
 {
-    std::vector<body_block_t> blocks;
+    std::vector<Body_block> blocks;
     auto lines = split_lines(input);
     size_t i = 0;
 
@@ -370,8 +388,10 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
     std::string para_accum;
 
     auto flush_paragraph = [&]() {
-        if (para_accum.empty()) return;
-        paragraph_block_t pb;
+        if (para_accum.empty()) {
+            return;
+        }
+        Paragraph_block pb;
         pb.runs = parse_inline(para_accum);
         blocks.push_back(std::move(pb));
         para_accum.clear();
@@ -391,11 +411,13 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                     i++;
                     break;
                 }
-                if (!code.empty()) code += '\n';
+                if (!code.empty()) {
+                    code += '\n';
+                }
                 code += lines[i];
                 i++;
             }
-            blocks.push_back(code_block_t{ code, lang });
+            blocks.push_back(Code_block{ code, lang });
             continue;
         }
 
@@ -410,7 +432,7 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
             case Line_type::HEADING:
                 flush_paragraph();
                 {
-                    heading_block_t hb;
+                    Heading_block hb;
                     hb.level = cl.heading_level;
                     hb.runs = parse_inline(cl.content);
                     blocks.push_back(std::move(hb));
@@ -423,7 +445,7 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                 flush_paragraph();
                 {
                     bool ordered = (cl.type == Line_type::ORDERED_ITEM);
-                    list_block_t lb;
+                    List_block lb;
                     lb.ordered = ordered;
                     lb.start_number = cl.list_number;
 
@@ -434,7 +456,7 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                             (!ordered && lcl.type == Line_type::BULLET_ITEM);
 
                         if (is_matching_item) {
-                            list_item_t item;
+                            List_item item;
                             item.runs = parse_inline(lcl.content);
                             lb.items.push_back(std::move(item));
                             i++;
@@ -475,7 +497,7 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                 if (i + 1 < lines.size() &&
                     classify_line(lines[i + 1]).type == Line_type::TABLE_SEPARATOR) {
                     flush_paragraph();
-                    table_block_t tb;
+                    Table_block tb;
 
                     // Collect all table rows
                     while (i < lines.size()) {
@@ -485,12 +507,14 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                             i++;
                             continue;
                         }
-                        if (tcl.type != Line_type::TABLE_ROW) break;
+                        if (tcl.type != Line_type::TABLE_ROW) {
+                            break;
+                        }
 
-                        table_row_t row;
+                        Table_row row;
                         auto cell_texts = split_table_cells(tcl.content);
                         for (const auto& ct : cell_texts) {
-                            table_cell_t cell;
+                            Table_cell cell;
                             cell.runs = parse_inline(ct);
                             row.cells.push_back(std::move(cell));
                         }
@@ -501,8 +525,10 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                     blocks.push_back(std::move(tb));
                 }
                 else {
-                    // Not a real table — treat as text
-                    if (!para_accum.empty()) para_accum += '\n';
+                    // Not a real table; treat as text
+                    if (!para_accum.empty()) {
+                        para_accum += '\n';
+                    }
                     para_accum += cl.content;
                     i++;
                 }
@@ -510,7 +536,9 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
 
             case Line_type::TABLE_SEPARATOR:
                 // Stray separator outside a table context, treat as text
-                if (!para_accum.empty()) para_accum += '\n';
+                if (!para_accum.empty()) {
+                    para_accum += '\n';
+                }
                 para_accum += cl.content;
                 i++;
                 break;
@@ -519,7 +547,9 @@ std::vector<body_block_t> parse_markdown(const std::string& input)
                 // Preserve explicit line breaks within a paragraph.
                 // Single newlines become hard breaks, matching the current
                 // plain-text body path.
-                if (!para_accum.empty()) para_accum += '\n';
+                if (!para_accum.empty()) {
+                    para_accum += '\n';
+                }
                 para_accum += cl.content;
                 i++;
                 break;

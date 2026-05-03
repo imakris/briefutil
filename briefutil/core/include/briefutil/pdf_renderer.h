@@ -11,8 +11,8 @@
 // PDF rendering entry point
 // ============================================================================
 
-render_result_t render_pdf(
-    const document_t& doc,
+Render_result render_pdf(
+    const Document& doc,
     const std::string& output_path,
-    const font_family_config_t& fonts = default_font_family(),
-    const localization_t& loc = default_localization());
+    const Font_family_config& fonts = default_font_family(),
+    const Localization& loc = default_localization());

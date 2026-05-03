@@ -6,7 +6,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 
-// Use Qt's JSON parser — already available since the app links Qt6::Core.
+// Use Qt's JSON parser; it is already available through Qt6::Core.
 
 
 static std::string qs(const QString& s) { return s.toStdString(); }
@@ -29,7 +29,9 @@ static color_t json_color(
     color_t fallback)
 {
     auto arr = obj.value(key).toArray();
-    if (arr.size() != 3) return fallback;
+    if (arr.size() != 3) {
+        return fallback;
+    }
     return {
         (float)arr[0].toInt() / 255.0f,
         (float)arr[1].toInt() / 255.0f,
@@ -56,7 +58,7 @@ static QJsonArray json_color_array(color_t color)
 }
 
 
-profile_load_result_t load_sender_profile(const std::string& json_path)
+Profile_load_result load_sender_profile(const std::string& json_path)
 {
     QFile file(QString::fromStdString(json_path));
     if (!file.open(QIODevice::ReadOnly)) {
@@ -72,7 +74,7 @@ profile_load_result_t load_sender_profile(const std::string& json_path)
     }
 
     auto obj = doc.object();
-    sender_profile_t p;
+    Sender_profile p;
 
     p.id                  = qs(obj.value("id").toString());
     p.sender_lines        = json_string_array(obj, "sender_lines");
@@ -104,7 +106,7 @@ profile_load_result_t load_sender_profile(const std::string& json_path)
 }
 
 bool save_sender_profile(
-    const sender_profile_t& profile,
+    const Sender_profile& profile,
     const std::string& json_path,
     std::string* error)
 {
@@ -125,21 +127,29 @@ bool save_sender_profile(
 
     QSaveFile file(QString::fromStdString(json_path));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (error) *error = "Cannot open profile for writing: " + json_path;
+        if (error) {
+            *error = "Cannot open profile for writing: " + json_path;
+        }
         return false;
     }
 
     auto payload = QJsonDocument(obj).toJson(QJsonDocument::Indented);
     if (file.write(payload) != payload.size()) {
-        if (error) *error = "Failed to write profile: " + json_path;
+        if (error) {
+            *error = "Failed to write profile: " + json_path;
+        }
         return false;
     }
 
     if (!file.commit()) {
-        if (error) *error = "Failed to finalize profile write: " + json_path;
+        if (error) {
+            *error = "Failed to finalize profile write: " + json_path;
+        }
         return false;
     }
 
-    if (error) error->clear();
+    if (error) {
+        error->clear();
+    }
     return true;
 }

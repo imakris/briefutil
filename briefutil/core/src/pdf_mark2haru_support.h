@@ -86,7 +86,7 @@ static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
     }
 }
 
-static inline mark2haru::font_family_config_t mark2haru_font_family(const font_family_config_t& fonts)
+static inline mark2haru::font_family_config_t mark2haru_font_family(const Font_family_config& fonts)
 {
     mark2haru::font_family_config_t family;
     family.regular = mark2haru_font_source(fonts.sans);
@@ -99,7 +99,7 @@ static inline mark2haru::font_family_config_t mark2haru_font_family(const font_f
 
 static inline std::shared_ptr<const mark2haru::Measurement_context>
 make_mark2haru_measurement_context(
-    const font_family_config_t& fonts,
+    const Font_family_config& fonts,
     std::string* error = nullptr)
 {
     auto ctx = std::make_shared<mark2haru::Measurement_context>(

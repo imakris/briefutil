@@ -50,7 +50,7 @@ static QString normalize_profile_language(const QString& language)
     return QString::fromStdString(briefutil::normalize_language(language.toStdString()));
 }
 
-static bool is_valid_font_config(const font_family_config_t& fc)
+static bool is_valid_font_config(const Font_family_config& fc)
 {
     return briefutil::is_valid_font_config(fc);
 }
@@ -134,7 +134,9 @@ static bool parse_hex_color(const QString& v, color_t& out)
 {
     QRegularExpression re("^#([0-9A-Fa-f]{6})$");
     auto match = re.match(v.trimmed());
-    if (!match.hasMatch()) return false;
+    if (!match.hasMatch()) {
+        return false;
+    }
 
     auto hex = match.captured(1);
     bool ok_r = false;
@@ -143,7 +145,9 @@ static bool parse_hex_color(const QString& v, color_t& out)
     int r = hex.mid(0, 2).toInt(&ok_r, 16);
     int g = hex.mid(2, 2).toInt(&ok_g, 16);
     int b = hex.mid(4, 2).toInt(&ok_b, 16);
-    if (!ok_r || !ok_g || !ok_b) return false;
+    if (!ok_r || !ok_g || !ok_b) {
+        return false;
+    }
 
     out = {
         r / 255.0f,
@@ -166,11 +170,21 @@ enum class Font_role
 static Font_role font_role_from_string(const QString& role)
 {
     auto normalized = role.trimmed().toLower();
-    if (normalized == "sans") return Font_role::SANS;
-    if (normalized == "sans_bold") return Font_role::SANS_BOLD;
-    if (normalized == "sans_italic") return Font_role::SANS_ITALIC;
-    if (normalized == "sans_bold_italic") return Font_role::SANS_BOLD_ITALIC;
-    if (normalized == "mono") return Font_role::MONO;
+    if (normalized == "sans") {
+        return Font_role::SANS;
+    }
+    if (normalized == "sans_bold") {
+        return Font_role::SANS_BOLD;
+    }
+    if (normalized == "sans_italic") {
+        return Font_role::SANS_ITALIC;
+    }
+    if (normalized == "sans_bold_italic") {
+        return Font_role::SANS_BOLD_ITALIC;
+    }
+    if (normalized == "mono") {
+        return Font_role::MONO;
+    }
     return Font_role::ANY;
 }
 
@@ -183,7 +197,9 @@ static bool is_base14_font_name(const std::string& s)
         "Symbol", "ZapfDingbats"
     };
     for (const auto* name : k_base14) {
-        if (s == name) return true;
+        if (s == name) {
+            return true;
+        }
     }
     return false;
 }
@@ -220,7 +236,9 @@ static QStringList windows_font_base_dirs()
     QStringList dirs;
 
     auto add_dir = [&](const QString& path) {
-        if (path.isEmpty()) return;
+        if (path.isEmpty()) {
+            return;
+        }
         auto absolute = QDir(path).absolutePath();
         if (!dirs.contains(absolute)) {
             dirs.push_back(absolute);
@@ -236,7 +254,9 @@ static QStringList windows_font_base_dirs()
 static QString resolve_windows_font_path(QString path, const QStringList& base_dirs)
 {
     path = path.trimmed();
-    if (path.isEmpty()) return QString();
+    if (path.isEmpty()) {
+        return QString();
+    }
 
     QFileInfo info(path);
     if (info.isAbsolute() && info.exists() && info.isFile()) {
@@ -299,7 +319,9 @@ static QStringList font_name_candidates(const QString& family, Font_role role)
 {
     auto base = family.trimmed();
     QStringList candidates;
-    if (base.isEmpty()) return candidates;
+    if (base.isEmpty()) {
+        return candidates;
+    }
 
     candidates.push_back(base);
     switch (role) {
@@ -380,7 +402,9 @@ static QString resolve_windows_system_font(const QString& family, Font_role role
 static QString resolve_font_value(const QString& value, Font_role role)
 {
     auto trimmed = value.trimmed();
-    if (trimmed.isEmpty()) return QString();
+    if (trimmed.isEmpty()) {
+        return QString();
+    }
 
     auto s = trimmed.toStdString();
     if (looks_like_font_file(s)) {
@@ -398,7 +422,7 @@ static QString resolve_font_value(const QString& value, Font_role role)
 #endif
 }
 
-static font_family_config_t font_config_from_inputs(
+static Font_family_config font_config_from_inputs(
     const QString& sans,
     const QString& sans_bold,
     const QString& sans_italic,
@@ -484,7 +508,7 @@ void Proxy::save_settings() const
     s.setValue("appearance/darkMode",    m_dark_mode);
 }
 
-localization_t Proxy::current_localization(const sender_profile_t& profile) const
+Localization Proxy::current_localization(const Sender_profile& profile) const
 {
     return briefutil::localization_for_language(profile.language);
 }
@@ -528,10 +552,15 @@ void Proxy::install_template_watcher()
 {
     if (!m_template_watcher) {
         m_template_watcher = new QFileSystemWatcher(this);
-        connect(m_template_watcher, &QFileSystemWatcher::directoryChanged,
-                this, [this](const QString&) {
-            if (m_discover_timer) m_discover_timer->start();
-        });
+        connect(
+            m_template_watcher,
+            &QFileSystemWatcher::directoryChanged,
+            this,
+            [this](const QString&) {
+                if (m_discover_timer) {
+                    m_discover_timer->start();
+                }
+            });
     }
     auto current = m_template_watcher->directories();
     if (!current.isEmpty()) {
@@ -714,7 +743,7 @@ void Proxy::make_pdf(
         return;
     }
 
-    const sender_profile_t profile = m_profiles[from].profile;
+    const Sender_profile profile = m_profiles[from].profile;
     QStringList args;
     args
         << "--to-file" << recipient_file->fileName()
@@ -917,7 +946,9 @@ void Proxy::set_layout_preset(const QString& v)
 bool Proxy::validate_font_value(const QString& v, const QString& role) const
 {
     auto trimmed = v.trimmed();
-    if (trimmed.isEmpty()) return true;
+    if (trimmed.isEmpty()) {
+        return true;
+    }
 
     auto s = trimmed.toStdString();
     if (looks_like_font_file(s)) {
@@ -929,9 +960,13 @@ bool Proxy::validate_font_value(const QString& v, const QString& role) const
 bool Proxy::validate_directory(const QString& v) const
 {
     auto trimmed = v.trimmed();
-    if (trimmed.isEmpty()) return true;
+    if (trimmed.isEmpty()) {
+        return true;
+    }
 
-    if (!QDir::isAbsolutePath(trimmed)) return false;
+    if (!QDir::isAbsolutePath(trimmed)) {
+        return false;
+    }
 
     QDir dir(trimmed);
     return QDir(dir.rootPath()).exists();
@@ -968,7 +1003,7 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
         return false;
     }
 
-    sender_profile_t updated = m_profiles[index].profile;
+    Sender_profile updated = m_profiles[index].profile;
 
     auto id = profile_data.value("id").toString().trimmed();
     if (id.isEmpty()) {
@@ -1016,7 +1051,9 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     const bool id_changed = updated.id != m_profiles[index].profile.id;
     if (id_changed) {
         QString safe_id = sanitize_filename(QString::fromStdString(updated.id));
-        if (safe_id.isEmpty()) safe_id = "profile";
+        if (safe_id.isEmpty()) {
+            safe_id = "profile";
+        }
         QDir dir(m_sender_template_dir);
 
         // Don't clobber another profile's file.
@@ -1062,7 +1099,7 @@ int Proxy::create_new_profile()
     QString base_name = "New Profile";
     QDir dir(m_sender_template_dir);
 
-    sender_profile_entry_t entry;
+    Sender_profile_entry entry;
     entry.path = dir.filePath(unique_profile_file_name(dir, base_name));
     m_profiles.push_back(std::move(entry));
 
@@ -1077,7 +1114,7 @@ int Proxy::clone_sender_profile(int index)
     }
 
     QDir dir(m_sender_template_dir);
-    sender_profile_entry_t entry;
+    Sender_profile_entry entry;
     entry.profile = m_profiles[index].profile;
 
     QString base_id = QString::fromStdString(entry.profile.id).trimmed();
@@ -1127,10 +1164,14 @@ bool Proxy::delete_sender_profile(int index)
 bool Proxy::profile_name_exists(const QString& name, int exclude_index) const
 {
     auto trimmed = name.trimmed();
-    if (trimmed.isEmpty()) return false;
+    if (trimmed.isEmpty()) {
+        return false;
+    }
 
     for (int i = 0; i < (int)m_profiles.size(); ++i) {
-        if (i == exclude_index) continue;
+        if (i == exclude_index) {
+            continue;
+        }
         if (QString::fromStdString(m_profiles[i].profile.id) == trimmed) {
             return true;
         }
@@ -1141,8 +1182,12 @@ bool Proxy::profile_name_exists(const QString& name, int exclude_index) const
 bool Proxy::validate_profile_image_name(const QString& v) const
 {
     auto trimmed = normalize_asset_name(v);
-    if (trimmed.isEmpty()) return true;
-    if (!briefutil::is_valid_profile_image_name(trimmed.toStdString())) return false;
+    if (trimmed.isEmpty()) {
+        return true;
+    }
+    if (!briefutil::is_valid_profile_image_name(trimmed.toStdString())) {
+        return false;
+    }
 
     QFileInfo info(QDir(m_sender_template_dir).filePath(trimmed));
     return info.exists() && info.isFile();

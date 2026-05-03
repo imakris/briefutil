@@ -17,7 +17,7 @@
 
 namespace {
 
-struct cli_options_t
+struct Cli_options
 {
     std::string recipient;
     std::string recipient_file;
@@ -33,7 +33,7 @@ struct cli_options_t
     std::string output_dir;
     std::string output_path;
     std::string layout = "din_5008_form_b";
-    font_family_config_t fonts = default_font_family();
+    Font_family_config fonts = default_font_family();
     double body_size = 10.0;
     double body_leading = 12.0;
     double header_scale = 100.0;
@@ -94,10 +94,12 @@ std::string decode_text_argument(const std::string& value)
             if (next == 'n') {
                 out.push_back('\n');
             }
-            else if (next == 'r') {
+            else
+            if (next == 'r') {
                 out.push_back('\r');
             }
-            else if (next == 't') {
+            else
+            if (next == 't') {
                 out.push_back('\t');
             }
             else {
@@ -174,9 +176,9 @@ bool valid_layout_name(const std::string& value)
         || normalized == "us_letter";
 }
 
-std::optional<cli_options_t> parse_args(const QStringList& args)
+std::optional<Cli_options> parse_args(const QStringList& args)
 {
-    cli_options_t options;
+    Cli_options options;
     for (int i = 1; i < args.size(); ++i) {
         const std::string arg = args[i].toUtf8().toStdString();
         auto read_value = [&](const char* option) -> std::optional<std::string> {
@@ -186,135 +188,219 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
         if (arg == "--help" || arg == "-h") {
             options.help = true;
         }
-        else if (arg == "--to") {
+        else
+        if (arg == "--to") {
             auto value = read_value("--to");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.recipient = decode_text_argument(*value);
             options.recipient_source_provided = true;
             options.recipient_text_provided = true;
         }
-        else if (arg == "--to-file") {
+        else
+        if (arg == "--to-file") {
             auto value = read_value("--to-file");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.recipient_file = *value;
             options.recipient_source_provided = true;
         }
-        else if (arg == "--subject") {
+        else
+        if (arg == "--subject") {
             auto value = read_value("--subject");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.subject = *value;
         }
-        else if (arg == "--body") {
+        else
+        if (arg == "--body") {
             auto value = read_value("--body");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.body = decode_text_argument(*value);
             options.body_text_provided = true;
         }
-        else if (arg == "--body-file") {
+        else
+        if (arg == "--body-file") {
             auto value = read_value("--body-file");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.body_file = *value;
         }
-        else if (arg == "--profile") {
+        else
+        if (arg == "--profile") {
             auto value = read_value("--profile");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.profile_id = *value;
         }
-        else if (arg == "--profile-path") {
+        else
+        if (arg == "--profile-path") {
             auto value = read_value("--profile-path");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.profile_path = *value;
         }
-        else if (arg == "--template-dir") {
+        else
+        if (arg == "--template-dir") {
             auto value = read_value("--template-dir");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.template_dir = *value;
         }
-        else if (arg == "--output-dir") {
+        else
+        if (arg == "--output-dir") {
             auto value = read_value("--output-dir");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.output_dir = *value;
         }
-        else if (arg == "--output") {
+        else
+        if (arg == "--output") {
             auto value = read_value("--output");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.output_path = *value;
         }
-        else if (arg == "--layout") {
+        else
+        if (arg == "--layout") {
             auto value = read_value("--layout");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             if (!valid_layout_name(*value)) {
                 std::cerr << "--layout must be din_5008_form_b, din_5008_form_a, or us_letter.\n";
                 return std::nullopt;
             }
             options.layout = lower_ascii(*value);
         }
-        else if (arg == "--font-sans") {
+        else
+        if (arg == "--font-sans") {
             auto value = read_value("--font-sans");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.fonts.sans = *value;
         }
-        else if (arg == "--font-sans-bold") {
+        else
+        if (arg == "--font-sans-bold") {
             auto value = read_value("--font-sans-bold");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.fonts.sans_bold = *value;
         }
-        else if (arg == "--font-sans-italic") {
+        else
+        if (arg == "--font-sans-italic") {
             auto value = read_value("--font-sans-italic");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.fonts.sans_italic = *value;
         }
-        else if (arg == "--font-sans-bold-italic") {
+        else
+        if (arg == "--font-sans-bold-italic") {
             auto value = read_value("--font-sans-bold-italic");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.fonts.sans_bold_italic = *value;
         }
-        else if (arg == "--font-mono") {
+        else
+        if (arg == "--font-mono") {
             auto value = read_value("--font-mono");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             options.fonts.mono = *value;
         }
-        else if (arg == "--body-size") {
+        else
+        if (arg == "--body-size") {
             auto value = read_value("--body-size");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             auto parsed = parse_double_value(*value, "--body-size");
-            if (!parsed) return std::nullopt;
-            if (!validate_range(*parsed, 6.0, 24.0, "--body-size")) return std::nullopt;
+            if (!parsed) {
+                return std::nullopt;
+            }
+            if (!validate_range(*parsed, 6.0, 24.0, "--body-size")) {
+                return std::nullopt;
+            }
             options.body_size = *parsed;
         }
-        else if (arg == "--body-leading") {
+        else
+        if (arg == "--body-leading") {
             auto value = read_value("--body-leading");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             auto parsed = parse_double_value(*value, "--body-leading");
-            if (!parsed) return std::nullopt;
-            if (!validate_range(*parsed, 6.0, 36.0, "--body-leading")) return std::nullopt;
+            if (!parsed) {
+                return std::nullopt;
+            }
+            if (!validate_range(*parsed, 6.0, 36.0, "--body-leading")) {
+                return std::nullopt;
+            }
             options.body_leading = *parsed;
         }
-        else if (arg == "--header-scale") {
+        else
+        if (arg == "--header-scale") {
             auto value = read_value("--header-scale");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             auto parsed = parse_double_value(*value, "--header-scale");
-            if (!parsed) return std::nullopt;
-            if (!validate_range(*parsed, 50.0, 200.0, "--header-scale")) return std::nullopt;
+            if (!parsed) {
+                return std::nullopt;
+            }
+            if (!validate_range(*parsed, 50.0, 200.0, "--header-scale")) {
+                return std::nullopt;
+            }
             options.header_scale = *parsed;
         }
-        else if (arg == "--body-scale") {
+        else
+        if (arg == "--body-scale") {
             auto value = read_value("--body-scale");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             auto parsed = parse_double_value(*value, "--body-scale");
-            if (!parsed) return std::nullopt;
-            if (!validate_range(*parsed, 50.0, 200.0, "--body-scale")) return std::nullopt;
+            if (!parsed) {
+                return std::nullopt;
+            }
+            if (!validate_range(*parsed, 50.0, 200.0, "--body-scale")) {
+                return std::nullopt;
+            }
             options.body_scale = *parsed;
         }
-        else if (arg == "--footer-scale") {
+        else
+        if (arg == "--footer-scale") {
             auto value = read_value("--footer-scale");
-            if (!value) return std::nullopt;
+            if (!value) {
+                return std::nullopt;
+            }
             auto parsed = parse_double_value(*value, "--footer-scale");
-            if (!parsed) return std::nullopt;
-            if (!validate_range(*parsed, 50.0, 200.0, "--footer-scale")) return std::nullopt;
+            if (!parsed) {
+                return std::nullopt;
+            }
+            if (!validate_range(*parsed, 50.0, 200.0, "--footer-scale")) {
+                return std::nullopt;
+            }
             options.footer_scale = *parsed;
         }
-        else if (arg == "--force") {
+        else
+        if (arg == "--force") {
             options.force = true;
         }
         else {
@@ -402,7 +488,7 @@ int main(int argc, char** argv)
             QDir::currentPath().toStdString());
     }
 
-    briefutil::profile_entry_t selected_entry;
+    briefutil::Profile_entry selected_entry;
     if (!options.profile_path.empty()) {
         auto loaded = load_sender_profile(options.profile_path);
         if (!loaded.ok) {
@@ -430,7 +516,7 @@ int main(int argc, char** argv)
             return 1;
         }
 
-        const briefutil::profile_entry_t* selected = &profiles.front();
+        const briefutil::Profile_entry* selected = &profiles.front();
         if (!options.profile_id.empty()) {
             selected = nullptr;
             for (const auto& profile : profiles) {
@@ -447,7 +533,7 @@ int main(int argc, char** argv)
         selected_entry = *selected;
     }
 
-    briefutil::generation_request_t request;
+    briefutil::Generation_request request;
     request.profile.profile = selected_entry.profile;
     request.profile.profile_path = selected_entry.path;
     request.profile.profile_base_dir = selected_entry.base_dir;
@@ -471,8 +557,8 @@ int main(int argc, char** argv)
         if (!result.detail.empty()) {
             std::cerr << result.detail << "\n";
         }
-        return result.code == briefutil::generation_result_code::Invalid_request
-            || result.code == briefutil::generation_result_code::Output_exists
+        return result.code == briefutil::Generation_result_code::INVALID_REQUEST
+            || result.code == briefutil::Generation_result_code::OUTPUT_EXISTS
             ? 2 : 1;
     }
 

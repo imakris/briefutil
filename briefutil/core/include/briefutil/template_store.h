@@ -7,9 +7,9 @@
 
 namespace briefutil {
 
-struct profile_entry_t
+struct Profile_entry
 {
-    sender_profile_t profile;
+    Sender_profile profile;
     std::string path;
     std::string base_dir;
 };
@@ -23,7 +23,7 @@ std::string configured_output_dir(
     const std::string& current_dir);
 
 bool ensure_template_dir_ready(const std::string& dir_path, std::string* error = nullptr);
-std::vector<profile_entry_t> discover_profiles(
+std::vector<Profile_entry> discover_profiles(
     const std::string& template_dir,
     std::vector<std::string>* errors = nullptr);
 

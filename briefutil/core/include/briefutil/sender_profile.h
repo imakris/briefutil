@@ -6,7 +6,7 @@
 
 
 // ============================================================================
-// Sender profile â€” data-driven letter configuration loaded from JSON
+// Sender profile - data-driven letter configuration loaded from JSON
 // ============================================================================
 
 enum class Profile_style
@@ -15,7 +15,7 @@ enum class Profile_style
     COMMERCIAL,
 };
 
-struct sender_profile_t
+struct Sender_profile
 {
     std::string              id;
     Profile_style            style = Profile_style::SIMPLE;
@@ -26,7 +26,7 @@ struct sender_profile_t
     std::string              language = "en";    // controls built-in wording/date defaults
 
     // Return-address summary (small text above recipient)
-    std::string              return_address_line; // e.g. "Max Mustermann Â· Musterstr. 6 Â· 12345 Musterstadt"
+    std::string              return_address_line; // e.g. "Max Mustermann Â* Musterstr. 6 Â* 12345 Musterstadt"
 
     // Closing
     std::string              closing_phrase;      // empty = use localized default
@@ -45,15 +45,15 @@ struct sender_profile_t
 // JSON loading
 // ============================================================================
 
-struct profile_load_result_t
+struct Profile_load_result
 {
     bool           ok = false;
-    sender_profile_t profile;
+    Sender_profile profile;
     std::string    error;
 };
 
-profile_load_result_t load_sender_profile(const std::string& json_path);
+Profile_load_result load_sender_profile(const std::string& json_path);
 bool save_sender_profile(
-    const sender_profile_t& profile,
+    const Sender_profile& profile,
     const std::string& json_path,
     std::string* error = nullptr);

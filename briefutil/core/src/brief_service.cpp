@@ -27,7 +27,7 @@ std::string normalize_language(const std::string& language)
     return "en";
 }
 
-localization_t localization_for_language(const std::string& language)
+Localization localization_for_language(const std::string& language)
 {
     return normalize_language(language) == "de"
         ? german_localization()
@@ -61,7 +61,7 @@ std::string localized_date(int year, int month, int day, const std::string& lang
         + std::to_string(year);
 }
 
-bool is_valid_font_config(const font_family_config_t& fonts)
+bool is_valid_font_config(const Font_family_config& fonts)
 {
     auto valid_slot = [](const std::string& value) {
         if (value.empty()) {
@@ -105,19 +105,19 @@ letter_layout_spec_t layout_spec_from_name(const std::string& preset)
     return din_5008_form_b();
 }
 
-static generation_result_t failure(
-    generation_result_code code,
+static Generation_result failure(
+    Generation_result_code code,
     std::string message,
     std::string detail = {})
 {
-    generation_result_t result;
+    Generation_result result;
     result.code = code;
     result.message = std::move(message);
     result.detail = std::move(detail);
     return result;
 }
 
-static std::string make_output_path(const generation_request_t& request)
+static std::string make_output_path(const Generation_request& request)
 {
     if (!request.output_path.empty()) {
         return request.output_path;
@@ -136,21 +136,21 @@ static std::string make_output_path(const generation_request_t& request)
     return join_path(request.output_dir, prefix + stem + ".pdf");
 }
 
-generation_result_t generate_brief_pdf(const generation_request_t& request)
+Generation_result generate_brief_pdf(const Generation_request& request)
 {
     if (request.profile.profile.id.empty()) {
         return failure(
-            generation_result_code::Invalid_request,
+            Generation_result_code::INVALID_REQUEST,
             "Invalid sender profile selection.");
     }
     if (request.output_path.empty() && request.output_dir.empty()) {
         return failure(
-            generation_result_code::Invalid_request,
+            Generation_result_code::INVALID_REQUEST,
             "No output path or output directory was provided.");
     }
     if (!is_valid_font_config(request.theme.fonts)) {
         return failure(
-            generation_result_code::Invalid_font_config,
+            Generation_result_code::INVALID_FONT_CONFIG,
             "Invalid font configuration. Leave font fields empty for bundled fonts or provide explicit .ttf font files.");
     }
 
@@ -159,13 +159,13 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
     QDir output_dir = output_info.absoluteDir();
     if (!output_dir.exists() && !output_dir.mkpath(".")) {
         return failure(
-            generation_result_code::Output_error,
+            Generation_result_code::OUTPUT_ERROR,
             "Could not create the output directory.",
             output_dir.absolutePath().toStdString());
     }
     if (output_info.exists() && !request.overwrite_output) {
         return failure(
-            generation_result_code::Output_exists,
+            Generation_result_code::OUTPUT_EXISTS,
             "The output PDF already exists.",
             output_path);
     }
@@ -175,7 +175,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
         .toStdString();
     QFile::remove(QString::fromStdString(temp_path));
 
-    letter_input_t input;
+    Letter_input input;
     input.recipient = request.recipient;
     input.subject = request.subject;
     input.body = request.body;
@@ -198,7 +198,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
     if (!render_result.ok) {
         QFile::remove(QString::fromStdString(temp_path));
         return failure(
-            generation_result_code::Render_error,
+            Generation_result_code::RENDER_ERROR,
             render_result.message.empty() ? render_result.detail : render_result.message,
             render_result.detail);
     }
@@ -209,7 +209,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
     if (!request.overwrite_output && QFileInfo::exists(q_output_path)) {
         QFile::remove(q_temp_path);
         return failure(
-            generation_result_code::Output_exists,
+            Generation_result_code::OUTPUT_EXISTS,
             "The output PDF already exists.",
             output_path);
     }
@@ -221,7 +221,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
         if (!QFile::rename(q_output_path, backup_path)) {
             QFile::remove(q_temp_path);
             return failure(
-                generation_result_code::Output_error,
+                Generation_result_code::OUTPUT_ERROR,
                 "Could not prepare the existing PDF for replacement.",
                 output_path);
         }
@@ -233,7 +233,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
         }
         QFile::remove(QString::fromStdString(temp_path));
         return failure(
-            generation_result_code::Output_error,
+            Generation_result_code::OUTPUT_ERROR,
             "Could not move the generated PDF into place.",
             output_path);
     }
@@ -241,9 +241,9 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
         QFile::remove(backup_path);
     }
 
-    generation_result_t result;
+    Generation_result result;
     result.ok = true;
-    result.code = generation_result_code::Ok;
+    result.code = Generation_result_code::OK;
     result.output_path = output_path;
     return result;
 }

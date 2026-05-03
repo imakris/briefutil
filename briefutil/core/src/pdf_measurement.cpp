@@ -16,10 +16,10 @@
 struct Pdf_measure_context
 {
     std::shared_ptr<const mark2haru::Measurement_context> metrics;
-    font_family_config_t current_fc;
+    Font_family_config current_fc;
     std::string last_error;
 
-    bool init(const font_family_config_t& fc)
+    bool init(const Font_family_config& fc)
     {
         last_error.clear();
         metrics = make_mark2haru_measurement_context(fc, &last_error);
@@ -37,7 +37,7 @@ struct Pdf_measure_context
 };
 
 static Pdf_measure_context& get_measure_context(
-    const font_family_config_t& fc,
+    const Font_family_config& fc,
     std::string* detail = nullptr)
 {
     static Pdf_measure_context ctx;
@@ -65,7 +65,7 @@ static Pdf_measure_context& get_measure_context(
 // ============================================================================
 
 bool pdf_measurement_ready(
-    const font_family_config_t& fonts,
+    const Font_family_config& fonts,
     std::string* detail)
 {
     auto& ctx = get_measure_context(fonts, detail);
@@ -84,7 +84,7 @@ text_metrics_t measure_text(
     float leading_pt,
     float max_width_mm,
     bool wrap,
-    const font_family_config_t& fonts)
+    const Font_family_config& fonts)
 {
     auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {
@@ -121,7 +121,7 @@ std::vector<std::string> wrap_text(
     Font_id font,
     float size_pt,
     float max_width_mm,
-    const font_family_config_t& fonts)
+    const Font_family_config& fonts)
 {
     auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {

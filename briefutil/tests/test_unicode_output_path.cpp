@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
         "\xC3\xBC"
         "fung der Beitragsanpassung");
 
-    letter_input_t input;
+    Letter_input input;
     input.recipient = "Versicherung AG\nLeistungsabteilung\nBeispielweg 7\n12345 Berlin";
     input.subject = unicode_subject.toUtf8().toStdString();
     input.date = "27. M\xC3\xA4rz 2026";

@@ -17,33 +17,33 @@ static std::string trim_ascii(std::string value)
     return value;
 }
 
-path_class_t classify_windows_path(const std::string& path)
+Path_class classify_windows_path(const std::string& path)
 {
     if (path.empty()) {
-        return path_class_t::Empty;
+        return Path_class::EMPTY;
     }
     if (path.size() >= 2 && std::isalpha(static_cast<unsigned char>(path[0]))
         && path[1] == ':') {
         if (path.size() >= 3 && (path[2] == '\\' || path[2] == '/')) {
-            return path_class_t::Absolute;
+            return Path_class::ABSOLUTE;
         }
-        return path_class_t::DriveRelative;
+        return Path_class::DRIVE_RELATIVE;
     }
     if (path.size() >= 2
         && ((path[0] == '\\' && path[1] == '\\') || (path[0] == '/' && path[1] == '/'))) {
-        return path_class_t::Absolute;
+        return Path_class::ABSOLUTE;
     }
     if (path[0] == '\\' || path[0] == '/') {
-        return path_class_t::DriveRootRelative;
+        return Path_class::DRIVE_ROOT_RELATIVE;
     }
-    return path_class_t::Relative;
+    return Path_class::RELATIVE;
 }
 
 bool is_current_drive_dependent_windows_path(const std::string& path)
 {
     const auto cls = classify_windows_path(path);
-    return cls == path_class_t::DriveRelative
-        || cls == path_class_t::DriveRootRelative;
+    return cls == Path_class::DRIVE_RELATIVE
+        || cls == Path_class::DRIVE_ROOT_RELATIVE;
 }
 
 static bool is_reserved_windows_stem(std::string value)
@@ -108,7 +108,7 @@ bool is_valid_profile_image_name(const std::string& name)
     if (name.empty()) {
         return true;
     }
-    if (classify_windows_path(name) == path_class_t::Absolute
+    if (classify_windows_path(name) == Path_class::ABSOLUTE
         || is_current_drive_dependent_windows_path(name)) {
         return false;
     }

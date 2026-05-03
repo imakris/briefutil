@@ -4,16 +4,16 @@
 
 namespace briefutil {
 
-enum class path_class_t
+enum class Path_class
 {
-    Empty,
-    Relative,
-    Absolute,
-    DriveRelative,
-    DriveRootRelative,
+    EMPTY,
+    RELATIVE,
+    ABSOLUTE,
+    DRIVE_RELATIVE,
+    DRIVE_ROOT_RELATIVE,
 };
 
-path_class_t classify_windows_path(const std::string& path);
+Path_class classify_windows_path(const std::string& path);
 bool is_current_drive_dependent_windows_path(const std::string& path);
 
 std::string sanitize_filename_component(const std::string& input);

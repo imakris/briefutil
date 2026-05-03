@@ -15,7 +15,7 @@
 //   {path}                in image_not_found_format and error_pdf_open_failed_format
 // ============================================================================
 
-struct localization_t
+struct Localization
 {
     // Closing line above the signer name (e.g. "Sincerely,").
     std::string closing = "Sincerely,";
@@ -28,7 +28,7 @@ struct localization_t
     // Tokens: {path}.
     std::string image_not_found_format = "[Image not found: {path}]";
 
-    // User-facing error strings returned in render_result_t::message.
+    // User-facing error strings returned in Render_result::message.
     std::string error_pdf_create_failed = "Failed to create the PDF.";
     std::string error_pdf_save_failed   = "Failed to save the PDF.";
     std::string error_table_too_wide    = "A table is too wide for the available page area.";
@@ -81,13 +81,13 @@ inline std::string format_pdf_open_failed(
 // Built-in presets
 // ============================================================================
 
-inline localization_t default_localization() { return {}; }
+inline Localization default_localization() { return {}; }
 
-inline localization_t english_localization() { return {}; }
+inline Localization english_localization() { return {}; }
 
-inline localization_t german_localization()
+inline Localization german_localization()
 {
-    localization_t L;
+    Localization L;
     // UTF-8: ü = \xc3\xbc, ß = \xc3\x9f
     L.closing                 = "Mit freundlichen Gr\xc3\xbc\xc3\x9f" "en";
     L.page_number_format      = "Seite {current} von {total}";

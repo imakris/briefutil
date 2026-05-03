@@ -87,19 +87,45 @@ Window {
         topRuleColor = "#C8C8C8"
         footerLines = ""
 
-        if (idField) idField.text = profileId
-        if (styleCombo) styleCombo.currentIndex = 0
-        if (emailField) emailField.text = email
-        if (languageCombo) languageCombo.currentIndex = 0
-        if (closingPhraseField) closingPhraseField.text = closingPhrase
-        if (signerNameField) signerNameField.text = signerName
-        if (topRuleColorField) topRuleColorField.text = topRuleColor
-        if (senderLinesArea) senderLinesArea.text = senderLines
-        if (returnAddressArea) returnAddressArea.text = returnAddressLine
-        if (signatureImageField) signatureImageField.text = signatureImage
-        if (logoImageField) logoImageField.text = logoImage
-        if (signerTitleField) signerTitleField.text = signerTitle
-        if (footerLinesArea) footerLinesArea.text = footerLines
+        if (idField) {
+            idField.text = profileId
+        }
+        if (styleCombo) {
+            styleCombo.currentIndex = 0
+        }
+        if (emailField) {
+            emailField.text = email
+        }
+        if (languageCombo) {
+            languageCombo.currentIndex = 0
+        }
+        if (closingPhraseField) {
+            closingPhraseField.text = closingPhrase
+        }
+        if (signerNameField) {
+            signerNameField.text = signerName
+        }
+        if (topRuleColorField) {
+            topRuleColorField.text = topRuleColor
+        }
+        if (senderLinesArea) {
+            senderLinesArea.text = senderLines
+        }
+        if (returnAddressArea) {
+            returnAddressArea.text = returnAddressLine
+        }
+        if (signatureImageField) {
+            signatureImageField.text = signatureImage
+        }
+        if (logoImageField) {
+            logoImageField.text = logoImage
+        }
+        if (signerTitleField) {
+            signerTitleField.text = signerTitle
+        }
+        if (footerLinesArea) {
+            footerLinesArea.text = footerLines
+        }
     }
 
     function selectProfile(index, forceReload) {
@@ -108,7 +134,9 @@ Window {
         }
         if (profileIndex !== index) {
             profileIndex = index
-        } else if (forceReload) {
+        }
+        else
+        if (forceReload) {
             loadProfile()
         }
     }
@@ -151,7 +179,9 @@ Window {
     }
 
     function refreshProfileList(preferredId) {
-        if (!proxyObj || !profileCombo) return -1
+        if (!proxyObj || !profileCombo) {
+            return -1
+        }
         var templates = proxyObj.get_sender_templates()
         var items = []
         for (var i = 0; i < templates.length; i++) {
@@ -178,7 +208,9 @@ Window {
         }
         if (selectedIndex < 0) {
             selectedIndex = 0
-        } else if (selectedIndex >= items.length) {
+        }
+        else
+        if (selectedIndex >= items.length) {
             selectedIndex = items.length - 1
         }
         profileCombo.currentIndex = selectedIndex
@@ -186,7 +218,9 @@ Window {
     }
 
     function cleanupNewProfile() {
-        if (_newProfileIndex < 0 || !proxyObj) return
+        if (_newProfileIndex < 0 || !proxyObj) {
+            return
+        }
         var p = proxyObj.get_sender_profile(_newProfileIndex)
         if (!p || !p.id || p.id.trim().length === 0) {
             proxyObj.delete_sender_profile(_newProfileIndex)
@@ -225,25 +259,53 @@ Window {
         topRuleColor = profile.topRuleColor || "#C8C8C8"
         footerLines = profile.footerLines || ""
 
-        if (idField) idField.text = profileId
-        if (styleCombo) styleCombo.currentIndex = profileStyle === "commercial" ? 1 : 0
-        if (emailField) emailField.text = email
-        if (languageCombo) languageCombo.currentIndex = profileLanguage === "de" ? 1 : 0
-        if (closingPhraseField) closingPhraseField.text = closingPhrase
-        if (signerNameField) signerNameField.text = signerName
-        if (topRuleColorField) topRuleColorField.text = topRuleColor
-        if (senderLinesArea) senderLinesArea.text = senderLines
-        if (returnAddressArea) returnAddressArea.text = returnAddressLine
-        if (signatureImageField) signatureImageField.text = signatureImage
-        if (logoImageField) logoImageField.text = logoImage
-        if (signerTitleField) signerTitleField.text = signerTitle
-        if (footerLinesArea) footerLinesArea.text = footerLines
+        if (idField) {
+            idField.text = profileId
+        }
+        if (styleCombo) {
+            styleCombo.currentIndex = profileStyle === "commercial" ? 1 : 0
+        }
+        if (emailField) {
+            emailField.text = email
+        }
+        if (languageCombo) {
+            languageCombo.currentIndex = profileLanguage === "de" ? 1 : 0
+        }
+        if (closingPhraseField) {
+            closingPhraseField.text = closingPhrase
+        }
+        if (signerNameField) {
+            signerNameField.text = signerName
+        }
+        if (topRuleColorField) {
+            topRuleColorField.text = topRuleColor
+        }
+        if (senderLinesArea) {
+            senderLinesArea.text = senderLines
+        }
+        if (returnAddressArea) {
+            returnAddressArea.text = returnAddressLine
+        }
+        if (signatureImageField) {
+            signatureImageField.text = signatureImage
+        }
+        if (logoImageField) {
+            logoImageField.text = logoImage
+        }
+        if (signerTitleField) {
+            signerTitleField.text = signerTitle
+        }
+        if (footerLinesArea) {
+            footerLinesArea.text = footerLines
+        }
 
         _initialized = true
     }
 
     function scheduleSave() {
-        if (!_initialized) return
+        if (!_initialized) {
+            return
+        }
         saveTimer.restart()
     }
 
@@ -262,7 +324,9 @@ Window {
     }
 
     function saveProfile() {
-        if (!_initialized || !proxyObj || profileIndex < 0 || !profileCanSave) return
+        if (!_initialized || !proxyObj || profileIndex < 0 || !profileCanSave) {
+            return
+        }
         var ok = proxyObj.save_sender_profile(profileIndex, {
             id: profileId,
             style: profileStyle,
@@ -287,7 +351,9 @@ Window {
         if (profileId !== savedId) {
             _initialized = false
             profileId = savedId
-            if (idField) idField.text = savedId
+            if (idField) {
+                idField.text = savedId
+            }
             _initialized = true
         }
     }
@@ -305,18 +371,26 @@ Window {
         nameFilters: ["PNG files (*.png)"]
         property string targetField: ""
         onAccepted: {
-            if (!editorWin.proxyObj) return
+            if (!editorWin.proxyObj) {
+                return
+            }
             var imported = editorWin.proxyObj.import_template_image(selectedFile)
-            if (imported.length === 0) return
+            if (imported.length === 0) {
+                return
+            }
 
             if (targetField === "signature") {
                 editorWin.signatureImage = imported
-                if (signatureImageField) signatureImageField.text = imported
+                if (signatureImageField) {
+                    signatureImageField.text = imported
+                }
             }
             else
             if (targetField === "logo") {
                 editorWin.logoImage = imported
-                if (logoImageField) logoImageField.text = imported
+                if (logoImageField) {
+                    logoImageField.text = imported
+                }
             }
             editorWin.scheduleSave()
         }
@@ -541,17 +615,22 @@ Window {
                         text: "Remove"
                         enabled: editorWin.profileIndex >= 0
                         onClicked: {
-                            if (!proxyObj || editorWin.profileIndex < 0) return
+                            if (!proxyObj || editorWin.profileIndex < 0) {
+                                return
+                            }
 
                             saveTimer.stop()
                             var removedIndex = editorWin.profileIndex
                             if (editorWin._newProfileIndex === removedIndex) {
                                 editorWin._newProfileIndex = -1
-                            } else if (editorWin._newProfileIndex > removedIndex) {
+                            }
+                            else
+                            if (editorWin._newProfileIndex > removedIndex) {
                                 editorWin._newProfileIndex -= 1
                             }
-                            if (!proxyObj.delete_sender_profile(removedIndex))
+                            if (!proxyObj.delete_sender_profile(removedIndex)) {
                                 return
+                            }
 
                             editorWin.refreshProfileList()
                             var remaining = proxyObj.get_sender_templates()
@@ -559,7 +638,8 @@ Window {
                                 var newIndex = proxyObj.create_new_profile()
                                 editorWin._newProfileIndex = newIndex
                                 editorWin.selectProfile(newIndex, true)
-                            } else {
+                            }
+                            else {
                                 var nextIndex = Math.min(removedIndex, remaining.length - 1)
                                 editorWin.selectProfile(nextIndex, true)
                             }

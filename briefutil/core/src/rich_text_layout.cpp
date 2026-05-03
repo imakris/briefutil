@@ -66,10 +66,10 @@ static Font_id font_for_style(Inline_style style)
 
 
 // ============================================================================
-// Positioned line — intermediate result from inline layout
+// Positioned line - intermediate result from inline layout
 // ============================================================================
 
-struct positioned_span_t
+struct Positioned_span
 {
     float       x_mm;
     std::string text;
@@ -78,27 +78,27 @@ struct positioned_span_t
     color_t     color;
 };
 
-struct laid_out_line_t
+struct Laid_out_line
 {
-    std::vector<positioned_span_t> spans;
+    std::vector<Positioned_span> spans;
     float height_mm;   // line height
 };
 
 
 // ============================================================================
-// Inline layout — break text runs into positioned lines
+// Inline layout - break text runs into positioned lines
 //
-// Operates on a flat list of text_run_t values. Wraps greedily within max_width_mm.
+// Operates on a flat list of Text_run values. Wraps greedily within max_width_mm.
 // Each run's text may contain newlines (hard line breaks).
 // ============================================================================
 
-static std::vector<laid_out_line_t> layout_runs(
-    const std::vector<text_run_t>& runs,
+static std::vector<Laid_out_line> layout_runs(
+    const std::vector<Text_run>& runs,
     float left_mm, float max_width_mm,
     float size_pt, float lead_pt, color_t color,
-    const font_family_config_t& fonts = default_font_family())
+    const Font_family_config& fonts = default_font_family())
 {
-    std::vector<laid_out_line_t> lines;
+    std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
 
     // Cache space widths per Font_id so repeated words do not re-walk the
@@ -134,11 +134,11 @@ static std::vector<laid_out_line_t> layout_runs(
     // Current line being built.
     // We accumulate consecutive words of the same style into one span
     // so that spaces are real characters in the PDF, not positional gaps.
-    std::vector<positioned_span_t> current_spans;
+    std::vector<Positioned_span> current_spans;
     float cursor_x_mm = left_mm;
 
     // The span currently being accumulated (same style, same line)
-    positioned_span_t building_span = { left_mm, "", Font_id::SANS, size_pt, color };
+    Positioned_span building_span = { left_mm, "", Font_id::SANS, size_pt, color };
     bool has_building_span = false;
 
     auto commit_building_span = [&]() {
@@ -204,7 +204,7 @@ static std::vector<laid_out_line_t> layout_runs(
                     }
                 }
                 else {
-                    // Same style — append to current span
+                    // Same style: append to current span
                     if (cursor_x_mm > left_mm) {
                         building_span.text += " " + word;
                     }
@@ -216,7 +216,9 @@ static std::vector<laid_out_line_t> layout_runs(
                 cursor_x_mm += space_w_mm + word_w_mm;
             });
 
-            if (nl == std::string::npos) break;
+            if (nl == std::string::npos) {
+                break;
+            }
             flush_line();
             pos = nl + 1;
         }
@@ -241,7 +243,7 @@ struct Page_cursor
     float y_mm;
     float bottom_mm;
     int   page_index = 0;
-    std::vector<std::vector<page_element_t>>* pages;
+    std::vector<std::vector<Page_element>>* pages;
 
     float cont_top_mm;
     float cont_bottom_mm;
@@ -268,19 +270,19 @@ struct Page_cursor
         }
     }
 
-    std::vector<page_element_t>& current_elements()
+    std::vector<Page_element>& current_elements()
     {
         return (*pages)[page_index];
     }
 
-    void emit_lines(const std::vector<laid_out_line_t>& lines)
+    void emit_lines(const std::vector<Laid_out_line>& lines)
     {
         for (const auto& line : lines) {
             if (!fits(line.height_mm)) {
                 new_page();
             }
             for (const auto& span : line.spans) {
-                current_elements().push_back(text_span_t{
+                current_elements().push_back(Text_span{
                     span.x_mm, y_mm, span.text,
                     span.font, span.size_pt, span.color
                 });
@@ -297,9 +299,9 @@ struct Page_cursor
 
 // Measure the minimum width of a cell: the widest single unbreakable token
 static float cell_min_width(
-    const std::vector<text_run_t>& runs,
+    const std::vector<Text_run>& runs,
     float size_pt,
-    const font_family_config_t& fonts)
+    const Font_family_config& fonts)
 {
     float max_word = 0;
     for (const auto& run : runs) {
@@ -313,9 +315,9 @@ static float cell_min_width(
 }
 
 static float cell_preferred_width(
-    const std::vector<text_run_t>& runs,
+    const std::vector<Text_run>& runs,
     float size_pt,
-    const font_family_config_t& fonts)
+    const Font_family_config& fonts)
 {
     float total = 0;
     for (const auto& run : runs) {
@@ -326,27 +328,31 @@ static float cell_preferred_width(
     return total;
 }
 
-struct table_layout_info_t
+struct Table_layout_info
 {
     int num_cols = 0;
     std::vector<float> col_widths_mm;
     bool valid = false;
 };
 
-static table_layout_info_t compute_table_columns(
-    const table_block_t& tb,
+static Table_layout_info compute_table_columns(
+    const Table_block& tb,
     float available_mm,
     float size_pt,
     float cell_pad_mm,
-    const font_family_config_t& fonts)
+    const Font_family_config& fonts)
 {
-    if (tb.rows.empty()) return {};
+    if (tb.rows.empty()) {
+        return {};
+    }
 
     int num_cols = 0;
     for (const auto& row : tb.rows) {
         num_cols = std::max(num_cols, (int)row.cells.size());
     }
-    if (num_cols == 0) return {};
+    if (num_cols == 0) {
+        return {};
+    }
 
     float pad = 2 * cell_pad_mm;
     std::vector<float> min_widths(num_cols, 0);
@@ -363,16 +369,20 @@ static table_layout_info_t compute_table_columns(
 
     // Check if minimum widths fit
     float total_min = 0;
-    for (float w : min_widths) total_min += w;
+    for (float w : min_widths) {
+        total_min += w;
+    }
     if (total_min > available_mm) {
         return {};  // table too wide
     }
 
     // Check if preferred widths fit
     float total_pref = 0;
-    for (float w : pref_widths) total_pref += w;
+    for (float w : pref_widths) {
+        total_pref += w;
+    }
 
-    table_layout_info_t info;
+    Table_layout_info info;
     info.num_cols = num_cols;
     info.valid = true;
 
@@ -397,30 +407,30 @@ static table_layout_info_t compute_table_columns(
 }
 
 // Lay out a single table row and return its height
-static float layout_table_row(const table_row_t& row,
-                              const table_layout_info_t& tl,
+static float layout_table_row(const Table_row& row,
+                              const Table_layout_info& tl,
                               float left_mm, float y_mm,
                               float size_pt, float lead_pt, color_t color,
                               float cell_pad_mm, bool is_header,
-                              const font_family_config_t& fonts,
-                              std::vector<page_element_t>& elements)
+                              const Font_family_config& fonts,
+                              std::vector<Page_element>& elements)
 {
     float row_height = pt_to_mm(lead_pt);
     float x = left_mm;
 
     // First pass: wrap cell contents and find tallest cell
-    struct cell_layout_t
+    struct Cell_layout
     {
-        std::vector<laid_out_line_t> lines;
+        std::vector<Laid_out_line> lines;
         float height_mm;
     };
-    std::vector<cell_layout_t> cell_layouts;
+    std::vector<Cell_layout> cell_layouts;
 
     for (int c = 0; c < tl.num_cols; c++) {
-        cell_layout_t cl;
+        Cell_layout cl;
         float cell_content_w = tl.col_widths_mm[c] - 2 * cell_pad_mm;
 
-        std::vector<text_run_t> runs;
+        std::vector<Text_run> runs;
         if (c < (int)row.cells.size()) {
             runs = row.cells[c].runs;
         }
@@ -461,7 +471,7 @@ static float layout_table_row(const table_row_t& row,
         // Emit cell text spans (offset by cell position)
         for (const auto& line : cell_layouts[c].lines) {
             for (const auto& span : line.spans) {
-                elements.push_back(text_span_t{
+                elements.push_back(Text_span{
                     cell_x + span.x_mm, cell_y,
                     span.text, span.font, span.size_pt, span.color
                 });
@@ -498,7 +508,9 @@ static float layout_table_row(const table_row_t& row,
             x, y_mm, x, y_mm + row_height,
             k_table_border_width_pt, border_color
         });
-        if (c < tl.num_cols) x += tl.col_widths_mm[c];
+        if (c < tl.num_cols) {
+            x += tl.col_widths_mm[c];
+        }
     }
 
     return row_height;
@@ -509,15 +521,15 @@ static float layout_table_row(const table_row_t& row,
 // Public layout entry point
 // ============================================================================
 
-layout_result_t layout_body(
-    const std::vector<body_block_t>& blocks,
-    const layout_params_t& params,
+Layout_result layout_body(
+    const std::vector<Body_block>& blocks,
+    const Layout_params& params,
     float first_page_top_mm,
     float first_page_bottom_mm,
     float cont_page_top_mm,
     float cont_page_bottom_mm)
 {
-    layout_result_t result;
+    Layout_result result;
     result.pages.push_back({});   // first page
 
     Page_cursor cursor;
@@ -529,12 +541,14 @@ layout_result_t layout_body(
     cursor.cont_bottom_mm = cont_page_bottom_mm;
 
     for (const auto& block : blocks) {
-        if (!result.error.empty()) break;
+        if (!result.error.empty()) {
+            break;
+        }
 
         std::visit([&](const auto& b) {
-            using T = std::decay_t<decltype(b)>;
+            using Block_type = std::decay_t<decltype(b)>;
 
-            if constexpr (std::is_same_v<T, paragraph_block_t>) {
+            if constexpr (std::is_same_v<Block_type, Paragraph_block>) {
                 cursor.ensure_space(pt_to_mm(params.typo.body_lead_pt));
                 auto lines = layout_runs(
                     b.runs,
@@ -549,7 +563,7 @@ layout_result_t layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<T, heading_block_t>) {
+            if constexpr (std::is_same_v<Block_type, Heading_block>) {
                 float hsize = heading_size(params.typo, params.typo.body_size_pt, b.level);
                 float hlead = hsize * 1.2f;
                 float space_before = heading_space_before(b.level);
@@ -569,11 +583,13 @@ layout_result_t layout_body(
                 // Make heading runs bold
                 for (auto& line : lines) {
                     for (auto& span : line.spans) {
-                        if (span.font == Font_id::SANS)
+                        if (span.font == Font_id::SANS) {
                             span.font = Font_id::SANS_BOLD;
+                        }
                         else
-                        if (span.font == Font_id::SANS_ITALIC)
+                        if (span.font == Font_id::SANS_ITALIC) {
                             span.font = Font_id::SANS_BOLD_ITALIC;
+                        }
                     }
                 }
 
@@ -582,7 +598,7 @@ layout_result_t layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<T, list_block_t>) {
+            if constexpr (std::is_same_v<Block_type, List_block>) {
                 float item_left = params.left_mm + params.typo.list_indent_mm;
                 float item_width = params.width_mm - params.typo.list_indent_mm;
 
@@ -601,7 +617,7 @@ layout_result_t layout_body(
                         marker = "\xe2\x80\xa2"; // UTF-8 bullet •
                     }
 
-                    cursor.current_elements().push_back(text_span_t{
+                    cursor.current_elements().push_back(Text_span{
                         params.left_mm + k_bullet_offset_mm, cursor.y_mm,
                         marker, Font_id::SANS, params.typo.body_size_pt,
                         params.body_color
@@ -623,7 +639,7 @@ layout_result_t layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<T, image_content_block_t>) {
+            if constexpr (std::is_same_v<Block_type, Image_content_block>) {
                 std::string img_path = b.path;
                 bool is_absolute = (!b.path.empty() &&
                     (b.path[0] == '/' || b.path[0] == '\\' ||
@@ -665,7 +681,7 @@ layout_result_t layout_body(
                     img_width_mm *= scale;
                 }
 
-                cursor.current_elements().push_back(image_block_t{
+                cursor.current_elements().push_back(Image_block{
                     params.left_mm, cursor.y_mm, img_width_mm,
                     img_path
                 });
@@ -674,7 +690,7 @@ layout_result_t layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<T, table_block_t>) {
+            if constexpr (std::is_same_v<Block_type, Table_block>) {
                 auto tl = compute_table_columns(
                     b,
                     params.width_mm,
@@ -689,7 +705,7 @@ layout_result_t layout_body(
                     int header_rows = b.has_header ? 1 : 0;
 
                     auto emit_row = [&](int row_index, bool is_header_row) {
-                        std::vector<page_element_t> row_elements;
+                        std::vector<Page_element> row_elements;
                         float row_h = layout_table_row(
                             b.rows[row_index], tl,
                             params.left_mm, cursor.y_mm,
@@ -709,7 +725,7 @@ layout_result_t layout_body(
 
                         // Lay out the row into a temporary buffer to get the
                         // real height before committing to the page.
-                        std::vector<page_element_t> probe;
+                        std::vector<Page_element> probe;
                         float row_h = layout_table_row(
                             b.rows[ri], tl,
                             params.left_mm, cursor.y_mm,
@@ -739,7 +755,7 @@ layout_result_t layout_body(
 
             }
             else
-            if constexpr (std::is_same_v<T, code_block_t>) {
+            if constexpr (std::is_same_v<Block_type, Code_block>) {
                 // Code block: monospace font, light grey background.
                 // Split across pages line-by-line if needed.
                 static constexpr float k_code_pad_mm = 3.0f;
@@ -784,7 +800,7 @@ layout_result_t layout_body(
                     // Code text lines
                     float code_y = cursor.y_mm + k_code_pad_mm;
                     for (int ci = 0; ci < chunk; ci++) {
-                        cursor.current_elements().push_back(text_span_t{
+                        cursor.current_elements().push_back(Text_span{
                             params.left_mm + k_code_pad_mm, code_y,
                             code_lines[li + ci], Font_id::MONO,
                             code_size_pt, params.body_color

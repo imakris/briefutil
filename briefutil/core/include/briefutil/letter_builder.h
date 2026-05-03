@@ -9,10 +9,10 @@
 
 
 // ============================================================================
-// Letter builder - converts sender profile + user input into a document_t
+// Letter builder - converts sender profile + user input into a Document
 // ============================================================================
 
-struct letter_input_t
+struct Letter_input
 {
     std::string recipient;     // multi-line
     std::string subject;
@@ -20,26 +20,26 @@ struct letter_input_t
     std::string date;          // pre-formatted date string
 };
 
-struct build_letter_result_t
+struct Build_letter_result
 {
-    document_t    doc;
+    Document    doc;
     std::string error;   // non-empty if generation failed
 };
 
-build_letter_result_t build_letter(
-    const sender_profile_t& profile,
-    const letter_input_t& input,
+Build_letter_result build_letter(
+    const Sender_profile& profile,
+    const Letter_input& input,
     const std::string& profile_dir,
-    const theme_config_t& theme = default_theme(),
+    const Theme_config& theme = default_theme(),
     const letter_layout_spec_t& layout = din_5008_form_b(),
-    const localization_t& loc = default_localization());
+    const Localization& loc = default_localization());
 
 // Convenience: build + render in one call.
-render_result_t generate_letter_pdf(
-    const sender_profile_t& profile,
-    const letter_input_t& input,
+Render_result generate_letter_pdf(
+    const Sender_profile& profile,
+    const Letter_input& input,
     const std::string& profile_dir,
     const std::string& output_path,
-    const theme_config_t& theme = default_theme(),
+    const Theme_config& theme = default_theme(),
     const letter_layout_spec_t& layout = din_5008_form_b(),
-    const localization_t& loc = default_localization());
+    const Localization& loc = default_localization());

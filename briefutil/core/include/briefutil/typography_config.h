@@ -30,7 +30,7 @@ inline bool looks_like_font_file(const std::string& s)
     return eq_ci(at, ".ttf");
 }
 
-struct font_family_config_t
+struct Font_family_config
 {
     // Empty slots use mark2haru's bundled fonts. Non-empty slots are explicit
     // .ttf paths.
@@ -40,10 +40,10 @@ struct font_family_config_t
     std::string sans_bold_italic;
     std::string mono;
 
-    bool operator==(const font_family_config_t&) const = default;
+    bool operator==(const Font_family_config&) const = default;
 };
 
-inline font_family_config_t default_font_family()
+inline Font_family_config default_font_family()
 {
     return {};
 }
@@ -112,10 +112,10 @@ inline typography_config_t scaled_typography(typography_config_t typo)
 // Combined theme
 // ============================================================================
 
-struct theme_config_t
+struct Theme_config
 {
-    font_family_config_t fonts = default_font_family();
+    Font_family_config fonts = default_font_family();
     typography_config_t  typo;
 };
 
-inline theme_config_t default_theme() { return {}; }
+inline Theme_config default_theme() { return {}; }

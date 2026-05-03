@@ -137,11 +137,11 @@ bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
             error);
 }
 
-std::vector<profile_entry_t> discover_profiles(
+std::vector<Profile_entry> discover_profiles(
     const std::string& template_dir,
     std::vector<std::string>* errors)
 {
-    std::vector<profile_entry_t> profiles;
+    std::vector<Profile_entry> profiles;
     QDir dir(QString::fromStdString(template_dir));
     const auto profile_files = dir.entryList({ "*.json" }, QDir::Files, QDir::Name);
     for (const auto& profile_file : profile_files) {
@@ -154,7 +154,8 @@ std::vector<profile_entry_t> discover_profiles(
                 QFileInfo(profile_path).absoluteDir().absolutePath().toStdString(),
             });
         }
-        else if (errors) {
+        else
+        if (errors) {
             errors->push_back(profile_file.toStdString() + ": " + result.error);
         }
     }

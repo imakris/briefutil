@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
     }
 
     const QString output_path = root.filePath("letter.pdf");
-    briefutil::generation_request_t request;
+    briefutil::Generation_request request;
     request.profile.profile = profiles.front().profile;
     request.profile.profile_path = profiles.front().path;
     request.profile.profile_base_dir = profiles.front().base_dir;
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
     }
 
     auto exists = briefutil::generate_brief_pdf(request);
-    if (exists.ok || exists.code != briefutil::generation_result_code::Output_exists) {
+    if (exists.ok || exists.code != briefutil::Generation_result_code::OUTPUT_EXISTS) {
         fail("existing output should be rejected without overwrite");
     }
 
@@ -100,8 +100,8 @@ int main(int argc, char* argv[])
     invalid.overwrite_output = false;
     auto invalid_result = briefutil::generate_brief_pdf(invalid);
     if (invalid_result.ok
-        || invalid_result.code != briefutil::generation_result_code::Invalid_request) {
-        fail("empty profile id should be Invalid_request");
+        || invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST) {
+        fail("empty profile id should be INVALID_REQUEST");
     }
 
     invalid = request;
@@ -110,8 +110,8 @@ int main(int argc, char* argv[])
     invalid.overwrite_output = false;
     invalid_result = briefutil::generate_brief_pdf(invalid);
     if (invalid_result.ok
-        || invalid_result.code != briefutil::generation_result_code::Invalid_request) {
-        fail("missing output target should be Invalid_request");
+        || invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST) {
+        fail("missing output target should be INVALID_REQUEST");
     }
 
     invalid = request;
@@ -120,8 +120,8 @@ int main(int argc, char* argv[])
     invalid.theme.fonts.sans = "unsupported.otf";
     invalid_result = briefutil::generate_brief_pdf(invalid);
     if (invalid_result.ok
-        || invalid_result.code != briefutil::generation_result_code::Invalid_font_config) {
-        fail("invalid font config should be Invalid_font_config");
+        || invalid_result.code != briefutil::Generation_result_code::INVALID_FONT_CONFIG) {
+        fail("invalid font config should be INVALID_FONT_CONFIG");
     }
 
     return 0;

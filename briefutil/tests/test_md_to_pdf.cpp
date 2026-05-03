@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
     }
     lr.profile.signature_image.clear();
 
-    letter_input_t input;
+    Letter_input input;
     input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                       "Beispielweg 42\n54321 Beispielstadt";
     input.subject = "Angebot: Dienstleistungspakete 2026";

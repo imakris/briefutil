@@ -25,7 +25,8 @@ static void show_last_error(const wchar_t* title, const wchar_t* prefix)
     wchar_t combined[1400];
     if (len > 0) {
         wsprintfW(combined, L"%s\n\n%s", prefix, system_message);
-    } else {
+    }
+    else {
         lstrcpynW(combined, prefix, (int)(sizeof(combined) / sizeof(combined[0])));
     }
     show_error_message(title, combined);

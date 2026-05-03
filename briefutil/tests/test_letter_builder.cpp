@@ -1,5 +1,5 @@
 // ============================================================================
-// Full pipeline test — profile loading + letter builder + renderer
+// Full pipeline test - profile loading + letter builder + renderer
 // ============================================================================
 
 #include "briefutil/default_profiles.h"
@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
         // Clear signature_image since the test dir has no PNG
         lr.profile.signature_image.clear();
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                           "Beispielweg 42\n54321 Beispielstadt";
         // All text must be UTF-8 so TrueType rendering preserves non-CP1252 text.
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
         auto lr = load_sender_profile(qs(profile_path));
         lr.profile.signature_image.clear();
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Langer Brief";
         input.date = "14. M\xc3\xa4rz 2026";
@@ -202,7 +202,9 @@ int main(int argc, char* argv[])
         // Generate a long body (UTF-8)
         std::string body;
         for (int i = 0; i < 15; i++) {
-            if (i > 0) body += "\n\n";
+            if (i > 0) {
+                body += "\n\n";
+            }
             body += "Dies ist Absatz " + std::to_string(i + 1)
                 + ". Der Text ist absichtlich lang, um die Paginierung "
                 "zu testen und sicherzustellen, dass der \xc3" "\x9c" "berlauf "
@@ -275,7 +277,7 @@ int main(int argc, char* argv[])
 
         lr.profile.signature_image.clear();
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Kommerzieller Brief";
         input.date = "14. M\xc3\xa4rz 2026";
@@ -329,7 +331,7 @@ int main(int argc, char* argv[])
             - default_layout.footer_margin_mm
             - (first_footer_height_mm + 1.0f + second_footer_height_mm);
         for (const auto& element : doc.pages[0].elements) {
-            if (const auto* text = std::get_if<text_block_t>(&element)) {
+            if (const auto* text = std::get_if<Text_block>(&element)) {
                 if (text->text == "Musterstr. 6\n12345 Musterstadt\n\nkontakt@muster-ag.de") {
                     found_sender = true;
                     if (!nearly_equal(text->x_mm, 125.0f) || !nearly_equal(text->size_pt, 10.0f)) {
@@ -508,7 +510,7 @@ int main(int argc, char* argv[])
         }
         lr.profile.signature_image.clear();
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject.clear();
         input.date = "14. M\xc3\xa4rz 2026";
@@ -528,13 +530,13 @@ int main(int argc, char* argv[])
         bool found_placeholder = false;
         bool found_body = false;
         for (const auto& element : doc.pages[0].elements) {
-            if (const auto* text = std::get_if<text_block_t>(&element)) {
+            if (const auto* text = std::get_if<Text_block>(&element)) {
                 if (text->text == "[no subject]") {
                     found_placeholder = true;
                 }
             }
-            // Body is now rendered as text_span_t values via the layout engine
-            if (const auto* span = std::get_if<text_span_t>(&element)) {
+            // Body is now rendered as Text_span values via the layout engine
+            if (const auto* span = std::get_if<Text_span>(&element)) {
                 if (span->text.find("Erste") != std::string::npos) {
                     found_body = true;
                 }
@@ -576,7 +578,7 @@ int main(int argc, char* argv[])
         lr.profile.signature_image.clear();
         lr.profile.closing_phrase = "Warm regards,";
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Brief mit Localization";
         input.date = "13. April 2026";
@@ -585,7 +587,9 @@ int main(int argc, char* argv[])
         // number footer is emitted).
         std::string body;
         for (int i = 0; i < 15; i++) {
-            if (i > 0) body += "\n\n";
+            if (i > 0) {
+                body += "\n\n";
+            }
             body += "Paragraph " + std::to_string(i + 1)
                 + " is intentionally long enough to force pagination "
                 "across multiple pages so that the page number footer "
@@ -593,7 +597,7 @@ int main(int argc, char* argv[])
         }
         input.body = body;
 
-        localization_t custom;
+        Localization custom;
         custom.closing             = "Yours truly,";
         custom.page_number_format  = "Sheet {current}/{total}";
         custom.error_pdf_open_failed_format = "Open failed for {path}";
@@ -634,9 +638,13 @@ int main(int argc, char* argv[])
             - pt_to_mm(default_typo.footer_size_pt);
         for (const auto& page : br.doc.pages) {
             for (const auto& element : page.elements) {
-                if (const auto* text = std::get_if<text_block_t>(&element)) {
-                    if (text->text == "Warm regards,") found_profile_closing = true;
-                    if (text->text == "Yours truly,") found_localized_closing = true;
+                if (const auto* text = std::get_if<Text_block>(&element)) {
+                    if (text->text == "Warm regards,") {
+                        found_profile_closing = true;
+                    }
+                    if (text->text == "Yours truly,") {
+                        found_localized_closing = true;
+                    }
                     if (text->text.find("Sheet ") == 0
                         && text->text.find("/") != std::string::npos) {
                         found_page_number = true;
@@ -695,7 +703,7 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                           "Beispielweg 42\n54321 Beispielstadt";
         input.subject = "Image rendering check";
@@ -761,7 +769,7 @@ int main(int argc, char* argv[])
         lr.profile.signature_image.clear();
         lr.profile.closing_phrase = "Warm regards,";
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
         input.subject = "Ordered list overflow";
         input.date = "14. M\xc3\xa4rz 2026";
@@ -778,7 +786,7 @@ int main(int argc, char* argv[])
         int saturated_marker_count = 0;
         for (const auto& page : br.doc.pages) {
             for (const auto& element : page.elements) {
-                if (const auto* span = std::get_if<text_span_t>(&element)) {
+                if (const auto* span = std::get_if<Text_span>(&element)) {
                     if (span->text == std::to_string(INT_MAX) + ".") {
                         saturated_marker_count++;
                     }
@@ -802,7 +810,7 @@ int main(int argc, char* argv[])
     {
         QString tmp_path = QDir::tempPath() + "/briefutil_test_profile_blank_lines.json";
 
-        sender_profile_t profile;
+        Sender_profile profile;
         profile.id = "Blank line profile";
         profile.style = Profile_style::COMMERCIAL;
         profile.sender_lines = { "Line 1", "", "Line 3" };
@@ -850,7 +858,7 @@ int main(int argc, char* argv[])
     {
         QString tmp_path = QDir::tempPath() + "/briefutil_test_profile_empty_lines.json";
 
-        sender_profile_t profile;
+        Sender_profile profile;
         profile.id = "Empty line profile";
         profile.style = Profile_style::COMMERCIAL;
         profile.email = "empty.lines@example.org";
@@ -884,7 +892,7 @@ int main(int argc, char* argv[])
 
     // -- Test 10: section font scaling affects header, body, and footer text --
     {
-        sender_profile_t profile;
+        Sender_profile profile;
         profile.id = "Scale Test";
         profile.style = Profile_style::COMMERCIAL;
         profile.sender_lines = { "Scaled Header" };
@@ -892,7 +900,7 @@ int main(int argc, char* argv[])
         profile.signer_name = "Scaled Signer";
         profile.footer_lines = { "Scaled Footer" };
 
-        letter_input_t input;
+        Letter_input input;
         input.recipient = "Scaled Recipient";
         input.subject = "Scaled Subject";
         input.date = "27. April 2026";
@@ -920,7 +928,7 @@ int main(int argc, char* argv[])
         bool found_scaled_body = false;
         bool found_scaled_footer = false;
         for (const auto& element : br.doc.pages[0].elements) {
-            if (const auto* text = std::get_if<text_block_t>(&element)) {
+            if (const auto* text = std::get_if<Text_block>(&element)) {
                 if (text->text == "Scaled Header"
                     && nearly_equal(text->size_pt, default_typo.sender_size_pt * 1.2f)) {
                     found_scaled_header = true;

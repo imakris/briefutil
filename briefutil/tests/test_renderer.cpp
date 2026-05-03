@@ -1,5 +1,5 @@
 // ============================================================================
-// Renderer smoke test — validates document model + renderer + pagination
+// Renderer smoke test - validates document model + renderer + pagination
 //
 // Builds a multi-page document by hand and renders it to PDF.
 // Run: test_renderer [output.pdf]
@@ -65,11 +65,11 @@ int main(int argc, char* argv[])
     }
 
     // -- Test 4: multi-page document rendering --
-    document_t doc;
+    Document doc;
 
     // Page 1: header elements + start of body
     {
-        page_t p;
+        Page p;
 
         // Fold marks
         p.elements.push_back(line_segment_t{ 0, 105, 10, 105, 0.5f, k_black });
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
         p.elements.push_back(line_segment_t{ 0, 148.5f, 15, 148.5f, 0.5f, k_black });
 
         // Sender block
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             139.7f, 27.94f, 40.64f,
             "Max Mustermann\nMusterstr. 6\n12345 Musterstadt\n\nmax.mustermann@example.org",
             Font_id::SANS, 8, 10, k_black, false
@@ -85,13 +85,13 @@ int main(int argc, char* argv[])
 
         // Return-address line
         const char* return_addr = "Max Mustermann \xb7 Musterstr. 6 \xb7 12345 Musterstadt";
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 51.05f, 85.09f,
             return_addr,
             Font_id::SANS, 8, 0, k_footer_col, false
         });
 
-        // Separator — length matched to return-address text
+        // Separator - length matched to return-address text
         auto ret_m = measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
         float sep_end_mm = 25.4f + ret_m.width_pt / (72.0f / 25.4f);
         p.elements.push_back(line_segment_t{
@@ -99,21 +99,21 @@ int main(int argc, char* argv[])
         });
 
         // Recipient
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 55.88f, 111.76f,
             "Firma Beispiel GmbH\nHerrn Erich Beispiel\nBeispielweg 42\n54321 Beispielstadt",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Date
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             139.7f, 76.2f, 40.64f,
             "14. M\xe4rz 2026",
             Font_id::SANS, 10, 0, k_black, false
         });
 
         // Subject
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 88.0f, 159.2f,
             "Betreff: Mehrseitiges Testdokument",
             Font_id::SANS_BOLD, 10, 12, k_black, false
@@ -122,7 +122,9 @@ int main(int argc, char* argv[])
         // Body text (long enough to need page 2)
         std::string body;
         for (int i = 0; i < 8; i++) {
-            if (i > 0) body += "\n\n";
+            if (i > 0) {
+                body += "\n\n";
+            }
             body += "Dies ist Absatz " + std::to_string(i + 1)
                 + ". Der Text ist lang genug, um mehrere Seiten zu f"
                 "\xfc" "llen und die Paginierung zu testen. "
@@ -130,14 +132,14 @@ int main(int argc, char* argv[])
                 "auf die n" "\xe4" "chste Seite umgebrochen wird.";
         }
 
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 100.0f, 159.2f,
             body,
             Font_id::SANS, 10, 12, k_black, true
         });
 
         // Footer (page 1)
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 279.0f, 159.2f,
             "Seite 1 von 2",
             Font_id::SANS, 9, 0, k_black, false
@@ -148,7 +150,7 @@ int main(int argc, char* argv[])
 
     // Page 2: continuation body + closing + footer
     {
-        page_t p;
+        Page p;
 
         // Fold marks on continuation page
         p.elements.push_back(line_segment_t{ 0, 105, 10, 105, 0.5f, k_black });
@@ -158,33 +160,35 @@ int main(int argc, char* argv[])
         // Continuation body
         std::string cont_body;
         for (int i = 0; i < 3; i++) {
-            if (i > 0) cont_body += "\n\n";
+            if (i > 0) {
+                cont_body += "\n\n";
+            }
             cont_body += "Fortsetzung Absatz " + std::to_string(i + 9)
                 + ". Weitere Informationen auf der zweiten Seite.";
         }
 
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 25.4f, 159.2f,
             cont_body,
             Font_id::SANS, 10, 12, k_black, true
         });
 
         // Closing
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 100.0f, 159.2f,
             "Mit freundlichen Gr" "\xfc\xdf" "en",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Signer name
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 130.0f, 159.2f,
             "Max Mustermann",
             Font_id::SANS, 10, 12, k_black, false
         });
 
         // Footer (page 2)
-        p.elements.push_back(text_block_t{
+        p.elements.push_back(Text_block{
             25.4f, 279.0f, 159.2f,
             "Seite 2 von 2",
             Font_id::SANS, 9, 0, k_black, false

@@ -9,26 +9,26 @@
 
 namespace briefutil {
 
-enum class generation_result_code
+enum class Generation_result_code
 {
-    Ok,
-    Invalid_request,
-    Invalid_font_config,
-    Output_exists,
-    Output_error,
-    Render_error,
+    OK,
+    INVALID_REQUEST,
+    INVALID_FONT_CONFIG,
+    OUTPUT_EXISTS,
+    OUTPUT_ERROR,
+    RENDER_ERROR,
 };
 
-struct profile_snapshot_t
+struct Profile_snapshot
 {
-    sender_profile_t profile;
+    Sender_profile profile;
     std::string profile_path;
     std::string profile_base_dir;
 };
 
-struct generation_request_t
+struct Generation_request
 {
-    profile_snapshot_t profile;
+    Profile_snapshot profile;
     std::string recipient;
     std::string subject;
     std::string body;
@@ -42,27 +42,27 @@ struct generation_request_t
     int date_month = 0;
     int date_day = 0;
 
-    theme_config_t theme = default_theme();
+    Theme_config theme = default_theme();
     letter_layout_spec_t layout = din_5008_form_b();
 };
 
-struct generation_result_t
+struct Generation_result
 {
     bool ok = false;
-    generation_result_code code = generation_result_code::Invalid_request;
+    Generation_result_code code = Generation_result_code::INVALID_REQUEST;
     std::string output_path;
     std::string message;
     std::string detail;
 };
 
 std::string normalize_language(const std::string& language);
-localization_t localization_for_language(const std::string& language);
+Localization localization_for_language(const std::string& language);
 std::string localized_date(int year, int month, int day, const std::string& language);
 
-bool is_valid_font_config(const font_family_config_t& fonts);
+bool is_valid_font_config(const Font_family_config& fonts);
 float font_scale_from_percent(double percent);
 letter_layout_spec_t layout_spec_from_name(const std::string& preset);
 
-generation_result_t generate_brief_pdf(const generation_request_t& request);
+Generation_result generate_brief_pdf(const Generation_request& request);
 
 } // namespace briefutil

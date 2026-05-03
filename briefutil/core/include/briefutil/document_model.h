@@ -13,7 +13,7 @@
 // The renderer converts to PDF point coordinates internally.
 // ============================================================================
 
-// -- Unit conversion utilities (mm ↔ pt) --
+// -- Unit conversion utilities (mm <-> pt) --
 
 inline constexpr float k_pts_per_mm = 72.0f / 25.4f;
 
@@ -76,7 +76,7 @@ enum class Font_id
     MONO,
 };
 
-struct text_block_t
+struct Text_block
 {
     float       x_mm;
     float       y_mm;
@@ -99,7 +99,7 @@ struct line_segment_t
     color_t color;
 };
 
-struct image_block_t
+struct Image_block
 {
     float       x_mm;
     float       y_mm;
@@ -107,7 +107,7 @@ struct image_block_t
     std::string path;
 };
 
-struct text_span_t
+struct Text_span
 {
     float       x_mm;
     float       y_mm;
@@ -126,18 +126,18 @@ struct filled_rect_t
     color_t color;
 };
 
-using page_element_t = std::variant<text_block_t, line_segment_t, image_block_t, text_span_t, filled_rect_t>;
+using Page_element = std::variant<Text_block, line_segment_t, Image_block, Text_span, filled_rect_t>;
 
-struct page_t
+struct Page
 {
-    std::vector<page_element_t> elements;
+    std::vector<Page_element> elements;
 };
 
-struct document_t
+struct Document
 {
     float page_width_mm  = 210.0f;   // A4
     float page_height_mm = 297.0f;
-    std::vector<page_t> pages;
+    std::vector<Page> pages;
 };
 
 
@@ -145,7 +145,7 @@ struct document_t
 // Render result
 // ============================================================================
 
-struct render_result_t
+struct Render_result
 {
     bool        ok = false;
     std::string output_path;

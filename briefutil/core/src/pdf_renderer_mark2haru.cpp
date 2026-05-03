@@ -18,8 +18,8 @@ static float pt_y(float y_mm) { return mm_to_pt(y_mm); }
 
 static bool render_text_block(
     mark2haru::Pdf_writer& writer,
-    const text_block_t& tb,
-    const font_family_config_t& fonts)
+    const Text_block& tb,
+    const Font_family_config& fonts)
 {
     std::vector<std::string> lines;
     if (tb.wrap) {
@@ -57,7 +57,7 @@ static bool render_text_block(
 
 static bool render_text_span(
     mark2haru::Pdf_writer& writer,
-    const text_span_t& ts)
+    const Text_span& ts)
 {
     auto font = mark2haru_font_for(ts.font);
     writer.draw_text(
@@ -98,8 +98,8 @@ static bool render_filled_rect(
 }
 
 static bool render_image_block(
-    const image_block_t& ib,
-    const localization_t& loc,
+    const Image_block& ib,
+    const Localization& loc,
     mark2haru::Pdf_writer& writer)
 {
     auto image_path = qstring_to_path(QString::fromUtf8(ib.path.c_str()));
@@ -127,11 +127,11 @@ static bool render_image_block(
     return writer.draw_png(pt_x(ib.x_mm), pt_y(ib.y_mm), target_w, target_h, image);
 }
 
-static render_result_t render_pdf_mark2haru_impl(
-    const document_t& doc,
+static Render_result render_pdf_mark2haru_impl(
+    const Document& doc,
     const std::string& output_path,
-    const font_family_config_t& fonts,
-    const localization_t& loc)
+    const Font_family_config& fonts,
+    const Localization& loc)
 {
     std::string detail;
     auto metrics = make_mark2haru_measurement_context(fonts, &detail);
@@ -159,21 +159,26 @@ static render_result_t render_pdf_mark2haru_impl(
 
         for (const auto& elem : page_def.elements) {
             bool ok = std::visit([&](const auto& e) {
-                using T = std::decay_t<decltype(e)>;
-                if constexpr (std::is_same_v<T, text_block_t>)
+                using Element_type = std::decay_t<decltype(e)>;
+                if constexpr (std::is_same_v<Element_type, Text_block>) {
                     return render_text_block(writer, e, fonts);
+                }
                 else
-                if constexpr (std::is_same_v<T, line_segment_t>)
+                if constexpr (std::is_same_v<Element_type, line_segment_t>) {
                     return render_line_segment(writer, e);
+                }
                 else
-                if constexpr (std::is_same_v<T, image_block_t>)
+                if constexpr (std::is_same_v<Element_type, Image_block>) {
                     return render_image_block(e, loc, writer);
+                }
                 else
-                if constexpr (std::is_same_v<T, text_span_t>)
+                if constexpr (std::is_same_v<Element_type, Text_span>) {
                     return render_text_span(writer, e);
+                }
                 else
-                if constexpr (std::is_same_v<T, filled_rect_t>)
+                if constexpr (std::is_same_v<Element_type, filled_rect_t>) {
                     return render_filled_rect(writer, e);
+                }
                 return false;
             }, elem);
             if (!ok) {
@@ -191,11 +196,11 @@ static render_result_t render_pdf_mark2haru_impl(
     return { true, output_path, "", "" };
 }
 
-render_result_t render_pdf(
-    const document_t& doc,
+Render_result render_pdf(
+    const Document& doc,
     const std::string& output_path,
-    const font_family_config_t& fonts,
-    const localization_t& loc)
+    const Font_family_config& fonts,
+    const Localization& loc)
 {
     return render_pdf_mark2haru_impl(doc, output_path, fonts, loc);
 }

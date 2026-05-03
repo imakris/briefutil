@@ -73,7 +73,9 @@ Window {
                                         && fontSansBoldItalicOk && fontMonoOk
 
     function tryApplyFonts() {
-        if (!_initialized || !proxyObj || !fontsCanApply) return
+        if (!_initialized || !proxyObj || !fontsCanApply) {
+            return
+        }
         proxyObj.set_font_sans(fontSans)
         proxyObj.set_font_sans_bold(fontSansBold)
         proxyObj.set_font_sans_italic(fontSansItalic)
@@ -91,7 +93,9 @@ Window {
     }
 
     function scheduleApplyFonts() {
-        if (!_initialized) return
+        if (!_initialized) {
+            return
+        }
         fontApplyTimer.restart()
     }
 
@@ -125,14 +129,18 @@ Window {
     }
 
     // ====================================================================
-    // Spinbox values (always valid — range-clamped)
+    // Spinbox values (always valid; range-clamped)
     // ====================================================================
 
     onBodySizeChanged: {
-        if (_initialized && proxyObj) proxyObj.set_body_size(bodySize)
+        if (_initialized && proxyObj) {
+            proxyObj.set_body_size(bodySize)
+        }
     }
     onBodyLeadingChanged: {
-        if (_initialized && proxyObj) proxyObj.set_body_leading(bodyLeading)
+        if (_initialized && proxyObj) {
+            proxyObj.set_body_leading(bodyLeading)
+        }
     }
     onHeaderFontScalePercentChanged: {
         if (_initialized && proxyObj) {
@@ -151,7 +159,9 @@ Window {
     }
 
     Component.onCompleted: {
-        if (!proxyObj) return
+        if (!proxyObj) {
+            return
+        }
         proxyObj.set_window_dark_mode(settingsWin, darkMode)
         fontSans           = proxyObj.get_font_sans()
         fontSansBold       = proxyObj.get_font_sans_bold()
@@ -176,7 +186,9 @@ Window {
             var path = selectedFolder.toString()
             path = path.replace(/^file:\/\/\//, "")
             path = decodeURIComponent(path)
-            if (path.length > 0 && !path.endsWith("/")) path += "/"
+            if (path.length > 0 && !path.endsWith("/")) {
+                path += "/"
+            }
             settingsWin.templateDir = path
             if (settingsWin._initialized && settingsWin.proxyObj) {
                 settingsWin.proxyObj.set_template_dir(path)

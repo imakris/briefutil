@@ -26,7 +26,7 @@ struct image_dimensions_t
 };
 
 bool pdf_measurement_ready(
-    const font_family_config_t& fonts = default_font_family(),
+    const Font_family_config& fonts = default_font_family(),
     std::string* detail = nullptr);
 
 text_metrics_t measure_text(
@@ -36,13 +36,13 @@ text_metrics_t measure_text(
     float leading_pt,
     float max_width_mm,
     bool wrap,
-    const font_family_config_t& fonts = default_font_family());
+    const Font_family_config& fonts = default_font_family());
 
 std::vector<std::string> wrap_text(
     const std::string& text,
     Font_id font,
     float size_pt,
     float max_width_mm,
-    const font_family_config_t& fonts = default_font_family());
+    const Font_family_config& fonts = default_font_family());
 
 image_dimensions_t measure_png(const std::string& path);

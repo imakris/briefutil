@@ -7,8 +7,8 @@
 // Letter layout specification - geometry and placement rules
 //
 // Describes WHERE each part of a letter is placed on the page.
-// Content (WHAT is placed) comes from sender_profile_t and letter_input_t.
-// Visual styling (HOW it looks) comes from theme_config_t.
+// Content (WHAT is placed) comes from Sender_profile and Letter_input.
+// Visual styling (HOW it looks) comes from Theme_config.
 // ============================================================================
 
 struct letter_layout_spec_t
@@ -95,22 +95,22 @@ inline letter_layout_spec_t din_5008_form_a()
     // Form A: address field starts ~18 mm higher than form B (top of address
     // field at ~27 mm vs. ~45 mm). Fold marks shift accordingly so the
     // window envelope still aligns with the recipient block.
-    letter_layout_spec_t L;
-    L.return_y_mm       = 41.2f;
-    L.return_rule_y_mm  = 44.3f;
-    L.recip_y_mm        = 45.5f;
-    L.sender_y_mm       = 32.0f;
-    L.date_y_mm         = 66.0f;
-    L.top_rule_y_mm     = 27.0f;
-    L.fold1_y_mm        = 87.0f;
-    L.fold2_y_mm        = 192.0f;
-    return L;
+    letter_layout_spec_t layout;
+    layout.return_y_mm       = 41.2f;
+    layout.return_rule_y_mm  = 44.3f;
+    layout.recip_y_mm        = 45.5f;
+    layout.sender_y_mm       = 32.0f;
+    layout.date_y_mm         = 66.0f;
+    layout.top_rule_y_mm     = 27.0f;
+    layout.fold1_y_mm        = 87.0f;
+    layout.fold2_y_mm        = 192.0f;
+    return layout;
 }
 
 inline letter_layout_spec_t us_letter()
 {
-    letter_layout_spec_t L;
-    L.page_width_mm  = 215.9f;   // 8.5 in
-    L.page_height_mm = 279.4f;   // 11 in
-    return L;
+    letter_layout_spec_t layout;
+    layout.page_width_mm  = 215.9f;   // 8.5 in
+    layout.page_height_mm = 279.4f;   // 11 in
+    return layout;
 }

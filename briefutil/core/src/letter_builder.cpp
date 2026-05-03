@@ -16,25 +16,27 @@ static constexpr color_t k_black = { 0, 0, 0 };
 // Helpers
 // ============================================================================
 
-static void add_fold_marks(page_t& page, const letter_layout_spec_t& L)
+static void add_fold_marks(Page& page, const letter_layout_spec_t& layout)
 {
     page.elements.push_back(line_segment_t{
-        L.mark_x_mm, L.fold1_y_mm, L.mark_x_mm + L.fold_len_mm, L.fold1_y_mm, 0.5f, k_black
+        layout.mark_x_mm, layout.fold1_y_mm, layout.mark_x_mm + layout.fold_len_mm, layout.fold1_y_mm, 0.5f, k_black
     });
     page.elements.push_back(line_segment_t{
-        L.mark_x_mm, L.fold2_y_mm, L.mark_x_mm + L.fold_len_mm, L.fold2_y_mm, 0.5f, k_black
+        layout.mark_x_mm, layout.fold2_y_mm, layout.mark_x_mm + layout.fold_len_mm, layout.fold2_y_mm, 0.5f, k_black
     });
     page.elements.push_back(line_segment_t{
-        L.mark_x_mm, L.punch_y_mm, L.mark_x_mm + L.punch_len_mm, L.punch_y_mm, 0.5f, k_black
+        layout.mark_x_mm, layout.punch_y_mm, layout.mark_x_mm + layout.punch_len_mm, layout.punch_y_mm, 0.5f, k_black
     });
 }
 
 // Build the sender block text from profile lines + email.
-static std::string build_sender_text(const sender_profile_t& profile)
+static std::string build_sender_text(const Sender_profile& profile)
 {
     std::string text;
     for (const auto& line : profile.sender_lines) {
-        if (!text.empty()) text += '\n';
+        if (!text.empty()) {
+            text += '\n';
+        }
         text += line;
     }
     if (!profile.email.empty()) {
@@ -45,11 +47,11 @@ static std::string build_sender_text(const sender_profile_t& profile)
 }
 
 static float footer_block_height_mm(
-    const sender_profile_t& profile,
+    const Sender_profile& profile,
     const typography_config_t& typo,
-    const letter_layout_spec_t& L,
+    const letter_layout_spec_t& layout,
     float body_width_mm,
-    const font_family_config_t& fonts,
+    const Font_family_config& fonts,
     bool include_page_number)
 {
     float height_mm = 0.0f;
@@ -64,7 +66,7 @@ static float footer_block_height_mm(
     }
 
     if (height_mm > 0.0f) {
-        height_mm += L.footer_line_gap_mm;
+        height_mm += layout.footer_line_gap_mm;
     }
 
     for (std::size_t i = 0; i < profile.footer_lines.size(); ++i) {
@@ -85,16 +87,16 @@ static float footer_block_height_mm(
 }
 
 static float footer_top_y_mm(
-    const sender_profile_t& profile,
+    const Sender_profile& profile,
     const typography_config_t& typo,
-    const letter_layout_spec_t& L,
+    const letter_layout_spec_t& layout,
     float body_width_mm,
-    const font_family_config_t& fonts,
+    const Font_family_config& fonts,
     bool include_page_number)
 {
-    return L.page_height_mm - L.footer_margin_mm
+    return layout.page_height_mm - layout.footer_margin_mm
         - footer_block_height_mm(
-            profile, typo, L, body_width_mm, fonts, include_page_number);
+            profile, typo, layout, body_width_mm, fonts, include_page_number);
 }
 
 
@@ -102,21 +104,20 @@ static float footer_top_y_mm(
 // Letter builder
 // ============================================================================
 
-build_letter_result_t build_letter(
-    const sender_profile_t& profile,
-    const letter_input_t& input,
+Build_letter_result build_letter(
+    const Sender_profile& profile,
+    const Letter_input& input,
     const std::string& profile_dir,
-    const theme_config_t& theme,
+    const Theme_config& theme,
     const letter_layout_spec_t& layout,
-    const localization_t& loc)
+    const Localization& loc)
 {
     const auto typo = scaled_typography(theme.typo);
-    const auto& L = layout;
-    float body_width_mm = L.page_width_mm - L.margin_left_mm - L.margin_right_mm;
+    float body_width_mm = layout.page_width_mm - layout.margin_left_mm - layout.margin_right_mm;
 
-    document_t doc;
-    doc.page_width_mm  = L.page_width_mm;
-    doc.page_height_mm = L.page_height_mm;
+    Document doc;
+    doc.page_width_mm  = layout.page_width_mm;
+    doc.page_height_mm = layout.page_height_mm;
 
     auto sender_text = build_sender_text(profile);
 
@@ -132,17 +133,17 @@ build_letter_result_t build_letter(
         Font_id::SANS,
         typo.return_size_pt,
         0,
-        L.address_text_w_mm,
+        layout.address_text_w_mm,
         false,
         theme.fonts);
-    float return_rule_x2_mm = L.address_text_x_mm + pt_to_mm(ret_metrics.width_pt);
+    float return_rule_x2_mm = layout.address_text_x_mm + pt_to_mm(ret_metrics.width_pt);
 
     auto sender_metrics = measure_text(
         sender_text,
         Font_id::SANS,
         typo.sender_size_pt,
         typo.sender_lead_pt,
-        L.sender_w_mm,
+        layout.sender_w_mm,
         false,
         theme.fonts);
     auto date_metrics = measure_text(
@@ -150,19 +151,19 @@ build_letter_result_t build_letter(
         Font_id::SANS,
         typo.date_size_pt,
         0,
-        L.sender_w_mm,
+        layout.sender_w_mm,
         false,
         theme.fonts);
 
-    float sender_bottom_mm = L.sender_y_mm + pt_to_mm(sender_metrics.height_pt);
-    float date_bottom_mm = L.date_y_mm + pt_to_mm(date_metrics.height_pt);
+    float sender_bottom_mm = layout.sender_y_mm + pt_to_mm(sender_metrics.height_pt);
+    float date_bottom_mm = layout.date_y_mm + pt_to_mm(date_metrics.height_pt);
     float info_block_bottom_mm = std::max(
-        L.sender_y_mm + L.info_block_min_h_mm,
+        layout.sender_y_mm + layout.info_block_min_h_mm,
         std::max(sender_bottom_mm, date_bottom_mm));
 
     bool has_subject = !input.subject.empty();
-    float subject_y_mm = info_block_bottom_mm + L.subject_gap_mm;
-    float body_y_mm = has_subject ? (subject_y_mm + L.subject_to_body_mm)
+    float subject_y_mm = info_block_bottom_mm + layout.subject_gap_mm;
+    float body_y_mm = has_subject ? (subject_y_mm + layout.subject_to_body_mm)
                                   : subject_y_mm;
 
     const std::string& closing_text = profile.closing_phrase.empty()
@@ -178,7 +179,7 @@ build_letter_result_t build_letter(
         body_width_mm,
         false,
         theme.fonts);
-    float closing_height_mm = pt_to_mm(L.closing_skip_baselines * typo.body_lead_pt)
+    float closing_height_mm = pt_to_mm(layout.closing_skip_baselines * typo.body_lead_pt)
         + pt_to_mm(closing_metrics.height_pt);
 
     float sig_height_mm = 0;
@@ -190,20 +191,20 @@ build_letter_result_t build_letter(
         auto sig_dims = measure_png(sig_path);
         float aspect = (sig_dims.valid && sig_dims.width_px > 0)
             ? (sig_dims.height_px / sig_dims.width_px)
-            : L.sig_default_aspect;
-        sig_height_mm = L.sig_width_mm * aspect;
+            : layout.sig_default_aspect;
+        sig_height_mm = layout.sig_width_mm * aspect;
     }
     float signer_height_mm = pt_to_mm(typo.body_lead_pt);
     if (!profile.signer_title.empty())
         signer_height_mm += pt_to_mm(typo.body_lead_pt);
     float total_closing_mm = closing_height_mm + sig_height_mm
-        + signer_height_mm + L.closing_extra_room_mm;
+        + signer_height_mm + layout.closing_extra_room_mm;
 
     // Parse and lay out the body using the markdown-aware layout engine
     auto body_blocks = parse_markdown(input.body);
 
-    layout_params_t lp;
-    lp.left_mm     = L.margin_left_mm;
+    Layout_params lp;
+    lp.left_mm     = layout.margin_left_mm;
     lp.width_mm    = body_width_mm;
     lp.body_color  = k_black;
     lp.profile_dir = profile_dir;
@@ -215,16 +216,16 @@ build_letter_result_t build_letter(
         const float page_bottom = footer_top_y_mm(
             profile,
             typo,
-            L,
+            layout,
             body_width_mm,
             theme.fonts,
-            include_page_number) - L.page_bottom_buffer_mm;
+            include_page_number) - layout.page_bottom_buffer_mm;
         auto result = layout_body(
             body_blocks,
             lp,
             body_y_mm,
             page_bottom,
-            L.cont_top_mm,
+            layout.cont_top_mm,
             page_bottom);
         if (!result.error.empty()) {
             return result;
@@ -232,7 +233,7 @@ build_letter_result_t build_letter(
 
         if (result.last_page_used_mm + total_closing_mm > page_bottom) {
             result.pages.push_back({});
-            result.last_page_used_mm = L.cont_top_mm;
+            result.last_page_used_mm = layout.cont_top_mm;
         }
         return result;
     };
@@ -254,8 +255,8 @@ build_letter_result_t build_letter(
 
     // Build pages
     for (int pi = 0; pi < total_pages; pi++) {
-        page_t page;
-        add_fold_marks(page, L);
+        Page page;
+        add_fold_marks(page, layout);
 
         if (pi == 0) {
             // -- First page: header elements --
@@ -266,66 +267,66 @@ build_letter_result_t build_letter(
                 auto logo_dims = measure_png(logo_path);
                 if (logo_dims.valid && logo_dims.width_px > 0) {
                     page.elements.push_back(line_segment_t{
-                        L.top_rule_x1_mm, L.top_rule_y_mm,
-                        L.company_x_mm + L.company_w_mm, L.top_rule_y_mm,
-                        L.top_rule_width_pt, profile.top_rule_color
+                        layout.top_rule_x1_mm, layout.top_rule_y_mm,
+                        layout.company_x_mm + layout.company_w_mm, layout.top_rule_y_mm,
+                        layout.top_rule_width_pt, profile.top_rule_color
                     });
 
-                    float logo_w = L.company_w_mm;
+                    float logo_w = layout.company_w_mm;
                     float aspect = logo_dims.height_px / logo_dims.width_px;
                     float logo_h = logo_w * aspect;
-                    float max_h = L.top_rule_y_mm - L.logo_rule_gap_mm - L.logo_top_mm;
+                    float max_h = layout.top_rule_y_mm - layout.logo_rule_gap_mm - layout.logo_top_mm;
                     if (max_h > 0 && logo_h > max_h) {
                         float scale = max_h / logo_h;
                         logo_w *= scale;
                         logo_h = max_h;
                     }
-                    float logo_x = L.company_x_mm + (L.company_w_mm - logo_w) / 2;
-                    float logo_y = L.top_rule_y_mm - L.logo_rule_gap_mm - logo_h;
+                    float logo_x = layout.company_x_mm + (layout.company_w_mm - logo_w) / 2;
+                    float logo_y = layout.top_rule_y_mm - layout.logo_rule_gap_mm - logo_h;
 
-                    page.elements.push_back(image_block_t{
+                    page.elements.push_back(Image_block{
                         logo_x, logo_y, logo_w, logo_path
                     });
                 }
             }
 
-            page.elements.push_back(text_block_t{
-                L.sender_x_mm, L.sender_y_mm, L.sender_w_mm,
+            page.elements.push_back(Text_block{
+                layout.sender_x_mm, layout.sender_y_mm, layout.sender_w_mm,
                 sender_text,
                 Font_id::SANS, typo.sender_size_pt, typo.sender_lead_pt,
                 k_black, false
             });
 
-            page.elements.push_back(text_block_t{
-                L.address_text_x_mm, L.return_y_mm, L.address_text_w_mm,
+            page.elements.push_back(Text_block{
+                layout.address_text_x_mm, layout.return_y_mm, layout.address_text_w_mm,
                 profile.return_address_line,
                 Font_id::SANS, typo.return_size_pt, 0,
-                L.footer_color, false
+                layout.footer_color, false
             });
 
             page.elements.push_back(line_segment_t{
-                L.address_text_x_mm, L.return_rule_y_mm,
-                return_rule_x2_mm, L.return_rule_y_mm,
+                layout.address_text_x_mm, layout.return_rule_y_mm,
+                return_rule_x2_mm, layout.return_rule_y_mm,
                 0.5f, k_black
             });
 
-            page.elements.push_back(text_block_t{
-                L.address_text_x_mm, L.recip_y_mm, L.address_text_w_mm,
+            page.elements.push_back(Text_block{
+                layout.address_text_x_mm, layout.recip_y_mm, layout.address_text_w_mm,
                 input.recipient,
                 Font_id::SANS, typo.recip_size_pt, typo.recip_lead_pt,
                 k_black, false
             });
 
-            page.elements.push_back(text_block_t{
-                L.sender_x_mm, L.date_y_mm, L.sender_w_mm,
+            page.elements.push_back(Text_block{
+                layout.sender_x_mm, layout.date_y_mm, layout.sender_w_mm,
                 input.date,
                 Font_id::SANS, typo.date_size_pt, 0,
                 k_black, false
             });
 
             if (has_subject) {
-                page.elements.push_back(text_block_t{
-                    L.margin_left_mm, subject_y_mm, body_width_mm,
+                page.elements.push_back(Text_block{
+                    layout.margin_left_mm, subject_y_mm, body_width_mm,
                     input.subject,
                     Font_id::SANS_BOLD, typo.body_size_pt, typo.body_lead_pt,
                     k_black, false
@@ -342,28 +343,28 @@ build_letter_result_t build_letter(
         bool is_last_page = (pi == total_pages - 1);
         if (is_last_page) {
             float closing_y = body_layout.last_page_used_mm
-                + pt_to_mm(L.closing_skip_baselines * typo.body_lead_pt);
+                + pt_to_mm(layout.closing_skip_baselines * typo.body_lead_pt);
 
-            page.elements.push_back(text_block_t{
-                L.margin_left_mm, closing_y, body_width_mm,
+            page.elements.push_back(Text_block{
+                layout.margin_left_mm, closing_y, body_width_mm,
                 closing_text,
                 Font_id::SANS, typo.body_size_pt, typo.body_lead_pt,
                 k_black, false
             });
 
             float after_closing = closing_y + pt_to_mm(typo.body_lead_pt)
-                + L.closing_after_pad_mm;
+                + layout.closing_after_pad_mm;
 
             if (!sig_path.empty()) {
-                page.elements.push_back(image_block_t{
-                    L.margin_left_mm, after_closing, L.sig_width_mm,
+                page.elements.push_back(Image_block{
+                    layout.margin_left_mm, after_closing, layout.sig_width_mm,
                     sig_path
                 });
-                after_closing += sig_height_mm + L.signature_after_pad_mm;
+                after_closing += sig_height_mm + layout.signature_after_pad_mm;
             }
 
-            page.elements.push_back(text_block_t{
-                L.margin_left_mm, after_closing, body_width_mm,
+            page.elements.push_back(Text_block{
+                layout.margin_left_mm, after_closing, body_width_mm,
                 profile.signer_name,
                 Font_id::SANS, typo.body_size_pt, typo.body_lead_pt,
                 k_black, false
@@ -371,8 +372,8 @@ build_letter_result_t build_letter(
 
             if (!profile.signer_title.empty()) {
                 after_closing += pt_to_mm(typo.body_lead_pt);
-                page.elements.push_back(text_block_t{
-                    L.margin_left_mm, after_closing, body_width_mm,
+                page.elements.push_back(Text_block{
+                    layout.margin_left_mm, after_closing, body_width_mm,
                     profile.signer_title,
                     Font_id::SANS, typo.body_size_pt, typo.body_lead_pt,
                     k_black, false
@@ -385,7 +386,7 @@ build_letter_result_t build_letter(
         float footer_y = footer_top_y_mm(
             profile,
             typo,
-            L,
+            layout,
             body_width_mm,
             theme.fonts,
             include_page_number);
@@ -403,15 +404,15 @@ build_letter_result_t build_letter(
                 false,
                 theme.fonts);
             const float page_num_width_mm = pt_to_mm(page_num_metrics.width_pt);
-            float page_num_x = L.page_width_mm - L.margin_right_mm
+            float page_num_x = layout.page_width_mm - layout.margin_right_mm
                 - page_num_width_mm;
-            page.elements.push_back(text_block_t{
+            page.elements.push_back(Text_block{
                 page_num_x, footer_y, page_num_width_mm,
                 page_num,
                 Font_id::SANS, typo.footer_size_pt, 0,
                 k_black, false
             });
-            footer_y += pt_to_mm(typo.footer_size_pt) + L.footer_line_gap_mm;
+            footer_y += pt_to_mm(typo.footer_size_pt) + layout.footer_line_gap_mm;
         }
 
         // Commercial footer lines (on every page)
@@ -425,12 +426,12 @@ build_letter_result_t build_letter(
                     body_width_mm,
                     true,
                     theme.fonts);
-                page.elements.push_back(text_block_t{
-                    L.margin_left_mm, footer_y, body_width_mm,
+                page.elements.push_back(Text_block{
+                    layout.margin_left_mm, footer_y, body_width_mm,
                     fl,
                     Font_id::SANS, typo.footer_text_size_pt,
                     typo.footer_text_size_pt,
-                    L.footer_color, true
+                    layout.footer_color, true
                 });
                 footer_y += pt_to_mm(footer_metrics.height_pt) + 1.0f;
             }
@@ -443,14 +444,14 @@ build_letter_result_t build_letter(
 }
 
 
-render_result_t generate_letter_pdf(
-    const sender_profile_t& profile,
-    const letter_input_t& input,
+Render_result generate_letter_pdf(
+    const Sender_profile& profile,
+    const Letter_input& input,
     const std::string& profile_dir,
     const std::string& output_path,
-    const theme_config_t& theme,
+    const Theme_config& theme,
     const letter_layout_spec_t& layout,
-    const localization_t& loc)
+    const Localization& loc)
 {
     auto br = build_letter(profile, input, profile_dir, theme, layout, loc);
     if (!br.error.empty()) {

@@ -6,7 +6,7 @@
 
 
 // ============================================================================
-// Body content model — semantic representation of letter body content
+// Body content model - semantic representation of letter body content
 //
 // Produced by the markdown parser, consumed by the layout engine.
 // Represents meaning (paragraphs, headings, lists, etc.), not coordinates.
@@ -21,68 +21,68 @@ enum class Inline_style
     CODE,       // inline code (monospace)
 };
 
-struct text_run_t
+struct Text_run
 {
     std::string  text;
     Inline_style style = Inline_style::NORMAL;
 };
 
-struct paragraph_block_t
+struct Paragraph_block
 {
-    std::vector<text_run_t> runs;
+    std::vector<Text_run> runs;
 };
 
-struct heading_block_t
+struct Heading_block
 {
     int level = 1;
-    std::vector<text_run_t> runs;
+    std::vector<Text_run> runs;
 };
 
-struct list_item_t
+struct List_item
 {
-    std::vector<text_run_t> runs;
+    std::vector<Text_run> runs;
 };
 
-struct list_block_t
+struct List_block
 {
     bool ordered = false;
     int  start_number = 1;
-    std::vector<list_item_t> items;
+    std::vector<List_item> items;
 };
 
-struct image_content_block_t
+struct Image_content_block
 {
     std::string path;
     std::string alt_text;
 };
 
-struct table_cell_t
+struct Table_cell
 {
-    std::vector<text_run_t> runs;
+    std::vector<Text_run> runs;
 };
 
-struct table_row_t
+struct Table_row
 {
-    std::vector<table_cell_t> cells;
+    std::vector<Table_cell> cells;
 };
 
-struct table_block_t
+struct Table_block
 {
-    std::vector<table_row_t> rows;     // first row is the header
+    std::vector<Table_row> rows;     // first row is the header
     bool has_header = false;
 };
 
-struct code_block_t
+struct Code_block
 {
     std::string text;      // raw code content (newlines preserved)
     std::string language;  // optional language hint (from ``` tag)
 };
 
-using body_block_t = std::variant<
-    paragraph_block_t,
-    heading_block_t,
-    list_block_t,
-    image_content_block_t,
-    table_block_t,
-    code_block_t
+using Body_block = std::variant<
+    Paragraph_block,
+    Heading_block,
+    List_block,
+    Image_content_block,
+    Table_block,
+    Code_block
 >;
