@@ -7,9 +7,13 @@ Letter layout, markdown body parsing, and PDF rendering are handled natively in
 C++ with Qt 6 and mark2haru.
 
 <p align="center">
-  <img src="example.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
-  <br>
   <img src="sample_screenshot.png" alt="Application screenshot" style="max-width: 100%; height: auto;">
+</p>
+
+The letter above produces a PDF like this:
+
+<p align="center">
+  <img src="example.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
 </p>
 
 ## What it does
@@ -23,31 +27,6 @@ C++ with Qt 6 and mark2haru.
   (TrueType rendering preserves non-CP1252 scripts)
 - localizable closing line, page-number footer, and error messages
   (English by default, German auto-selected when the system locale is `de_*`)
-
-The default sender profiles cover two letter styles:
-
-- `simple`
-- `commercial`
-
-## Repository layout
-
-```text
-.
-|- briefutil/              # CMake project root
-|- example.png             # README screenshot
-|- sample_screenshot.png   # README screenshot
-|- LICENSE.txt
-\- README.md
-```
-
-The project root for the application code is [`briefutil/`](briefutil/).
-That directory contains:
-
-- `app/` for the Qt Quick application, QML, and app resources
-- `cli/` for the command-line frontend
-- `core/` for the reusable `briefutil_core` library
-- `tests/` for development test executables and test data
-- the top-level CMake build entry point
 
 ## Requirements
 
