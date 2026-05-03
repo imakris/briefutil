@@ -452,13 +452,27 @@ Window {
             color: settingsWin.textColor
         }
 
-        RowLayout {
-            spacing: 8
+        GridLayout {
+            columns: 7
+            columnSpacing: 8
+            rowSpacing: 8
             Layout.fillWidth: true
 
-            Label { text: "Base"; color: settingsWin.dimTextColor }
-            Label { text: "Body size"; color: settingsWin.dimTextColor }
+            Label {
+                Layout.row: 0
+                Layout.column: 0
+                text: "Base"
+                color: settingsWin.dimTextColor
+            }
+            Label {
+                Layout.row: 0
+                Layout.column: 1
+                text: "Body size"
+                color: settingsWin.dimTextColor
+            }
             StyledSpinBox {
+                Layout.row: 0
+                Layout.column: 2
                 from: 6
                 to: 24
                 Layout.preferredWidth: 80
@@ -466,8 +480,15 @@ Window {
                 onValueChanged: settingsWin.bodySize = value
             }
 
-            Label { text: "Leading"; color: settingsWin.dimTextColor }
+            Label {
+                Layout.row: 0
+                Layout.column: 3
+                text: "Leading"
+                color: settingsWin.dimTextColor
+            }
             StyledSpinBox {
+                Layout.row: 0
+                Layout.column: 4
                 from: 6
                 to: 36
                 Layout.preferredWidth: 80
@@ -475,16 +496,21 @@ Window {
                 onValueChanged: settingsWin.bodyLeading = value
             }
 
-            Item { Layout.fillWidth: true }
-        }
-
-        RowLayout {
-            spacing: 8
-            Layout.fillWidth: true
-
-            Label { text: "Scale"; color: settingsWin.dimTextColor }
-            Label { text: "Header"; color: settingsWin.dimTextColor }
+            Label {
+                Layout.row: 1
+                Layout.column: 0
+                text: "Scale"
+                color: settingsWin.dimTextColor
+            }
+            Label {
+                Layout.row: 1
+                Layout.column: 1
+                text: "Header"
+                color: settingsWin.dimTextColor
+            }
             StyledSpinBox {
+                Layout.row: 1
+                Layout.column: 2
                 from: 50
                 to: 200
                 Layout.preferredWidth: 80
@@ -492,8 +518,15 @@ Window {
                 onValueChanged: settingsWin.headerFontScalePercent = value
             }
 
-            Label { text: "Body"; color: settingsWin.dimTextColor }
+            Label {
+                Layout.row: 1
+                Layout.column: 3
+                text: "Body"
+                color: settingsWin.dimTextColor
+            }
             StyledSpinBox {
+                Layout.row: 1
+                Layout.column: 4
                 from: 50
                 to: 200
                 Layout.preferredWidth: 80
@@ -501,16 +534,21 @@ Window {
                 onValueChanged: settingsWin.bodyFontScalePercent = value
             }
 
-            Label { text: "Footer"; color: settingsWin.dimTextColor }
+            Label {
+                Layout.row: 1
+                Layout.column: 5
+                text: "Footer"
+                color: settingsWin.dimTextColor
+            }
             StyledSpinBox {
+                Layout.row: 1
+                Layout.column: 6
                 from: 50
                 to: 200
                 Layout.preferredWidth: 80
                 value: Math.round(settingsWin.footerFontScalePercent)
                 onValueChanged: settingsWin.footerFontScalePercent = value
             }
-
-            Item { Layout.fillWidth: true }
         }
 
         Item { Layout.preferredHeight: 8 }
