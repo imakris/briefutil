@@ -174,59 +174,49 @@ static std::vector<laid_out_line_t> layout_runs(
                 ? run.text.substr(pos)
                 : run.text.substr(pos, nl - pos);
 
-            if (!segment.empty()) {
-                size_t wi = 0;
-                while (wi < segment.size()) {
-                    while (wi < segment.size() && segment[wi] == ' ') wi++;
-                    if (wi >= segment.size()) break;
-                    size_t wend = segment.find(' ', wi);
-                    if (wend == std::string::npos) wend = segment.size();
-                    std::string word = segment.substr(wi, wend - wi);
+            for_each_word(segment, [&](const std::string& word) {
+                float word_w_mm = word_width_mm(fid, word);
 
-                    float word_w_mm = word_width_mm(fid, word);
+                float space_w_mm = (cursor_x_mm > left_mm)
+                    ? space_width_mm_for(fid) : 0.0f;
 
-                    float space_w_mm = (cursor_x_mm > left_mm)
-                        ? space_width_mm_for(fid) : 0.0f;
+                // Line break if word doesn't fit
+                if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm
+                    && cursor_x_mm > left_mm)
+                {
+                    flush_line();
+                    space_w_mm = 0;
+                }
 
-                    // Line break if word doesn't fit
-                    if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm
-                        && cursor_x_mm > left_mm)
-                    {
-                        flush_line();
-                        space_w_mm = 0;
-                    }
+                // If style changed or no span is being built, start a new one
+                if (!has_building_span || building_span.font != fid) {
+                    commit_building_span();
+                    building_span.x_mm = cursor_x_mm;
+                    building_span.font = fid;
+                    building_span.size_pt = size_pt;
+                    building_span.color = color;
+                    building_span.text.clear();
+                    has_building_span = true;
 
-                    // If style changed or no span is being built, start a new one
-                    if (!has_building_span || building_span.font != fid) {
-                        commit_building_span();
-                        building_span.x_mm = cursor_x_mm;
-                        building_span.font = fid;
-                        building_span.size_pt = size_pt;
-                        building_span.color = color;
-                        building_span.text.clear();
-                        has_building_span = true;
-
-                        if (cursor_x_mm > left_mm) {
-                            building_span.text = " " + word;
-                        }
-                        else {
-                            building_span.text = word;
-                        }
+                    if (cursor_x_mm > left_mm) {
+                        building_span.text = " " + word;
                     }
                     else {
-                        // Same style — append to current span
-                        if (cursor_x_mm > left_mm) {
-                            building_span.text += " " + word;
-                        }
-                        else {
-                            building_span.text += word;
-                        }
+                        building_span.text = word;
                     }
-
-                    cursor_x_mm += space_w_mm + word_w_mm;
-                    wi = wend;
                 }
-            }
+                else {
+                    // Same style — append to current span
+                    if (cursor_x_mm > left_mm) {
+                        building_span.text += " " + word;
+                    }
+                    else {
+                        building_span.text += word;
+                    }
+                }
+
+                cursor_x_mm += space_w_mm + word_w_mm;
+            });
 
             if (nl == std::string::npos) break;
             flush_line();
@@ -317,17 +307,10 @@ static float cell_min_width(
     float max_word = 0;
     for (const auto& run : runs) {
         Font_id fid = font_for_style(run.style);
-        size_t pos = 0;
-        while (pos < run.text.size()) {
-            while (pos < run.text.size() && run.text[pos] == ' ') pos++;
-            if (pos >= run.text.size()) break;
-            size_t end = run.text.find(' ', pos);
-            if (end == std::string::npos) end = run.text.size();
-            std::string word = run.text.substr(pos, end - pos);
+        for_each_word(run.text, [&](const std::string& word) {
             auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
             max_word = std::max(max_word, pt_to_mm(m.width_pt));
-            pos = end;
-        }
+        });
     }
     return max_word;
 }

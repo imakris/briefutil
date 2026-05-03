@@ -122,19 +122,8 @@ static inline std::vector<std::string> wrap_mark2haru_text(
             continue;
         }
 
-        std::vector<std::string> words;
-        size_t pos = 0;
-        while (pos < para.size()) {
-            while (pos < para.size() && para[pos] == ' ') pos++;
-            if (pos >= para.size()) break;
-            size_t end = para.find(' ', pos);
-            if (end == std::string::npos) end = para.size();
-            words.push_back(para.substr(pos, end - pos));
-            pos = end;
-        }
-
         std::string current;
-        for (const auto& word : words) {
+        for_each_word(para, [&](const std::string& word) {
             std::string candidate = current.empty() ? word : current + " " + word;
             float w = static_cast<float>(metrics.measure_text_width(pdf_font, candidate, size_pt));
             if (w > max_width_pt && !current.empty()) {
@@ -144,7 +133,7 @@ static inline std::vector<std::string> wrap_mark2haru_text(
             else {
                 current = candidate;
             }
-        }
+        });
         if (!current.empty()) {
             lines.push_back(current);
         }
