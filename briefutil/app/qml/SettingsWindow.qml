@@ -439,70 +439,70 @@ Window {
         Item { Layout.preferredHeight: 8 }
 
         Label {
-            text: "Typography"
+            text: "Text sizing"
             font.bold: true
             color: settingsWin.textColor
         }
 
         RowLayout {
-            spacing: 15
+            spacing: 8
             Layout.fillWidth: true
 
-            Label { text: "Body size (pt)"; color: settingsWin.dimTextColor }
+            Label { text: "Base"; color: settingsWin.dimTextColor }
+            Label { text: "Body size"; color: settingsWin.dimTextColor }
             StyledSpinBox {
                 from: 6
                 to: 24
+                Layout.preferredWidth: 80
                 value: settingsWin.bodySize
                 onValueChanged: settingsWin.bodySize = value
             }
 
-            Label { text: "Leading (pt)"; color: settingsWin.dimTextColor }
+            Label { text: "Leading"; color: settingsWin.dimTextColor }
             StyledSpinBox {
                 from: 6
                 to: 36
+                Layout.preferredWidth: 80
                 value: settingsWin.bodyLeading
                 onValueChanged: settingsWin.bodyLeading = value
             }
+
+            Item { Layout.fillWidth: true }
         }
 
-        GridLayout {
-            columns: 2
-            columnSpacing: 10
-            rowSpacing: 8
+        RowLayout {
+            spacing: 8
             Layout.fillWidth: true
 
-            Label {
-                text: "Header scale (%)"
-                color: settingsWin.dimTextColor
-            }
+            Label { text: "Scale"; color: settingsWin.dimTextColor }
+            Label { text: "Header"; color: settingsWin.dimTextColor }
             StyledSpinBox {
                 from: 50
                 to: 200
+                Layout.preferredWidth: 80
                 value: Math.round(settingsWin.headerFontScalePercent)
                 onValueChanged: settingsWin.headerFontScalePercent = value
             }
 
-            Label {
-                text: "Body scale (%)"
-                color: settingsWin.dimTextColor
-            }
+            Label { text: "Body"; color: settingsWin.dimTextColor }
             StyledSpinBox {
                 from: 50
                 to: 200
+                Layout.preferredWidth: 80
                 value: Math.round(settingsWin.bodyFontScalePercent)
                 onValueChanged: settingsWin.bodyFontScalePercent = value
             }
 
-            Label {
-                text: "Footer scale (%)"
-                color: settingsWin.dimTextColor
-            }
+            Label { text: "Footer"; color: settingsWin.dimTextColor }
             StyledSpinBox {
                 from: 50
                 to: 200
+                Layout.preferredWidth: 80
                 value: Math.round(settingsWin.footerFontScalePercent)
                 onValueChanged: settingsWin.footerFontScalePercent = value
             }
+
+            Item { Layout.fillWidth: true }
         }
 
         Item { Layout.preferredHeight: 8 }
