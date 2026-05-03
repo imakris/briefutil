@@ -138,6 +138,59 @@ if not exist "%RUNTIME_DIR%\platforms" (
     exit /b 1
 )
 
+REM -- Prune Qt deployment extras that briefutil does not use --
+REM windeployqt is conservative for Qt Quick apps and deploys every Quick
+REM Controls style plus debugger/tooling plugins. briefutil fixes the style to
+REM Basic and removes those unused style/runtime fallbacks from the portable
+REM package.
+(
+    echo [Controls]
+    echo Style=Basic
+    echo FallbackStyle=Basic
+) > "%RUNTIME_DIR%\qtquickcontrols2.conf"
+
+for %%F in (
+    opengl32sw.dll
+    Qt6QuickControls2FluentWinUI3StyleImpl.dll
+    Qt6QuickControls2Fusion.dll
+    Qt6QuickControls2FusionStyleImpl.dll
+    Qt6QuickControls2Imagine.dll
+    Qt6QuickControls2ImagineStyleImpl.dll
+    Qt6QuickControls2Material.dll
+    Qt6QuickControls2MaterialStyleImpl.dll
+    Qt6QuickControls2Universal.dll
+    Qt6QuickControls2UniversalStyleImpl.dll
+    Qt6QuickControls2WindowsStyleImpl.dll
+    Qt6Svg.dll
+    imageformats\qgif.dll
+    imageformats\qjpeg.dll
+    imageformats\qsvg.dll
+) do (
+    if exist "%RUNTIME_DIR%\%%F" del /q "%RUNTIME_DIR%\%%F"
+)
+
+for %%D in (
+    generic
+    iconengines
+    networkinformation
+    qmltooling
+    tls
+    qml\QML
+    qml\QtQuick\Controls\FluentWinUI3
+    qml\QtQuick\Controls\Fusion
+    qml\QtQuick\Controls\Imagine
+    qml\QtQuick\Controls\Material
+    qml\QtQuick\Controls\Universal
+    qml\QtQuick\Controls\Windows
+    qml\QtQuick\NativeStyle
+) do (
+    if exist "%RUNTIME_DIR%\%%D" rmdir /s /q "%RUNTIME_DIR%\%%D"
+)
+
+for /r "%RUNTIME_DIR%\qml" %%F in (*.qmltypes *.metainfo) do (
+    if exist "%%F" del /q "%%F"
+)
+
 REM -- Build info --
 echo.
 echo [4/5] Writing build info ...
