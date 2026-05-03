@@ -107,6 +107,16 @@ if errorlevel 1 (
     exit /b 1
 )
 copy /y "%BUILD_DIR%\app\*.dll" "%RUNTIME_DIR%\" >nul
+if exist "%BUILD_DIR%\app\fonts" (
+    xcopy /e /i /q /y "%BUILD_DIR%\app\fonts" "%RUNTIME_DIR%\fonts" >nul
+    if errorlevel 1 (
+        echo ERROR: Failed to copy bundled fonts.
+        exit /b 1
+    )
+) else (
+    echo ERROR: Bundled fonts are missing from the app build output.
+    exit /b 1
+)
 
 (
     echo @echo off

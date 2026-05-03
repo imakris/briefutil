@@ -50,7 +50,6 @@ static float footer_block_height_mm(
     const letter_layout_spec_t& L,
     float body_width_mm,
     const font_family_config_t& fonts,
-    Pdf_backend pdf_backend,
     bool include_page_number)
 {
     float height_mm = 0.0f;
@@ -70,7 +69,6 @@ static float footer_block_height_mm(
 
     for (std::size_t i = 0; i < profile.footer_lines.size(); ++i) {
         const auto footer_metrics = measure_text(
-            pdf_backend,
             profile.footer_lines[i],
             Font_id::SANS,
             typo.footer_text_size_pt,
@@ -92,12 +90,11 @@ static float footer_top_y_mm(
     const letter_layout_spec_t& L,
     float body_width_mm,
     const font_family_config_t& fonts,
-    Pdf_backend pdf_backend,
     bool include_page_number)
 {
     return L.page_height_mm - L.footer_margin_mm
         - footer_block_height_mm(
-            profile, typo, L, body_width_mm, fonts, pdf_backend, include_page_number);
+            profile, typo, L, body_width_mm, fonts, include_page_number);
 }
 
 
@@ -111,8 +108,7 @@ build_letter_result_t build_letter(
     const std::string& profile_dir,
     const theme_config_t& theme,
     const letter_layout_spec_t& layout,
-    const localization_t& loc,
-    Pdf_backend pdf_backend)
+    const localization_t& loc)
 {
     const auto typo = scaled_typography(theme.typo);
     const auto& L = layout;
@@ -124,15 +120,14 @@ build_letter_result_t build_letter(
 
     auto sender_text = build_sender_text(profile);
 
-    std::string backend_detail;
-    if (!pdf_measurement_ready(pdf_backend, theme.fonts, &backend_detail)) {
-        return { {}, backend_detail.empty()
-                    ? "Selected PDF backend is unavailable."
-                    : backend_detail };
+    std::string measurement_detail;
+    if (!pdf_measurement_ready(theme.fonts, &measurement_detail)) {
+        return { {}, measurement_detail.empty()
+                    ? "PDF measurement is unavailable."
+                    : measurement_detail };
     }
 
     auto ret_metrics = measure_text(
-        pdf_backend,
         profile.return_address_line,
         Font_id::SANS,
         typo.return_size_pt,
@@ -143,7 +138,6 @@ build_letter_result_t build_letter(
     float return_rule_x2_mm = L.address_text_x_mm + pt_to_mm(ret_metrics.width_pt);
 
     auto sender_metrics = measure_text(
-        pdf_backend,
         sender_text,
         Font_id::SANS,
         typo.sender_size_pt,
@@ -152,7 +146,6 @@ build_letter_result_t build_letter(
         false,
         theme.fonts);
     auto date_metrics = measure_text(
-        pdf_backend,
         input.date,
         Font_id::SANS,
         typo.date_size_pt,
@@ -178,7 +171,6 @@ build_letter_result_t build_letter(
 
     // Closing block height estimate
     auto closing_metrics = measure_text(
-        pdf_backend,
         closing_text,
         Font_id::SANS,
         typo.body_size_pt,
@@ -218,7 +210,6 @@ build_letter_result_t build_letter(
     lp.typo        = typo;
     lp.fonts       = theme.fonts;
     lp.loc         = loc;
-    lp.pdf_backend = pdf_backend;
 
     auto make_body_layout = [&](bool include_page_number) {
         const float page_bottom = footer_top_y_mm(
@@ -227,7 +218,6 @@ build_letter_result_t build_letter(
             L,
             body_width_mm,
             theme.fonts,
-            pdf_backend,
             include_page_number) - L.page_bottom_buffer_mm;
         auto result = layout_body(
             body_blocks,
@@ -398,7 +388,6 @@ build_letter_result_t build_letter(
             L,
             body_width_mm,
             theme.fonts,
-            pdf_backend,
             include_page_number);
 
         // Page number (only on multi-page)
@@ -406,7 +395,6 @@ build_letter_result_t build_letter(
             std::string page_num = format_page_number(loc.page_number_format,
                                                        pi + 1, total_pages);
             auto page_num_metrics = measure_text(
-                pdf_backend,
                 page_num,
                 Font_id::SANS,
                 typo.footer_size_pt,
@@ -430,7 +418,6 @@ build_letter_result_t build_letter(
         if (profile.style == Profile_style::COMMERCIAL) {
             for (const auto& fl : profile.footer_lines) {
                 const auto footer_metrics = measure_text(
-                    pdf_backend,
                     fl,
                     Font_id::SANS,
                     typo.footer_text_size_pt,
@@ -463,12 +450,11 @@ render_result_t generate_letter_pdf(
     const std::string& output_path,
     const theme_config_t& theme,
     const letter_layout_spec_t& layout,
-    const localization_t& loc,
-    Pdf_backend pdf_backend)
+    const localization_t& loc)
 {
-    auto br = build_letter(profile, input, profile_dir, theme, layout, loc, pdf_backend);
+    auto br = build_letter(profile, input, profile_dir, theme, layout, loc);
     if (!br.error.empty()) {
         return { false, "", br.error, "" };
     }
-    return render_pdf(br.doc, output_path, theme.fonts, loc, pdf_backend);
+    return render_pdf(br.doc, output_path, theme.fonts, loc);
 }

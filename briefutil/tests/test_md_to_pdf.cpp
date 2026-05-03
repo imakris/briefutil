@@ -3,8 +3,6 @@
 
 #include "briefutil/default_profiles.h"
 #include "briefutil/letter_builder.h"
-#include "briefutil/pdf_backend.h"
-#include "briefutil/pdf_measurement.h"
 #include "briefutil/pdf_renderer.h"
 #include "briefutil/sender_profile.h"
 
@@ -84,8 +82,7 @@ int main(int argc, char* argv[])
         br.doc,
         output,
         default_font_family(),
-        default_localization(),
-        Pdf_backend::Haru);
+        default_localization());
     if (!rr.ok) {
         std::fprintf(
             stderr,
@@ -98,28 +95,6 @@ int main(int argc, char* argv[])
     }
 
     std::printf("PDF saved to: %s\n", output);
-
-    std::string mark2_detail;
-    if (pdf_measurement_ready(Pdf_backend::Mark2Haru, default_font_family(), &mark2_detail)) {
-        std::string mark2_output = std::string(output) + ".mark2haru.pdf";
-        auto rr2 = render_pdf(
-            br.doc,
-            mark2_output,
-            default_font_family(),
-            default_localization(),
-            Pdf_backend::Mark2Haru);
-        if (!rr2.ok) {
-            std::fprintf(
-                stderr,
-                "Render mark2haru failed: %s (%s)\n",
-                rr2.message.c_str(),
-                rr2.detail.c_str());
-            QFile::remove(profile_path);
-            QDir().rmdir(tmp_dir);
-            return 1;
-        }
-        std::printf("mark2haru PDF saved to: %s\n", mark2_output.c_str());
-    }
 
     QFile::remove(profile_path);
     QDir().rmdir(tmp_dir);

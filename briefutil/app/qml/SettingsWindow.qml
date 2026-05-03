@@ -384,7 +384,7 @@ Window {
             property alias label: lbl.text
             property alias value: field.text
             property bool valid: true
-            property string errorText: "Use a built-in PDF font, installed font name, or existing .ttf/.otf file."
+            property string errorText: "Leave empty for bundled fonts, or use an installed TrueType font name or existing .ttf file."
             spacing: 8
             Layout.fillWidth: true
 
@@ -398,7 +398,7 @@ Window {
                 Layout.fillWidth: true
                 hoverEnabled: true
                 selectByMouse: true
-                placeholderText: "Built-in PDF font, installed font, or .ttf/.otf path"
+                placeholderText: "Bundled default, installed TrueType font, or .ttf path"
                 ToolTip.visible: !fontRow.valid && hovered
                 ToolTip.text: fontRow.errorText
                 background: Rectangle {
@@ -418,7 +418,7 @@ Window {
         FontRow { label: "Mono";             value: settingsWin.fontMono;           valid: settingsWin.fontMonoOk;           onValueChanged: settingsWin.fontMono = value }
 
         Label {
-            text: "You can use a built-in PDF font such as Helvetica or Courier, an installed font such as Noto Sans, or an explicit .ttf/.otf font file."
+            text: "Leave fields empty for bundled fonts, use an installed TrueType font such as Noto Sans, or provide explicit .ttf files."
             wrapMode: Text.WordWrap
             color: settingsWin.dimTextColor
             Layout.fillWidth: true

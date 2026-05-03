@@ -117,23 +117,11 @@ int main(int argc, char* argv[])
     invalid = request;
     invalid.output_path = root.filePath("bad-font.pdf").toStdString();
     invalid.overwrite_output = false;
-    invalid.theme.fonts.sans.clear();
+    invalid.theme.fonts.sans = "unsupported.otf";
     invalid_result = briefutil::generate_brief_pdf(invalid);
     if (invalid_result.ok
         || invalid_result.code != briefutil::generation_result_code::Invalid_font_config) {
         fail("invalid font config should be Invalid_font_config");
-    }
-
-    if (!pdf_backend_available(Pdf_backend::Mark2Haru)) {
-        invalid = request;
-        invalid.output_path = root.filePath("bad-backend.pdf").toStdString();
-        invalid.overwrite_output = false;
-        invalid.backend = Pdf_backend::Mark2Haru;
-        invalid_result = briefutil::generate_brief_pdf(invalid);
-        if (invalid_result.ok
-            || invalid_result.code != briefutil::generation_result_code::Backend_unavailable) {
-            fail("unavailable backend should be Backend_unavailable");
-        }
     }
 
     return 0;

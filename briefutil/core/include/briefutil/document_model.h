@@ -10,7 +10,7 @@
 // Document model - page-element types for native PDF rendering
 //
 // All coordinates are in mm from the top-left corner of the page.
-// The renderer converts to libHaru's bottom-left point system internally.
+// The renderer converts to PDF point coordinates internally.
 // ============================================================================
 
 // -- Unit conversion utilities (mm ↔ pt) --

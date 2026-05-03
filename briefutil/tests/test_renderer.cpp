@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
     // -- Test 1: text measurement --
     {
-        auto m = measure_text(Pdf_backend::Haru, "Hello World", Font_id::SANS, 10, 12, 100, false);
+        auto m = measure_text("Hello World", Font_id::SANS, 10, 12, 100, false);
         std::printf(
             "measure_text: width=%.1fpt height=%.1fpt lines=%d\n",
             m.width_pt,
@@ -39,7 +39,6 @@ int main(int argc, char* argv[])
     // -- Test 2: text wrapping --
     {
         auto lines = wrap_text(
-            Pdf_backend::Haru,
             "This is a fairly long line of text that should wrap across "
             "multiple lines when constrained to a narrow column width.",
             Font_id::SANS, 10, 50);
@@ -53,7 +52,6 @@ int main(int argc, char* argv[])
     // -- Test 3: explicit newline handling --
     {
         auto lines = wrap_text(
-            Pdf_backend::Haru,
             "Line one\nLine two\n\nLine four",
             Font_id::SANS,
             10,
@@ -94,7 +92,7 @@ int main(int argc, char* argv[])
         });
 
         // Separator — length matched to return-address text
-        auto ret_m = measure_text(Pdf_backend::Haru, return_addr, Font_id::SANS, 8, 0, 200, false);
+        auto ret_m = measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
         float sep_end_mm = 25.4f + ret_m.width_pt / (72.0f / 25.4f);
         p.elements.push_back(line_segment_t{
             25.4f, 54.61f, sep_end_mm, 54.61f, 0.5f, k_black
@@ -200,8 +198,7 @@ int main(int argc, char* argv[])
         doc,
         output,
         default_font_family(),
-        default_localization(),
-        Pdf_backend::Haru);
+        default_localization());
 
     if (!result.ok) {
         std::fprintf(stderr, "FAIL: %s (%s)\n",
@@ -226,49 +223,6 @@ int main(int argc, char* argv[])
 
     std::printf("\nAll tests passed.\n");
     std::printf("Multi-page PDF saved to: %s\n", output);
-
-    std::string mark2_detail;
-    if (pdf_measurement_ready(Pdf_backend::Mark2Haru, default_font_family(), &mark2_detail)) {
-        auto m = measure_text(Pdf_backend::Mark2Haru, "Hello World", Font_id::SANS, 10, 12, 100, false);
-        if (m.line_count != 1 || m.width_pt < 1) {
-            std::fprintf(stderr, "FAIL: mark2haru measurement returned unexpected metrics\n");
-            return 1;
-        }
-
-        std::string mark2_output = std::string(output) + ".mark2haru.pdf";
-        auto mark2 = render_pdf(
-            doc,
-            mark2_output,
-            default_font_family(),
-            default_localization(),
-            Pdf_backend::Mark2Haru);
-        if (!mark2.ok) {
-            std::fprintf(
-                stderr,
-                "FAIL: mark2haru render: %s (%s)\n",
-                mark2.message.c_str(),
-                mark2.detail.c_str());
-            return 1;
-        }
-
-        FILE* f2 = std::fopen(mark2_output.c_str(), "rb");
-        if (!f2) {
-            std::fprintf(stderr, "FAIL: cannot open mark2haru output file\n");
-            return 1;
-        }
-        char header2[6] = {};
-        std::fread(header2, 1, 5, f2);
-        std::fclose(f2);
-        if (std::strncmp(header2, "%PDF-", 5) != 0) {
-            std::fprintf(stderr, "FAIL: mark2haru output does not start with %%PDF-\n");
-            return 1;
-        }
-        std::printf("mark2haru PDF saved to: %s\n", mark2_output.c_str());
-    }
-    else
-    if (pdf_backend_available(Pdf_backend::Mark2Haru)) {
-        std::printf("[SKIP] mark2haru backend not ready: %s\n", mark2_detail.c_str());
-    }
 
     return 0;
 }

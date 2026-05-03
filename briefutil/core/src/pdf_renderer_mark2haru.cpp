@@ -3,12 +3,10 @@
 
 #include "pdf_mark2haru_support.h"
 
-#include <type_traits>
-
-#if BRIEFUTIL_HAS_MARK2HARU
 #include <mark2haru/pdf_writer.h>
 #include <mark2haru/png_image.h>
-#endif
+
+#include <type_traits>
 
 
 // ============================================================================
@@ -18,7 +16,6 @@
 static float pt_x(float x_mm) { return mm_to_pt(x_mm); }
 static float pt_y(float y_mm) { return mm_to_pt(y_mm); }
 
-#if BRIEFUTIL_HAS_MARK2HARU
 static bool render_text_block(
     mark2haru::Pdf_writer& writer,
     const text_block_t& tb,
@@ -27,7 +24,6 @@ static bool render_text_block(
     std::vector<std::string> lines;
     if (tb.wrap) {
         lines = wrap_text(
-            Pdf_backend::Mark2Haru,
             tb.text,
             tb.font,
             tb.size_pt,
@@ -38,20 +34,23 @@ static bool render_text_block(
         lines = split_lines(tb.text);
     }
 
-    if (lines.empty()) return true;
+    if (lines.empty()) {
+        return true;
+    }
 
     float lead = tb.leading_pt > 0 ? tb.leading_pt : tb.size_pt;
     float y_top_pt = pt_y(tb.y_mm);
     auto font = mark2haru_font_for(tb.font);
+    const mark2haru::color_t color = { tb.color.r, tb.color.g, tb.color.b };
 
-    writer.set_fill_color({ tb.color.r, tb.color.g, tb.color.b });
     for (size_t i = 0; i < lines.size(); ++i) {
         writer.draw_text(
             pt_x(tb.x_mm),
-            y_top_pt + (float)i * lead,
+            y_top_pt + static_cast<float>(i) * lead,
             tb.size_pt,
             font,
-            lines[i]);
+            lines[i],
+            color);
     }
     return true;
 }
@@ -61,13 +60,13 @@ static bool render_text_span(
     const text_span_t& ts)
 {
     auto font = mark2haru_font_for(ts.font);
-    writer.set_fill_color({ ts.color.r, ts.color.g, ts.color.b });
     writer.draw_text(
         pt_x(ts.x_mm),
         pt_y(ts.y_mm),
         ts.size_pt,
         font,
-        ts.text);
+        ts.text,
+        { ts.color.r, ts.color.g, ts.color.b });
     return true;
 }
 
@@ -75,13 +74,13 @@ static bool render_line_segment(
     mark2haru::Pdf_writer& writer,
     const line_segment_t& ls)
 {
-    writer.set_line_width(ls.stroke_width_pt);
-    writer.set_stroke_color({ ls.color.r, ls.color.g, ls.color.b });
     writer.stroke_line(
         pt_x(ls.x1_mm),
         pt_y(ls.y1_mm),
         pt_x(ls.x2_mm),
-        pt_y(ls.y2_mm));
+        pt_y(ls.y2_mm),
+        { ls.color.r, ls.color.g, ls.color.b },
+        ls.stroke_width_pt);
     return true;
 }
 
@@ -89,12 +88,12 @@ static bool render_filled_rect(
     mark2haru::Pdf_writer& writer,
     const filled_rect_t& fr)
 {
-    writer.set_fill_color({ fr.color.r, fr.color.g, fr.color.b });
     writer.fill_rect(
         pt_x(fr.x_mm),
         pt_y(fr.y_mm),
         mm_to_pt(fr.width_mm),
-        mm_to_pt(fr.height_mm));
+        mm_to_pt(fr.height_mm),
+        { fr.color.r, fr.color.g, fr.color.b });
     return true;
 }
 
@@ -109,13 +108,13 @@ static bool render_image_block(
     if (!image.load_from_file(image_path)) {
         const std::string placeholder =
             format_image_not_found(loc.image_not_found_format, ib.path);
-        writer.set_fill_color({ 0.6, 0.0, 0.0 });
         writer.draw_text(
             pt_x(ib.x_mm),
             pt_y(ib.y_mm),
             8.0,
             mark2haru::Pdf_font::ITALIC,
-            placeholder);
+            placeholder,
+            { 0.6, 0.0, 0.0 });
         return true;
     }
 
@@ -191,19 +190,8 @@ static render_result_t render_pdf_mark2haru_impl(
 
     return { true, output_path, "", "" };
 }
-#else
-static render_result_t render_pdf_mark2haru_impl(
-    const document_t&,
-    const std::string&,
-    const font_family_config_t&,
-    const localization_t& loc)
-{
-    return { false, "", loc.error_pdf_create_failed,
-             "The mark2haru backend is not available in this build." };
-}
-#endif
 
-render_result_t render_pdf_mark2haru(
+render_result_t render_pdf(
     const document_t& doc,
     const std::string& output_path,
     const font_family_config_t& fonts,

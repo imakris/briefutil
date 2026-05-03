@@ -4,7 +4,6 @@
 #include "briefutil/letter_layout_spec.h"
 #include "briefutil/localization.h"
 #include "briefutil/sender_profile.h"
-#include "briefutil/pdf_backend.h"
 #include "briefutil/typography_config.h"
 #include <string>
 
@@ -33,8 +32,7 @@ build_letter_result_t build_letter(
     const std::string& profile_dir,
     const theme_config_t& theme = default_theme(),
     const letter_layout_spec_t& layout = din_5008_form_b(),
-    const localization_t& loc = default_localization(),
-    Pdf_backend pdf_backend = Pdf_backend::Haru);
+    const localization_t& loc = default_localization());
 
 // Convenience: build + render in one call.
 render_result_t generate_letter_pdf(
@@ -44,5 +42,4 @@ render_result_t generate_letter_pdf(
     const std::string& output_path,
     const theme_config_t& theme = default_theme(),
     const letter_layout_spec_t& layout = din_5008_form_b(),
-    const localization_t& loc = default_localization(),
-    Pdf_backend pdf_backend = Pdf_backend::Haru);
+    const localization_t& loc = default_localization());

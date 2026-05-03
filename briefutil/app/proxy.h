@@ -61,7 +61,6 @@ public:
     Q_INVOKABLE void set_layout_preset(const QString& v);
 
     Q_INVOKABLE bool validate_font_value(const QString& v, const QString& role = QString()) const;
-    Q_INVOKABLE bool font_value_is_file_backed(const QString& v, const QString& role = QString()) const;
     Q_INVOKABLE bool validate_directory(const QString& v) const;
     Q_INVOKABLE QVariantMap get_sender_profile(int index) const;
     Q_INVOKABLE bool save_sender_profile(int index, const QVariantMap& profile);

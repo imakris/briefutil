@@ -3,7 +3,6 @@
 #include "briefutil/brief_service.h"
 #include "briefutil/localization.h"
 #include "briefutil/path_utils.h"
-#include "briefutil/pdf_backend.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/template_store.h"
 
@@ -192,7 +191,19 @@ static bool is_base14_font_name(const std::string& s)
 static bool is_supported_font_file_path(const QString& path)
 {
     auto suffix = QFileInfo(path).suffix().toLower();
-    return suffix == "ttf" || suffix == "otf";
+    return suffix == "ttf";
+}
+
+static QString normalize_saved_font_input(QString value)
+{
+    value = value.trimmed();
+    if (value.isEmpty()) {
+        return QString();
+    }
+    if (is_base14_font_name(value.toStdString())) {
+        return QString();
+    }
+    return value;
 }
 
 #ifdef Q_OS_WIN
@@ -373,10 +384,10 @@ static QString resolve_font_value(const QString& value, Font_role role)
 
     auto s = trimmed.toStdString();
     if (looks_like_font_file(s)) {
-        return QFileInfo(trimmed).exists() ? QFileInfo(trimmed).absoluteFilePath() : QString();
-    }
-    if (is_base14_font_name(s)) {
-        return trimmed;
+        QFileInfo info(trimmed);
+        return info.exists() && info.isFile()
+            ? info.absoluteFilePath()
+            : QString();
     }
 
 #ifdef Q_OS_WIN
@@ -407,12 +418,12 @@ void Proxy::load_settings()
 {
     QSettings s("briefutil", "briefutil");
 
-    auto def = default_font_family();
-    m_font_sans_input = s.value("fonts/sans",             QString::fromStdString(def.sans)).toString();
-    m_font_sans_bold_input = s.value("fonts/sans_bold",        QString::fromStdString(def.sans_bold)).toString();
-    m_font_sans_italic_input = s.value("fonts/sans_italic",      QString::fromStdString(def.sans_italic)).toString();
-    m_font_sans_bold_italic_input = s.value("fonts/sans_bold_italic", QString::fromStdString(def.sans_bold_italic)).toString();
-    m_font_mono_input = s.value("fonts/mono",             QString::fromStdString(def.mono)).toString();
+    m_font_sans_input = normalize_saved_font_input(s.value("fonts/sans").toString());
+    m_font_sans_bold_input = normalize_saved_font_input(s.value("fonts/sans_bold").toString());
+    m_font_sans_italic_input = normalize_saved_font_input(s.value("fonts/sans_italic").toString());
+    m_font_sans_bold_italic_input = normalize_saved_font_input(
+        s.value("fonts/sans_bold_italic").toString());
+    m_font_mono_input = normalize_saved_font_input(s.value("fonts/mono").toString());
     m_theme.fonts = font_config_from_inputs(
         m_font_sans_input,
         m_font_sans_bold_input,
@@ -668,17 +679,15 @@ void Proxy::make_pdf(
         return;
     }
 
-    if (!is_valid_font_config(m_theme.fonts)) {
+    if (!validate_font_value(m_font_sans_input, "sans")
+        || !validate_font_value(m_font_sans_bold_input, "sans_bold")
+        || !validate_font_value(m_font_sans_italic_input, "sans_italic")
+        || !validate_font_value(m_font_sans_bold_italic_input, "sans_bold_italic")
+        || !validate_font_value(m_font_mono_input, "mono")
+        || !is_valid_font_config(m_theme.fonts))
+    {
         emit pdf_generated(false,
-            "Invalid font configuration. Use built-in PDF fonts such as Helvetica or Courier, installed fonts such as Noto Sans, or .ttf/.otf font files.");
-        return;
-    }
-
-    auto backend = Pdf_backend::Haru;
-    if (!pdf_backend_available(backend)) {
-        emit pdf_generated(
-            false,
-            "Selected PDF backend is not available in this build.");
+            "Invalid font configuration. Leave font fields empty for bundled fonts or use installed TrueType fonts or explicit .ttf files.");
         return;
     }
 
@@ -715,7 +724,6 @@ void Proxy::make_pdf(
         << "--template-dir" << m_sender_template_dir
         << "--output-dir" << m_output_dir
         << "--layout" << m_layout_preset
-        << "--backend" << QString::fromUtf8(pdf_backend_name(backend))
         << "--font-sans" << QString::fromStdString(m_theme.fonts.sans)
         << "--font-sans-bold" << QString::fromStdString(m_theme.fonts.sans_bold)
         << "--font-sans-italic" << QString::fromStdString(m_theme.fonts.sans_italic)
@@ -909,20 +917,13 @@ void Proxy::set_layout_preset(const QString& v)
 bool Proxy::validate_font_value(const QString& v, const QString& role) const
 {
     auto trimmed = v.trimmed();
-    if (trimmed.isEmpty()) return false;
+    if (trimmed.isEmpty()) return true;
 
     auto s = trimmed.toStdString();
     if (looks_like_font_file(s)) {
         return QFileInfo(trimmed).exists() && is_supported_font_file_path(trimmed);
     }
-    if (is_base14_font_name(s)) return true;
     return !resolve_font_value(trimmed, font_role_from_string(role)).isEmpty();
-}
-
-bool Proxy::font_value_is_file_backed(const QString& v, const QString& role) const
-{
-    auto resolved = resolve_font_value(v, font_role_from_string(role));
-    return !resolved.isEmpty() && looks_like_font_file(resolved.toStdString());
 }
 
 bool Proxy::validate_directory(const QString& v) const

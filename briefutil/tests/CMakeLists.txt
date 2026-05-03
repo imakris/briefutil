@@ -7,6 +7,7 @@ function(briefutil_add_test_executable target source_file)
     add_executable(${target} EXCLUDE_FROM_ALL ${source_file})
     target_link_libraries(${target} PRIVATE briefutil_core)
     briefutil_copy_runtime_dlls(${target})
+    briefutil_copy_mark2haru_fonts(${target})
 endfunction()
 
 briefutil_add_test_executable(test_renderer            test_renderer.cpp)

@@ -96,27 +96,25 @@ static std::vector<laid_out_line_t> layout_runs(
     const std::vector<text_run_t>& runs,
     float left_mm, float max_width_mm,
     float size_pt, float lead_pt, color_t color,
-    Pdf_backend backend,
     const font_family_config_t& fonts = default_font_family())
 {
     std::vector<laid_out_line_t> lines;
     float line_h_mm = pt_to_mm(lead_pt);
 
-    // Cache space widths per Font_id — measure_text(" ", ...) is otherwise
-    // called once per word, and each call walks the libHaru font width
-    // table from scratch.
+    // Cache space widths per Font_id so repeated words do not re-walk the
+    // PDF font metrics.
     float space_widths_mm[5] = { -1, -1, -1, -1, -1 };
     auto space_width_mm_for = [&](Font_id fid) -> float {
         int idx = (int)fid;
         if (space_widths_mm[idx] < 0) {
-            auto sp_m = measure_text(backend, " ", fid, size_pt, 0, 1000, false, fonts);
+            auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
             space_widths_mm[idx] = pt_to_mm(sp_m.width_pt);
         }
         return space_widths_mm[idx];
     };
 
     // Cache repeated word measurements per (font, word) pair so dense prose
-    // and tables do not re-walk the backend width tables for the same token.
+    // and tables do not re-walk the font metrics for the same token.
     std::unordered_map<std::string, float> word_width_cache;
     auto word_width_mm = [&](Font_id fid, const std::string& word) -> float {
         std::string key = std::to_string((int)fid);
@@ -127,7 +125,7 @@ static std::vector<laid_out_line_t> layout_runs(
         if (it != word_width_cache.end()) {
             return it->second;
         }
-        auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
+        auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
         float width_mm = pt_to_mm(m.width_pt);
         word_width_cache.emplace(std::move(key), width_mm);
         return width_mm;
@@ -301,14 +299,13 @@ struct Page_cursor
 static float cell_min_width(
     const std::vector<text_run_t>& runs,
     float size_pt,
-    Pdf_backend backend,
     const font_family_config_t& fonts)
 {
     float max_word = 0;
     for (const auto& run : runs) {
         Font_id fid = font_for_style(run.style);
         for_each_word(run.text, [&](const std::string& word) {
-            auto m = measure_text(backend, word, fid, size_pt, 0, 1000, false, fonts);
+            auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
             max_word = std::max(max_word, pt_to_mm(m.width_pt));
         });
     }
@@ -318,13 +315,12 @@ static float cell_min_width(
 static float cell_preferred_width(
     const std::vector<text_run_t>& runs,
     float size_pt,
-    Pdf_backend backend,
     const font_family_config_t& fonts)
 {
     float total = 0;
     for (const auto& run : runs) {
         Font_id fid = font_for_style(run.style);
-        auto m = measure_text(backend, run.text, fid, size_pt, 0, 1000, false, fonts);
+        auto m = measure_text(run.text, fid, size_pt, 0, 1000, false, fonts);
         total += pt_to_mm(m.width_pt);
     }
     return total;
@@ -342,7 +338,6 @@ static table_layout_info_t compute_table_columns(
     float available_mm,
     float size_pt,
     float cell_pad_mm,
-    Pdf_backend backend,
     const font_family_config_t& fonts)
 {
     if (tb.rows.empty()) return {};
@@ -359,8 +354,8 @@ static table_layout_info_t compute_table_columns(
 
     for (const auto& row : tb.rows) {
         for (int c = 0; c < (int)row.cells.size() && c < num_cols; c++) {
-            float cmin = cell_min_width(row.cells[c].runs, size_pt, backend, fonts) + pad;
-            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, backend, fonts) + pad;
+            float cmin = cell_min_width(row.cells[c].runs, size_pt, fonts) + pad;
+            float cpref = cell_preferred_width(row.cells[c].runs, size_pt, fonts) + pad;
             min_widths[c] = std::max(min_widths[c], cmin);
             pref_widths[c] = std::max(pref_widths[c], cpref);
         }
@@ -407,7 +402,6 @@ static float layout_table_row(const table_row_t& row,
                               float left_mm, float y_mm,
                               float size_pt, float lead_pt, color_t color,
                               float cell_pad_mm, bool is_header,
-                              Pdf_backend backend,
                               const font_family_config_t& fonts,
                               std::vector<page_element_t>& elements)
 {
@@ -449,7 +443,6 @@ static float layout_table_row(const table_row_t& row,
             size_pt,
             lead_pt,
             color,
-            backend,
             fonts);
         cl.height_mm = 0;
         for (const auto& line : cl.lines) {
@@ -550,7 +543,6 @@ layout_result_t layout_body(
                     params.typo.body_size_pt,
                     params.typo.body_lead_pt,
                     params.body_color,
-                    params.pdf_backend,
                     params.fonts);
                 cursor.emit_lines(lines);
                 cursor.y_mm += params.typo.paragraph_space_mm;
@@ -572,7 +564,6 @@ layout_result_t layout_body(
                     hsize,
                     hlead,
                     params.body_color,
-                    params.pdf_backend,
                     params.fonts);
 
                 // Make heading runs bold
@@ -624,7 +615,6 @@ layout_result_t layout_body(
                         params.typo.body_size_pt,
                         params.typo.body_lead_pt,
                         params.body_color,
-                        params.pdf_backend,
                         params.fonts);
                     cursor.emit_lines(lines);
                     cursor.y_mm += params.typo.list_item_space_mm;
@@ -690,7 +680,6 @@ layout_result_t layout_body(
                     params.width_mm,
                     params.typo.body_size_pt,
                     params.typo.table_cell_pad_mm,
-                    params.pdf_backend,
                     params.fonts);
                 if (!tl.valid) {
                     result.error = params.loc.error_table_too_wide;
@@ -706,7 +695,7 @@ layout_result_t layout_body(
                             params.left_mm, cursor.y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm,
-                            is_header_row, params.pdf_backend,
+                            is_header_row,
                             params.fonts, row_elements);
                         for (auto& elem : row_elements) {
                             cursor.current_elements().push_back(std::move(elem));
@@ -726,7 +715,7 @@ layout_result_t layout_body(
                             params.left_mm, cursor.y_mm,
                             params.typo.body_size_pt, params.typo.body_lead_pt,
                             params.body_color, params.typo.table_cell_pad_mm, is_header,
-                            params.pdf_backend, params.fonts, probe);
+                            params.fonts, probe);
 
                         // If the row doesn't fit, move to the next page,
                         // re-emit the header rows on the new page, and then

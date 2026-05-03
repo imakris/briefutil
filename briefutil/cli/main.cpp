@@ -33,7 +33,6 @@ struct cli_options_t
     std::string output_dir;
     std::string output_path;
     std::string layout = "din_5008_form_b";
-    std::string backend = "haru";
     font_family_config_t fonts = default_font_family();
     double body_size = 10.0;
     double body_leading = 12.0;
@@ -60,12 +59,11 @@ void print_help()
         << "  --output-dir PATH      Directory for generated PDF\n"
         << "  --output PATH          Exact output PDF path\n"
         << "  --layout NAME          din_5008_form_b, din_5008_form_a, or us_letter\n"
-        << "  --backend NAME         haru or mark2haru\n"
-        << "  --font-sans VALUE      Base-14 font name or .ttf/.otf path\n"
-        << "  --font-sans-bold VALUE Base-14 font name or .ttf/.otf path\n"
-        << "  --font-sans-italic VALUE Base-14 font name or .ttf/.otf path\n"
-        << "  --font-sans-bold-italic VALUE Base-14 font name or .ttf/.otf path\n"
-        << "  --font-mono VALUE      Base-14 font name or .ttf/.otf path\n"
+        << "  --font-sans PATH       .ttf font path; omit for bundled default\n"
+        << "  --font-sans-bold PATH  .ttf font path; omit for bundled default\n"
+        << "  --font-sans-italic PATH .ttf font path; omit for bundled default\n"
+        << "  --font-sans-bold-italic PATH .ttf font path; omit for bundled default\n"
+        << "  --font-mono PATH       .ttf font path; omit for bundled default\n"
         << "  --body-size PT         Body font size in points, 6..24\n"
         << "  --body-leading PT      Body line leading in points, 6..36\n"
         << "  --header-scale PCT     Header font scale percent, 50..200\n"
@@ -176,12 +174,6 @@ bool valid_layout_name(const std::string& value)
         || normalized == "us_letter";
 }
 
-bool valid_backend_name(const std::string& value)
-{
-    const auto normalized = lower_ascii(value);
-    return normalized == "haru" || normalized == "mark2haru";
-}
-
 std::optional<cli_options_t> parse_args(const QStringList& args)
 {
     cli_options_t options;
@@ -256,15 +248,6 @@ std::optional<cli_options_t> parse_args(const QStringList& args)
                 return std::nullopt;
             }
             options.layout = lower_ascii(*value);
-        }
-        else if (arg == "--backend") {
-            auto value = read_value("--backend");
-            if (!value) return std::nullopt;
-            if (!valid_backend_name(*value)) {
-                std::cerr << "--backend must be haru or mark2haru.\n";
-                return std::nullopt;
-            }
-            options.backend = lower_ascii(*value);
         }
         else if (arg == "--font-sans") {
             auto value = read_value("--font-sans");
@@ -475,7 +458,6 @@ int main(int argc, char** argv)
     request.output_path = options.output_path;
     request.overwrite_output = options.force;
     request.layout = briefutil::layout_spec_from_name(options.layout);
-    request.backend = pdf_backend_from_name(options.backend);
     request.theme.fonts = options.fonts;
     request.theme.typo.body_size_pt = static_cast<float>(options.body_size);
     request.theme.typo.body_lead_pt = static_cast<float>(options.body_leading);

@@ -8,79 +8,61 @@ cmake_policy(SET CMP0074 NEW)
 
 option(BRIEFUTIL_BUILD_GUI "Build the Qt Quick GUI frontend" ON)
 
-# ============================================================================
-# libHaru (static, with PNG support via zlib + libpng)
-# ============================================================================
-
 include(FetchContent)
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(SKIP_INSTALL_ALL  ON  CACHE BOOL "" FORCE)
+# ============================================================================
+# mark2haru
+# ============================================================================
 
-# -- zlib --
-FetchContent_Declare(zlib
-    GIT_REPOSITORY https://github.com/madler/zlib.git
-    GIT_TAG        v1.3.1
-)
-set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(zlib)
-
-if(NOT TARGET ZLIB::ZLIB)
-    add_library(ZLIB::ZLIB INTERFACE IMPORTED)
-    target_link_libraries(ZLIB::ZLIB INTERFACE zlibstatic)
-    target_include_directories(ZLIB::ZLIB INTERFACE
-        "${zlib_SOURCE_DIR}" "${zlib_BINARY_DIR}")
+set(_briefutil_default_mark2haru_source_dir "")
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../mark2haru/CMakeLists.txt")
+    get_filename_component(
+        _briefutil_default_mark2haru_source_dir
+        "${CMAKE_CURRENT_LIST_DIR}/../../mark2haru"
+        ABSOLUTE
+    )
 endif()
-set(ZLIB_FOUND       TRUE CACHE BOOL "" FORCE)
-set(ZLIB_INCLUDE_DIR "${zlib_SOURCE_DIR};${zlib_BINARY_DIR}" CACHE PATH "" FORCE)
-set(ZLIB_LIBRARY     "zlibstatic" CACHE STRING "" FORCE)
 
-# -- libpng --
-FetchContent_Declare(libpng
-    GIT_REPOSITORY https://github.com/pnggroup/libpng.git
-    GIT_TAG        v1.6.47
-)
-set(PNG_SHARED    OFF CACHE BOOL "" FORCE)
-set(PNG_STATIC    ON  CACHE BOOL "" FORCE)
-set(PNG_TESTS     OFF CACHE BOOL "" FORCE)
-set(PNG_TOOLS     OFF CACHE BOOL "" FORCE)
-set(PNG_FRAMEWORK OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(libpng)
+set(BRIEFUTIL_MARK2HARU_SOURCE_DIR "${_briefutil_default_mark2haru_source_dir}"
+    CACHE PATH "Path to a local mark2haru checkout")
+unset(_briefutil_default_mark2haru_source_dir)
 
-if(NOT TARGET PNG::PNG)
-    add_library(PNG::PNG INTERFACE IMPORTED)
-    target_link_libraries(PNG::PNG INTERFACE png_static)
-    target_include_directories(PNG::PNG INTERFACE
-        "${libpng_SOURCE_DIR}" "${libpng_BINARY_DIR}")
-endif()
-set(PNG_FOUND           TRUE CACHE BOOL "" FORCE)
-set(PNG_PNG_INCLUDE_DIR "${libpng_SOURCE_DIR}" CACHE PATH "" FORCE)
-set(PNG_LIBRARY         "png_static" CACHE STRING "" FORCE)
+set(MARK2HARU_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(MARK2HARU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
-# -- libHaru --
-FetchContent_Declare(libharu
-    GIT_REPOSITORY https://github.com/libharu/libharu.git
-    GIT_TAG        v2.4.5
-)
-set(LIBHPDF_EXAMPLES OFF CACHE BOOL "" FORCE)
-if(DEFINED CMAKE_SKIP_INSTALL_RULES)
-    set(_briefutil_saved_skip_install_rules_defined TRUE)
-    set(_briefutil_saved_skip_install_rules "${CMAKE_SKIP_INSTALL_RULES}")
-endif()
-set(CMAKE_SKIP_INSTALL_RULES ON)
-FetchContent_MakeAvailable(libharu)
-if(_briefutil_saved_skip_install_rules_defined)
-    set(CMAKE_SKIP_INSTALL_RULES "${_briefutil_saved_skip_install_rules}")
+if(BRIEFUTIL_MARK2HARU_SOURCE_DIR)
+    if(NOT EXISTS "${BRIEFUTIL_MARK2HARU_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "BRIEFUTIL_MARK2HARU_SOURCE_DIR does not contain a mark2haru CMake project.")
+    endif()
+    FetchContent_Declare(mark2haru
+        SOURCE_DIR "${BRIEFUTIL_MARK2HARU_SOURCE_DIR}"
+    )
 else()
-    unset(CMAKE_SKIP_INSTALL_RULES)
+    FetchContent_Declare(mark2haru
+        GIT_REPOSITORY https://github.com/imakris/mark2haru.git
+        GIT_TAG        master
+    )
 endif()
-unset(_briefutil_saved_skip_install_rules_defined)
-unset(_briefutil_saved_skip_install_rules)
-file(WRITE "${libharu_BINARY_DIR}/cmake_install.cmake"
-    "# libharu install rules are intentionally suppressed for briefutil.\n")
 
-target_include_directories(hpdf PRIVATE "${libpng_BINARY_DIR}")
-add_dependencies(hpdf png_static)
+set(_briefutil_saved_cxx_standard "${CMAKE_CXX_STANDARD}")
+set(_briefutil_saved_cxx_standard_required "${CMAKE_CXX_STANDARD_REQUIRED}")
+set(_briefutil_saved_cxx_extensions "${CMAKE_CXX_EXTENSIONS}")
+FetchContent_MakeAvailable(mark2haru)
+set(CMAKE_CXX_STANDARD "${_briefutil_saved_cxx_standard}")
+set(CMAKE_CXX_STANDARD_REQUIRED "${_briefutil_saved_cxx_standard_required}")
+set(CMAKE_CXX_EXTENSIONS "${_briefutil_saved_cxx_extensions}")
+unset(_briefutil_saved_cxx_standard)
+unset(_briefutil_saved_cxx_standard_required)
+unset(_briefutil_saved_cxx_extensions)
+
+if(NOT TARGET mark2haru::mark2haru)
+    message(FATAL_ERROR "mark2haru::mark2haru was not provided by the mark2haru dependency.")
+endif()
+
+function(briefutil_copy_mark2haru_fonts target)
+    mark2haru_copy_bundled_fonts(${target} "$<TARGET_FILE_DIR:${target}>/fonts")
+endfunction()
 
 # ============================================================================
 # Qt 6
@@ -158,6 +140,10 @@ if(BRIEFUTIL_BUILD_GUI)
 endif()
 add_subdirectory(tests)
 briefutil_install_compiler_runtime_dlls()
+install(DIRECTORY "${MARK2HARU_BUNDLED_FONT_DIR}/"
+    DESTINATION bin/fonts
+    FILES_MATCHING PATTERN "*.ttf"
+)
 
 # ============================================================================
 # Packaging

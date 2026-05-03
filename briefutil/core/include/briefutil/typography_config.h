@@ -9,24 +9,31 @@
 
 inline bool looks_like_font_file(const std::string& s)
 {
-    if (s.size() < 4) return false;
+    if (s.size() < 4) {
+        return false;
+    }
+
     auto eq_ci = [&](size_t at, const char* lit) {
         for (size_t i = 0; i < 4; i++) {
             char a = s[at + i];
-            if (a >= 'A' && a <= 'Z') a = char(a - 'A' + 'a');
-            if (a != lit[i]) return false;
+            if (a >= 'A' && a <= 'Z') {
+                a = char(a - 'A' + 'a');
+            }
+            if (a != lit[i]) {
+                return false;
+            }
         }
         return true;
     };
+
     size_t at = s.size() - 4;
-    return eq_ci(at, ".ttf") || eq_ci(at, ".otf");
+    return eq_ci(at, ".ttf");
 }
 
 struct font_family_config_t
 {
-    // Each slot holds either a libHaru base-14 name (e.g. "Helvetica")
-    // or a .ttf/.otf file path. The renderer infers the loading method
-    // per slot via looks_like_font_file().
+    // Empty slots use mark2haru's bundled fonts. Non-empty slots are explicit
+    // .ttf paths.
     std::string sans;
     std::string sans_bold;
     std::string sans_italic;
@@ -38,13 +45,7 @@ struct font_family_config_t
 
 inline font_family_config_t default_font_family()
 {
-    return {
-        "Helvetica",
-        "Helvetica-Bold",
-        "Helvetica-Oblique",
-        "Helvetica-BoldOblique",
-        "Courier",
-    };
+    return {};
 }
 
 

@@ -22,6 +22,8 @@ target_link_libraries(briefutil
         Qt6::QuickDialogs2
 )
 
+briefutil_copy_mark2haru_fonts(briefutil)
+
 add_custom_target(briefutil_cli_companion
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "$<TARGET_FILE_DIR:briefutil>"

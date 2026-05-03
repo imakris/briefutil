@@ -3,7 +3,6 @@
 #include "briefutil/body_content_model.h"
 #include "briefutil/document_model.h"
 #include "briefutil/localization.h"
-#include "briefutil/pdf_backend.h"
 #include "briefutil/typography_config.h"
 #include <string>
 #include <vector>
@@ -25,7 +24,6 @@ struct layout_params_t
     typography_config_t typo;
     font_family_config_t fonts = default_font_family();
     localization_t loc;
-    Pdf_backend pdf_backend = Pdf_backend::Haru;
 };
 
 struct layout_result_t

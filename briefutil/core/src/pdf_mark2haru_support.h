@@ -1,20 +1,21 @@
 #pragma once
 
 #include "briefutil/document_model.h"
-#include "briefutil/pdf_backend.h"
 #include "briefutil/typography_config.h"
 
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QString>
+
+#include <mark2haru/font_context.h>
 
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
-
-#if BRIEFUTIL_HAS_MARK2HARU
-#include <mark2haru/font_context.h>
-#endif
+#include <vector>
 
 
 // ============================================================================
@@ -43,26 +44,34 @@ static inline std::filesystem::path qstring_to_path(const QString& path)
 #endif
 }
 
-static inline std::filesystem::path mark2haru_bundle_font_dir()
+static inline std::filesystem::path mark2haru_runtime_font_dir()
 {
-#ifdef BRIEFUTIL_MARK2HARU_FONT_DIR
-    return std::filesystem::path(BRIEFUTIL_MARK2HARU_FONT_DIR);
-#else
+    if (const auto* app = QCoreApplication::instance()) {
+        const QString app_dir = app->applicationDirPath();
+        if (!app_dir.isEmpty()) {
+            const QString app_fonts = QDir(app_dir).filePath("fonts");
+            if (QFileInfo(app_fonts).isDir()) {
+                return qstring_to_path(app_fonts);
+            }
+        }
+    }
+
+    const QString current_fonts = QDir::current().filePath("fonts");
+    if (QFileInfo(current_fonts).isDir()) {
+        return qstring_to_path(current_fonts);
+    }
+
     return {};
-#endif
 }
 
-#if BRIEFUTIL_HAS_MARK2HARU
 static inline mark2haru::font_source_t mark2haru_font_source(const std::string& value)
 {
     if (value.empty()) {
         return {};
     }
-    if (looks_like_font_file(value)) {
-        return mark2haru::font_source_t::from_path(
-            qstring_to_path(QString::fromUtf8(value.c_str())));
-    }
-    return mark2haru::font_source_t::from_base14(value);
+
+    return mark2haru::font_source_t::from_path(
+        qstring_to_path(QString::fromUtf8(value.c_str())));
 }
 
 static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
@@ -95,7 +104,7 @@ make_mark2haru_measurement_context(
 {
     auto ctx = std::make_shared<mark2haru::Measurement_context>(
         mark2haru_font_family(fonts),
-        mark2haru_bundle_font_dir());
+        mark2haru_runtime_font_dir());
     if (!ctx->loaded()) {
         if (error) {
             *error = ctx->error();
@@ -141,4 +150,3 @@ static inline std::vector<std::string> wrap_mark2haru_text(
 
     return lines;
 }
-#endif

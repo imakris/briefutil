@@ -4,7 +4,7 @@
 ships as both a Qt Quick desktop app and a CLI.
 
 Letter layout, markdown body parsing, and PDF rendering are handled natively in
-C++ with Qt 6 and libHaru.
+C++ with Qt 6 and mark2haru.
 
 <p align="center">
   <img src="example.png" alt="Example PDF output" style="max-width: 100%; height: auto;">
@@ -19,8 +19,8 @@ C++ with Qt 6 and libHaru.
 - provides `briefutil_cli` for scriptable PDF generation
 - supports Markdown in the letter body (asterisk and underscore variants)
 - generates DIN 5008 form A/B and US Letter PDFs
-- can use either built-in PDF fonts or custom `.ttf` / `.otf` font files
-  (TTF/OTF fonts use UTF-8 encoding so non-CP1252 scripts render correctly)
+- ships bundled TrueType fonts and can use explicit `.ttf` font files
+  (TrueType rendering preserves non-CP1252 scripts)
 - localizable closing line, page-number footer, and error messages
   (English by default, German auto-selected when the system locale is `de_*`)
 
@@ -60,10 +60,8 @@ That directory contains:
   - `Quick`
   - `QuickControls2`
   - `QuickDialogs2`
-- network access on first configure, because CMake fetches:
-  - `libHaru`
-  - `zlib`
-  - `libpng`
+- network access on first configure if a sibling `mark2haru` checkout is not
+  available, because CMake fetches `mark2haru`
 
 ## Build
 
@@ -119,10 +117,9 @@ Common CLI options:
 - `--template-dir PATH`
 - `--output PATH` or `--output-dir PATH`
 - `--layout NAME` (`din_5008_form_b`, `din_5008_form_a`, or `us_letter`)
-- `--backend NAME` (`haru` or `mark2haru`)
 - `--font-sans VALUE`, `--font-sans-bold VALUE`,
   `--font-sans-italic VALUE`, `--font-sans-bold-italic VALUE`,
-  `--font-mono VALUE`
+  `--font-mono VALUE` for explicit `.ttf` font paths
 - `--body-size PT` (`6..24`), `--body-leading PT` (`6..36`)
 - `--header-scale PCT`, `--body-scale PCT`, `--footer-scale PCT`
   (`50..200`)
@@ -226,13 +223,9 @@ Plain text without Markdown syntax also works.
 
 The settings window allows changing the fonts used for PDF generation.
 
-There are two supported modes:
-
-- built-in PDF base-14 font names for all configured faces
-- `.ttf` / `.otf` file paths for all configured faces
-
-Do not mix the two modes in one configuration. If you do, PDF generation is
-rejected with an error.
+Leave fields empty to use the bundled default fonts. Non-empty fields must be
+installed TrueType font names resolved by the desktop app, or explicit `.ttf`
+file paths. The CLI accepts explicit `.ttf` paths.
 
 The font configuration covers:
 

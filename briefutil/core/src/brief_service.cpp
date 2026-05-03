@@ -63,11 +63,23 @@ std::string localized_date(int year, int month, int day, const std::string& lang
 
 bool is_valid_font_config(const font_family_config_t& fonts)
 {
-    return !fonts.sans.empty()
-        && !fonts.sans_bold.empty()
-        && !fonts.sans_italic.empty()
-        && !fonts.sans_bold_italic.empty()
-        && !fonts.mono.empty();
+    auto valid_slot = [](const std::string& value) {
+        if (value.empty()) {
+            return true;
+        }
+        if (!looks_like_font_file(value)) {
+            return false;
+        }
+
+        QFileInfo info(QString::fromStdString(value));
+        return info.exists() && info.isFile();
+    };
+
+    return valid_slot(fonts.sans)
+        && valid_slot(fonts.sans_bold)
+        && valid_slot(fonts.sans_italic)
+        && valid_slot(fonts.sans_bold_italic)
+        && valid_slot(fonts.mono);
 }
 
 float font_scale_from_percent(double percent)
@@ -139,12 +151,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
     if (!is_valid_font_config(request.theme.fonts)) {
         return failure(
             generation_result_code::Invalid_font_config,
-            "Invalid font configuration. Use built-in PDF fonts such as Helvetica or Courier, installed fonts such as Noto Sans, or .ttf/.otf font files.");
-    }
-    if (!pdf_backend_available(request.backend)) {
-        return failure(
-            generation_result_code::Backend_unavailable,
-            "Selected PDF backend is not available in this build.");
+            "Invalid font configuration. Leave font fields empty for bundled fonts or provide explicit .ttf font files.");
     }
 
     const std::string output_path = make_output_path(request);
@@ -186,8 +193,7 @@ generation_result_t generate_brief_pdf(const generation_request_t& request)
         temp_path,
         request.theme,
         request.layout,
-        loc,
-        request.backend);
+        loc);
 
     if (!render_result.ok) {
         QFile::remove(QString::fromStdString(temp_path));

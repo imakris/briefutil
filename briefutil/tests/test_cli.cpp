@@ -178,9 +178,6 @@ int main(int argc, char* argv[])
     exit_code = run_cli({ "--to", "A", "--layout", "unknown" }, template_dir, output_dir, &error);
     require(exit_code == 2, "invalid layout should exit 2");
     require(error.contains("--layout must be"), "invalid layout should explain the error");
-    exit_code = run_cli({ "--to", "A", "--backend", "unknown" }, template_dir, output_dir, &error);
-    require(exit_code == 2, "invalid backend should exit 2");
-    require(error.contains("--backend must be"), "invalid backend should explain the error");
     exit_code = run_cli({ "--to", "A", "--bogus" }, template_dir, output_dir, &error);
     require(exit_code == 2, "unknown option should exit 2");
     require(error.contains("Unknown option"), "unknown option should explain the error");
@@ -218,16 +215,6 @@ int main(int argc, char* argv[])
             profile_path,
             "--output",
             profile_font_output,
-            "--font-sans",
-            "Helvetica",
-            "--font-sans-bold",
-            "Helvetica-Bold",
-            "--font-sans-italic",
-            "Helvetica-Oblique",
-            "--font-sans-bold-italic",
-            "Helvetica-BoldOblique",
-            "--font-mono",
-            "Courier",
             "--body-size",
             "9.5",
             "--body-leading",

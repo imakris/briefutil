@@ -2,7 +2,6 @@
 
 #include "briefutil/letter_layout_spec.h"
 #include "briefutil/localization.h"
-#include "briefutil/pdf_backend.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
 
@@ -15,7 +14,6 @@ enum class generation_result_code
     Ok,
     Invalid_request,
     Invalid_font_config,
-    Backend_unavailable,
     Output_exists,
     Output_error,
     Render_error,
@@ -46,7 +44,6 @@ struct generation_request_t
 
     theme_config_t theme = default_theme();
     letter_layout_spec_t layout = din_5008_form_b();
-    Pdf_backend backend = Pdf_backend::Haru;
 };
 
 struct generation_result_t
