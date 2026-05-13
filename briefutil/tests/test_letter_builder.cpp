@@ -1038,6 +1038,103 @@ int main(int argc, char* argv[])
         QDir().rmdir(tmp_dir);
     }
 
+    // -- Test 12: table column rebalancing
+    //
+    // When one column carries long text that has to wrap regardless, the
+    // column should be tightened to the width of its widest wrapped line so
+    // the freed slack lets narrow columns reach their no-wrap preferred
+    // width. Without this, narrow columns get squeezed below their natural
+    // width and wrap unnecessarily (e.g. "Betrag (\xe2\x82\xac)" splitting
+    // into two lines).
+    {
+        QString tmp_dir = QDir::tempPath() + "/briefutil_test_table_rebalance";
+        QDir().mkpath(tmp_dir);
+
+        QString profile_path = tmp_dir + "/test_profile.json";
+        QFile f(profile_path);
+        if (!f.open(QIODevice::WriteOnly)) {
+            std::fprintf(stderr, "FAIL: cannot write rebalance test profile\n");
+            return 1;
+        }
+        f.write(k_default_profile_simple_json);
+        f.close();
+
+        auto lr = load_sender_profile(qs(profile_path));
+        if (!lr.ok) {
+            std::fprintf(stderr, "FAIL: rebalance profile load: %s\n", lr.error.c_str());
+            return 1;
+        }
+        lr.profile.signature_image.clear();
+
+        Letter_input input;
+        input.recipient = "Beispiel GmbH\nMusterstra\xc3\x9f""e 1\n12345 Beispielstadt";
+        input.subject = "Angebot";
+        input.date = "13. Mai 2026";
+        input.body =
+            "| Leistung | Grundlage | Betrag (\xe2\x82\xac) |\n"
+            "| --- | --- | --- |\n"
+            "| Bodenfliesen verlegen in K\xc3\xbc" "che, zwei Badezimmern und Balkon"
+                " | ca. 23,63 m\xc2\xb2 | 1.654,00 |\n"
+            "| Korkboden in K\xc3\xbc" "che und Badezimmern entfernen, Untergrund"
+                " reinigen und vorbereiten | pauschal | 500,00 |\n";
+
+        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: rebalance build_letter: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        bool found_header_full      = false;
+        bool found_header_split_lhs = false;
+        bool found_header_split_rhs = false;
+        bool found_amount_full      = false;
+        bool found_amount_split_lhs = false;
+        bool found_amount_split_rhs = false;
+        for (const auto& page : br.doc.pages) {
+            for (const auto& element : page.elements) {
+                if (const auto* span = std::get_if<Text_span>(&element)) {
+                    if (span->text == "Betrag (\xe2\x82\xac)") {
+                        found_header_full = true;
+                    }
+                    if (span->text == "Betrag") {
+                        found_header_split_lhs = true;
+                    }
+                    if (span->text == "(\xe2\x82\xac)") {
+                        found_header_split_rhs = true;
+                    }
+                    if (span->text == "ca. 23,63 m\xc2\xb2") {
+                        found_amount_full = true;
+                    }
+                    if (span->text == "ca. 23,63") {
+                        found_amount_split_lhs = true;
+                    }
+                    if (span->text == "m\xc2\xb2") {
+                        found_amount_split_rhs = true;
+                    }
+                }
+            }
+        }
+
+        const bool header_wrapped = found_header_split_lhs && found_header_split_rhs;
+        const bool amount_wrapped = found_amount_split_lhs && found_amount_split_rhs;
+        if (!found_header_full || header_wrapped) {
+            std::fprintf(
+                stderr,
+                "FAIL: 'Betrag (\xe2\x82\xac)' header should fit on one line after rebalance\n");
+            return 1;
+        }
+        if (!found_amount_full || amount_wrapped) {
+            std::fprintf(
+                stderr,
+                "FAIL: 'ca. 23,63 m\xc2\xb2' should fit on one line after rebalance\n");
+            return 1;
+        }
+        std::printf("[OK] Table column widths rebalance to avoid narrow-column wraps\n");
+
+        QFile::remove(profile_path);
+        QDir().rmdir(tmp_dir);
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }
