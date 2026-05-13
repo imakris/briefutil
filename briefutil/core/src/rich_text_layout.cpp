@@ -680,6 +680,27 @@ Layout_result layout_body(
             if constexpr (std::is_same_v<Block_type, mark2haru::Page_break_block>) {
                 cursor.new_page();
             }
+            else
+            if constexpr (std::is_same_v<Block_type, mark2haru::Thematic_break_block>) {
+                const float space_before_mm = pt_to_mm(params.typo.body_size_pt * 0.5f);
+                const float space_after_mm  = pt_to_mm(params.typo.body_size_pt * 0.5f);
+                const float rule_width_pt   = 0.5f;
+                const float rule_height_mm  = pt_to_mm(rule_width_pt);
+
+                cursor.ensure_space(space_before_mm + rule_height_mm + space_after_mm);
+                cursor.m_y_mm += space_before_mm;
+
+                const color_t rule_color = { 0.5f, 0.5f, 0.5f };
+                cursor.current_elements().push_back(line_segment_t{
+                    params.left_mm,
+                    cursor.m_y_mm,
+                    params.left_mm + params.width_mm,
+                    cursor.m_y_mm,
+                    rule_width_pt,
+                    rule_color
+                });
+                cursor.m_y_mm += rule_height_mm + space_after_mm;
+            }
         }, block);
     }
 

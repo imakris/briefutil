@@ -193,6 +193,7 @@ The body field supports Markdown. The implemented subset includes:
 - headings
 - bullet lists
 - ordered lists
+- horizontal rules (`---`, `***`, `___`)
 - images
 - tables
 
