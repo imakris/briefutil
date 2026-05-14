@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     }
 
     const char* md_path = argv[1];
-    const char* output = argc > 2 ? argv[2] : "md_output.pdf";
+    const char* output  = argc > 2 ? argv[2] : "md_output.pdf";
 
     // Read markdown file
     std::ifstream ifs(md_path);
@@ -64,9 +64,9 @@ int main(int argc, char* argv[])
     Letter_input input;
     input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
                       "Beispielweg 42\n54321 Beispielstadt";
-    input.subject = "Angebot: Dienstleistungspakete 2026";
-    input.date = "14. M\xc3\xa4rz 2026";
-    input.body = body;
+    input.subject   = "Angebot: Dienstleistungspakete 2026";
+    input.date      = "14. M\xc3\xa4rz 2026";
+    input.body      = body;
 
     auto br = build_letter(lr.profile, input, qs(tmp_dir));
     if (!br.error.empty()) {

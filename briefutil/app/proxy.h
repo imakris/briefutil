@@ -27,11 +27,19 @@ signals:
 public:
     explicit Proxy(QObject* parent = nullptr);
     Q_INVOKABLE QList<QString> get_sender_templates() const;
-    Q_INVOKABLE void make_pdf(int from, const QString& to,
-                              const QString& subject, const QString& body);
-    Q_INVOKABLE void set_window_dark_mode(QWindow* window, bool dark);
-    Q_INVOKABLE void save_dark_mode(bool dark);
-    Q_INVOKABLE bool load_dark_mode() const;
+    Q_INVOKABLE void make_pdf(
+        int            from,
+        const QString& to,
+        const QString& subject,
+        const QString& body);
+
+    Q_INVOKABLE void set_window_dark_mode(
+        QWindow*       window,
+        bool           dark);
+
+    Q_INVOKABLE void save_dark_mode(
+        bool           dark);
+    Q_INVOKABLE bool    load_dark_mode() const;
     Q_INVOKABLE QString get_build_caption() const;
     Q_INVOKABLE QString get_build_details() const;
 
@@ -62,23 +70,23 @@ public:
     Q_INVOKABLE void set_template_dir(const QString& v);
     Q_INVOKABLE void set_layout_preset(const QString& v);
 
-    Q_INVOKABLE bool validate_font_value(const QString& v, const QString& role = QString()) const;
-    Q_INVOKABLE bool validate_directory(const QString& v) const;
+    Q_INVOKABLE bool   validate_font_value(const QString& v, const QString& role = QString()) const;
+    Q_INVOKABLE bool   validate_directory(const QString& v) const;
     Q_INVOKABLE QVariantMap get_sender_profile(int index) const;
-    Q_INVOKABLE bool save_sender_profile(int index, const QVariantMap& profile);
-    Q_INVOKABLE int  create_new_profile();
-    Q_INVOKABLE int  clone_sender_profile(int index);
-    Q_INVOKABLE bool delete_sender_profile(int index);
-    Q_INVOKABLE bool profile_name_exists(const QString& name, int exclude_index) const;
-    Q_INVOKABLE bool validate_profile_image_name(const QString& v) const;
-    Q_INVOKABLE bool validate_hex_color(const QString& v) const;
+    Q_INVOKABLE bool   save_sender_profile(int index, const QVariantMap& profile);
+    Q_INVOKABLE int    create_new_profile();
+    Q_INVOKABLE int    clone_sender_profile(int index);
+    Q_INVOKABLE bool   delete_sender_profile(int index);
+    Q_INVOKABLE bool   profile_name_exists(const QString& name, int exclude_index) const;
+    Q_INVOKABLE bool   validate_profile_image_name(const QString& v) const;
+    Q_INVOKABLE bool   validate_hex_color(const QString& v) const;
     Q_INVOKABLE QString import_template_image(const QUrl& source_url) const;
 
 private:
     struct Sender_profile_entry
     {
         Sender_profile profile;
-        QString path;
+        QString        path;
     };
 
     void load_settings();
@@ -88,19 +96,20 @@ private:
     void install_template_watcher();
     Localization current_localization(const Sender_profile& profile) const;
 
-    QString m_sender_template_dir;
-    QString m_output_dir;
-    std::vector<Sender_profile_entry> m_profiles;
-    QString m_font_sans_input;
-    QString m_font_sans_bold_input;
-    QString m_font_sans_italic_input;
-    QString m_font_sans_bold_italic_input;
-    QString m_font_mono_input;
-    QString m_layout_preset = "din_5008_form_b";
-    QString m_build_caption;
-    QString m_build_details;
-    Theme_config m_theme;
-    bool m_dark_mode = false;
-    QFileSystemWatcher* m_template_watcher = nullptr;
-    QTimer* m_discover_timer = nullptr;
+    QString                m_sender_template_dir;
+    QString                m_output_dir;
+    std::vector<Sender_profile_entry>
+                           m_profiles;
+    QString                m_font_sans_input;
+    QString                m_font_sans_bold_input;
+    QString                m_font_sans_italic_input;
+    QString                m_font_sans_bold_italic_input;
+    QString                m_font_mono_input;
+    QString                m_layout_preset    = "din_5008_form_b";
+    QString                m_build_caption;
+    QString                m_build_details;
+    Theme_config           m_theme;
+    bool                   m_dark_mode        = false;
+    QFileSystemWatcher*    m_template_watcher = nullptr;
+    QTimer*                m_discover_timer   = nullptr;
 };

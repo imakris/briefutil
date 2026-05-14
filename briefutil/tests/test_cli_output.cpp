@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
     QTemporaryDir root;
     require(root.isValid(), "could not create temporary directory");
 
-    const QString first_pdf = root.filePath("first.pdf");
+    const QString first_pdf  = root.filePath("first.pdf");
     const QString second_pdf = root.filePath("second.pdf");
     write_empty_file(first_pdf);
     write_empty_file(second_pdf);

@@ -13,36 +13,37 @@
 
 struct text_metrics_t
 {
-    float width_pt = 0;
-    float height_pt = 0;   // total height including all wrapped lines
-    int   line_count = 0;
+    float  width_pt   = 0;
+    float  height_pt  = 0; // total height including all wrapped lines
+    int    line_count = 0;
 };
 
 struct image_dimensions_t
 {
-    float width_px  = 0;
-    float height_px = 0;
-    bool  valid     = false;
+    float  width_px   = 0;
+    float  height_px  = 0;
+    bool   valid      = false;
 };
 
 bool pdf_measurement_ready(
-    const Font_family_config& fonts = default_font_family(),
-    std::string* detail = nullptr);
+    const Font_family_config&  fonts = default_font_family(),
+    std::string*               detail = nullptr);
 
 text_metrics_t measure_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float leading_pt,
-    float max_width_mm,
-    bool wrap,
-    const Font_family_config& fonts = default_font_family());
+    const std::string&         text,
+    Font_id                    font,
+    float                      size_pt,
+    float                      leading_pt,
+    float                      max_width_mm,
+    bool                       wrap,
+    const Font_family_config&  fonts = default_font_family());
 
 std::vector<std::string> wrap_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float max_width_mm,
-    const Font_family_config& fonts = default_font_family());
+    const std::string&         text,
+    Font_id                    font,
+    float                      size_pt,
+    float                      max_width_mm,
+    const Font_family_config&  fonts = default_font_family());
 
-image_dimensions_t measure_png(const std::string& path);
+image_dimensions_t measure_png(
+    const std::string&         path);

@@ -100,12 +100,12 @@ static size_t append_quoted_arg(wchar_t* dst, size_t offset, const wchar_t* arg)
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd)
 {
     wchar_t launcher_path[BRIEFUTIL_MAX_PATH_CHARS + 1];
-    wchar_t launcher_dir[BRIEFUTIL_MAX_PATH_CHARS + 1];
-    wchar_t target_path[BRIEFUTIL_MAX_PATH_CHARS + 1];
-    wchar_t command_line[BRIEFUTIL_MAX_CMDLINE + 1];
-    LPWSTR* argv = NULL;
-    int argc = 0;
-    size_t offset = 0;
+    wchar_t launcher_dir[ BRIEFUTIL_MAX_PATH_CHARS + 1];
+    wchar_t target_path[  BRIEFUTIL_MAX_PATH_CHARS + 1];
+    wchar_t command_line[ BRIEFUTIL_MAX_CMDLINE    + 1];
+    LPWSTR* argv   = NULL;
+    int     argc   = 0;
+    size_t  offset = 0;
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     DWORD exit_code = 1;
@@ -148,8 +148,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     offset = append_quoted_arg(command_line, 0, target_path);
     for (int i = 1; i < argc; ++i) {
         command_line[offset++] = L' ';
-        command_line[offset] = L'\0';
-        offset = append_quoted_arg(command_line, offset, argv[i]);
+        command_line[offset]   = L'\0';
+        offset                 = append_quoted_arg(command_line, offset, argv[i]);
     }
 
     SetEnvironmentVariableW(L"BRIEFUTIL_PORTABLE_ROOT", launcher_dir);
@@ -160,16 +160,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     ZeroMemory(&pi, sizeof(pi));
 
     if (!CreateProcessW(
-            target_path,
-            command_line,
-            NULL,
-            NULL,
-            FALSE,
-            0,
-            NULL,
-            launcher_dir,
-            &si,
-            &pi))
+            target_path, command_line, NULL, NULL, FALSE, 0, NULL, launcher_dir, &si, &pi))
     {
         show_last_error(L"briefutil", L"Failed to start the packaged application.");
         LocalFree(argv);

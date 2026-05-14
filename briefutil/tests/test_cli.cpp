@@ -22,10 +22,10 @@ static void require(bool condition, const char* message)
 
 static int run_cli(
     const QStringList& args,
-    const QString& template_dir,
-    const QString& output_dir,
-    QString* standard_error = nullptr,
-    QString* standard_output = nullptr)
+    const QString&     template_dir,
+    const QString&     output_dir,
+    QString*           standard_error = nullptr,
+    QString*           standard_output = nullptr)
 {
     QProcess process;
     auto env = QProcessEnvironment::systemEnvironment();
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
     require(root.isValid(), "could not create temporary directory");
 
     const QString template_dir = root.filePath("templates");
-    const QString output_dir = root.filePath("output");
+    const QString output_dir   = root.filePath("output");
     QDir().mkpath(template_dir);
 
     QString standard_output;
@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
         nullptr,
         &standard_output);
     require(exit_code == 0 && QFile::exists(fixed_output),
-            "CLI explicit --output should write the requested path");
+        "CLI explicit --output should write the requested path");
     require(
         standard_output.trimmed() == fixed_output,
         "CLI should print the generated PDF path on stdout");
@@ -170,7 +170,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject combined --output and --output-dir");
     require(error.contains("either --output or --output-dir"),
-            "combined output options should explain the error");
+        "combined output options should explain the error");
 
     exit_code = run_cli({ "--to", "A", "--header-scale", "abc" }, template_dir, output_dir, &error);
     require(exit_code == 2, "invalid numeric option should exit 2");
@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
     require(exit_code == 0, "CLI layout option should accept case-insensitive names");
     exit_code = run_cli({ "--to", "A", "--profile", "Max Mustermann" }, template_dir, output_dir);
     require(exit_code == 0, "CLI should select a known profile id");
-    const QString profile_path = QDir(template_dir).filePath("Max Mustermann.json");
+    const QString profile_path        = QDir(template_dir).filePath("Max Mustermann.json");
     const QString profile_font_output = root.filePath("profile-path-fonts.pdf");
     require(QFile::exists(profile_path), "seed profile should exist for --profile-path coverage");
     exit_code = run_cli(
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "missing --profile-path file should exit 2");
     require(error.contains("Could not load sender profile"),
-            "missing --profile-path file should explain the error");
+        "missing --profile-path file should explain the error");
     const QString malformed_profile_path = root.filePath("malformed-profile.json");
     QFile malformed_profile_file(malformed_profile_path);
     require(
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "malformed --profile-path file should exit 2");
     require(error.contains("Could not load sender profile"),
-            "malformed --profile-path file should explain the error");
+        "malformed --profile-path file should explain the error");
     const QString not_a_template_dir = root.filePath("not-a-template-dir");
     QFile not_a_template_dir_file(not_a_template_dir);
     require(
@@ -277,7 +277,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 1, "CLI should fail when template initialization cannot use a path");
     require(error.contains("Could not initialize template directory"),
-            "template initialization failure should explain the error");
+        "template initialization failure should explain the error");
     exit_code = run_cli(
         { "--to", "A", "--profile", "Max Mustermann", "--profile-path", profile_path },
         template_dir,
@@ -285,7 +285,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject combined --profile and --profile-path");
     require(error.contains("either --profile or --profile-path"),
-            "combined profile options should explain the error");
+        "combined profile options should explain the error");
     exit_code = run_cli(
         { "--to", "A", "--to-file", empty_recipient_file },
         template_dir,
@@ -293,7 +293,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject combined --to and --to-file");
     require(error.contains("either --to or --to-file"),
-            "combined recipient options should explain the error");
+        "combined recipient options should explain the error");
     exit_code = run_cli(
         { "--to", "A", "--body", "Inline", "--body-file", empty_recipient_file },
         template_dir,
@@ -301,7 +301,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject combined --body and --body-file");
     require(error.contains("either --body or --body-file"),
-            "combined body options should explain the error");
+        "combined body options should explain the error");
     exit_code = run_cli(
         { "--to-file", root.filePath("missing-recipient.txt") },
         template_dir,
@@ -309,7 +309,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject missing --to-file paths");
     require(error.contains("Could not read recipient file"),
-            "missing recipient file should explain the error");
+        "missing recipient file should explain the error");
     exit_code = run_cli(
         { "--to", "A", "--body-file", root.filePath("missing-body.md") },
         template_dir,
@@ -317,7 +317,7 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 2, "CLI should reject missing --body-file paths");
     require(error.contains("Could not read body file"),
-            "missing body file should explain the error");
+        "missing body file should explain the error");
     exit_code = run_cli({ "--to", "A", "--profile", "Does Not Exist" }, template_dir, output_dir);
     require(exit_code == 2, "CLI unknown profile should exit 2");
     exit_code = run_cli({ "--help" }, template_dir, output_dir);

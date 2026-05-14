@@ -67,7 +67,8 @@ int main(int argc, char* argv[])
         return 1;
     }
     if (!dir.entryList({ "*.tmp.*", "*.replace.*", ".*.tmp.*", ".*.replace.*" },
-            QDir::Files | QDir::Hidden).isEmpty()) {
+            QDir::Files | QDir::Hidden).isEmpty())
+    {
         fail("initial generation left temporary files behind");
     }
 
@@ -99,8 +100,9 @@ int main(int argc, char* argv[])
     invalid.output_path = root.filePath("invalid.pdf").toStdString();
     invalid.overwrite_output = false;
     auto invalid_result = briefutil::generate_brief_pdf(invalid);
-    if (invalid_result.ok
-        || invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST) {
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
         fail("empty profile id should be INVALID_REQUEST");
     }
 
@@ -109,8 +111,9 @@ int main(int argc, char* argv[])
     invalid.output_dir.clear();
     invalid.overwrite_output = false;
     invalid_result = briefutil::generate_brief_pdf(invalid);
-    if (invalid_result.ok
-        || invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST) {
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
         fail("missing output target should be INVALID_REQUEST");
     }
 
@@ -119,8 +122,9 @@ int main(int argc, char* argv[])
     invalid.overwrite_output = false;
     invalid.theme.fonts.sans = "unsupported.otf";
     invalid_result = briefutil::generate_brief_pdf(invalid);
-    if (invalid_result.ok
-        || invalid_result.code != briefutil::Generation_result_code::INVALID_FONT_CONFIG) {
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_FONT_CONFIG)
+    {
         fail("invalid font config should be INVALID_FONT_CONFIG");
     }
 

@@ -23,14 +23,16 @@ Path_class classify_windows_path(const std::string& path)
         return Path_class::EMPTY;
     }
     if (path.size() >= 2 && std::isalpha(static_cast<unsigned char>(path[0]))
-        && path[1] == ':') {
+        && path[1] == ':')
+    {
         if (path.size() >= 3 && (path[2] == '\\' || path[2] == '/')) {
             return Path_class::ABSOLUTE;
         }
         return Path_class::DRIVE_RELATIVE;
     }
-    if (path.size() >= 2
-        && ((path[0] == '\\' && path[1] == '\\') || (path[0] == '/' && path[1] == '/'))) {
+    if (path.size() >= 2 &&
+        ((path[0] == '\\' && path[1] == '\\') || (path[0] == '/' && path[1] == '/')))
+    {
         return Path_class::ABSOLUTE;
     }
     if (path[0] == '\\' || path[0] == '/') {
@@ -42,8 +44,9 @@ Path_class classify_windows_path(const std::string& path)
 bool is_current_drive_dependent_windows_path(const std::string& path)
 {
     const auto cls = classify_windows_path(path);
-    return cls == Path_class::DRIVE_RELATIVE
-        || cls == Path_class::DRIVE_ROOT_RELATIVE;
+    return
+        cls == Path_class::DRIVE_RELATIVE ||
+        cls == Path_class::DRIVE_ROOT_RELATIVE;
 }
 
 static bool is_reserved_windows_stem(std::string value)
@@ -63,7 +66,8 @@ static bool is_reserved_windows_stem(std::string value)
     }
     if (value.size() == 4
         && (value.rfind("COM", 0) == 0 || value.rfind("LPT", 0) == 0)
-        && value[3] >= '1' && value[3] <= '9') {
+        && value[3] >= '1' && value[3] <= '9')
+    {
         return true;
     }
     return false;
@@ -85,8 +89,9 @@ std::string sanitize_filename_component(const std::string& input)
             continue;
         }
         previous_space = false;
-        if (uc < 0x20 || c == '<' || c == '>' || c == ':' || c == '"'
-            || c == '/' || c == '\\' || c == '|' || c == '?' || c == '*') {
+        if (uc <  0x20 || c == '<'  || c == '>' || c == ':' || c == '"' ||
+            c == '/'   || c == '\\' || c == '|' || c == '?' || c == '*')
+        {
             collapsed.push_back('_');
         }
         else {
@@ -108,13 +113,19 @@ bool is_valid_profile_image_name(const std::string& name)
     if (name.empty()) {
         return true;
     }
-    if (classify_windows_path(name) == Path_class::ABSOLUTE
-        || is_current_drive_dependent_windows_path(name)) {
+    if (classify_windows_path(name) == Path_class::ABSOLUTE ||
+        is_current_drive_dependent_windows_path(name))
+    {
         return false;
     }
-    if (name == ".." || name.rfind("../", 0) == 0 || name.rfind("..\\", 0) == 0
-        || name.find("/../") != std::string::npos || name.find("\\..\\") != std::string::npos
-        || name.find("/..\\") != std::string::npos || name.find("\\../") != std::string::npos) {
+    if (name                  == ".."              ||
+        name.rfind("../", 0)  == 0                 ||
+        name.rfind("..\\", 0) == 0                 ||
+        name.find("/../")     != std::string::npos ||
+        name.find("\\..\\")   != std::string::npos ||
+        name.find("/..\\")    != std::string::npos ||
+        name.find("\\../")    != std::string::npos)
+    {
         return false;
     }
     auto lower = name;

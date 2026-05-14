@@ -4,7 +4,8 @@
 #include <utility>
 #include <cstdint>
 
-struct mustermann_signature_png {
+struct mustermann_signature_png
+{
     template <typename = void>
     static std::pair<const uint8_t*, size_t> data() {
         static constexpr uint8_t k_data[] = {

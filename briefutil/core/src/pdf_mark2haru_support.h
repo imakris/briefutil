@@ -89,18 +89,18 @@ static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
 static inline mark2haru::Font_family_config mark2haru_font_family(const Font_family_config& fonts)
 {
     mark2haru::Font_family_config family;
-    family.regular = mark2haru_font_source(fonts.sans);
-    family.bold = mark2haru_font_source(fonts.sans_bold);
-    family.italic = mark2haru_font_source(fonts.sans_italic);
+    family.regular     = mark2haru_font_source(fonts.sans);
+    family.bold        = mark2haru_font_source(fonts.sans_bold);
+    family.italic      = mark2haru_font_source(fonts.sans_italic);
     family.bold_italic = mark2haru_font_source(fonts.sans_bold_italic);
-    family.mono = mark2haru_font_source(fonts.mono);
+    family.mono        = mark2haru_font_source(fonts.mono);
     return family;
 }
 
 static inline std::shared_ptr<const mark2haru::Measurement_context>
 make_mark2haru_measurement_context(
-    const Font_family_config& fonts,
-    std::string* error = nullptr)
+    const Font_family_config&  fonts,
+    std::string*               error = nullptr)
 {
     auto ctx = std::make_shared<mark2haru::Measurement_context>(
         mark2haru_font_family(fonts),
@@ -115,14 +115,14 @@ make_mark2haru_measurement_context(
 }
 
 static inline std::vector<std::string> wrap_mark2haru_text(
-    const mark2haru::Measurement_context& metrics,
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float max_width_mm)
+    const mark2haru::Measurement_context&  metrics,
+    const std::string&                     text,
+    Font_id                                font,
+    float                                  size_pt,
+    float                                  max_width_mm)
 {
     std::vector<std::string> lines;
-    const auto pdf_font = mark2haru_font_for(font);
+    const auto  pdf_font     = mark2haru_font_for(font);
     const float max_width_pt = mm_to_pt(max_width_mm);
 
     for (const auto& para : split_lines(text)) {
@@ -134,7 +134,7 @@ static inline std::vector<std::string> wrap_mark2haru_text(
         std::string current;
         for_each_word(para, [&](const std::string& word) {
             std::string candidate = current.empty() ? word : current + " " + word;
-            float w = static_cast<float>(metrics.measure_text_width(pdf_font, candidate, size_pt));
+            float       w         = static_cast<float>(metrics.measure_text_width(pdf_font, candidate, size_pt));
             if (w > max_width_pt && !current.empty()) {
                 lines.push_back(current);
                 current = word;

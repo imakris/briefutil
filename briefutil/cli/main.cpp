@@ -19,28 +19,28 @@ namespace {
 
 struct Cli_options
 {
-    std::string recipient;
-    std::string recipient_file;
-    bool recipient_source_provided = false;
-    bool recipient_text_provided = false;
-    std::string subject = "Letter";
-    std::string body;
-    std::string body_file;
-    bool body_text_provided = false;
-    std::string profile_id;
-    std::string profile_path;
-    std::string template_dir;
-    std::string output_dir;
-    std::string output_path;
-    std::string layout = "din_5008_form_b";
-    Font_family_config fonts = default_font_family();
-    double body_size = 10.0;
-    double body_leading = 12.0;
-    double header_scale = 100.0;
-    double body_scale = 100.0;
-    double footer_scale = 100.0;
-    bool force = false;
-    bool help = false;
+    std::string        recipient;
+    std::string        recipient_file;
+    bool               recipient_source_provided = false;
+    bool               recipient_text_provided   = false;
+    std::string        subject                   = "Letter";
+    std::string        body;
+    std::string        body_file;
+    bool               body_text_provided        = false;
+    std::string        profile_id;
+    std::string        profile_path;
+    std::string        template_dir;
+    std::string        output_dir;
+    std::string        output_path;
+    std::string        layout                    = "din_5008_form_b";
+    Font_family_config fonts                     = default_font_family();
+    double             body_size                 = 10.0;
+    double             body_leading              = 12.0;
+    double             header_scale              = 100.0;
+    double             body_scale                = 100.0;
+    double             footer_scale              = 100.0;
+    bool               force                     = false;
+    bool               help                      = false;
 };
 
 void print_help()
@@ -124,9 +124,9 @@ std::string lower_ascii(std::string value)
 }
 
 std::optional<std::string> value_for(
-    int& index,
+    int&               index,
     const QStringList& args,
-    const char* option)
+    const char*        option)
 {
     if (index + 1 >= args.size()) {
         std::cerr << option << " requires a value.\n";
@@ -138,16 +138,16 @@ std::optional<std::string> value_for(
 std::optional<double> parse_double_value(const std::string& value, const char* option)
 {
     const auto first = value.find_first_not_of(" \t\r\n");
-    const auto last = value.find_last_not_of(" \t\r\n");
+    const auto last  = value.find_last_not_of(" \t\r\n");
     if (first == std::string::npos) {
         std::cerr << option << " must be a number.\n";
         return std::nullopt;
     }
     const std::string trimmed = value.substr(first, last - first + 1);
-    double result = 0.0;
-    const char* begin = trimmed.data();
-    const char* end   = begin + trimmed.size();
-    const auto parsed = std::from_chars(begin, end, result);
+    double            result  = 0.0;
+    const char*       begin   = trimmed.data();
+    const char*       end     = begin + trimmed.size();
+    const auto        parsed  = std::from_chars(begin, end, result);
     if (parsed.ec != std::errc{} || parsed.ptr != end || !std::isfinite(result)) {
         std::cerr << option << " must be a number.\n";
         return std::nullopt;
@@ -156,10 +156,10 @@ std::optional<double> parse_double_value(const std::string& value, const char* o
 }
 
 bool validate_range(
-    double value,
-    double minimum,
-    double maximum,
-    const char* option)
+    double         value,
+    double         minimum,
+    double         maximum,
+    const char*    option)
 {
     if (value >= minimum && value <= maximum) {
         return true;
@@ -171,9 +171,10 @@ bool validate_range(
 bool valid_layout_name(const std::string& value)
 {
     const auto normalized = lower_ascii(value);
-    return normalized == "din_5008_form_b"
-        || normalized == "din_5008_form_a"
-        || normalized == "us_letter";
+    return
+        normalized == "din_5008_form_b" ||
+        normalized == "din_5008_form_a" ||
+        normalized == "us_letter";
 }
 
 std::optional<Cli_options> parse_args(const QStringList& args)
@@ -194,9 +195,9 @@ std::optional<Cli_options> parse_args(const QStringList& args)
             if (!value) {
                 return std::nullopt;
             }
-            options.recipient = decode_text_argument(*value);
+            options.recipient                 = decode_text_argument(*value);
             options.recipient_source_provided = true;
-            options.recipient_text_provided = true;
+            options.recipient_text_provided   = true;
         }
         else
         if (arg == "--to-file") {
@@ -473,15 +474,9 @@ int main(int argc, char** argv)
         return 2;
     }
 
-    if (options.template_dir.empty()) {
-        options.template_dir = env_or_empty("BRIEFUTIL_TEMPLATE_DIR");
-    }
-    if (options.template_dir.empty()) {
-        options.template_dir = briefutil::default_template_dir();
-    }
-    if (options.output_dir.empty()) {
-        options.output_dir = env_or_empty("BRIEFUTIL_OUTPUT_DIR");
-    }
+    if (options.template_dir.empty()) { options.template_dir = env_or_empty("BRIEFUTIL_TEMPLATE_DIR"); }
+    if (options.template_dir.empty()) { options.template_dir = briefutil::default_template_dir();      }
+    if (options.output_dir.empty())   { options.output_dir   = env_or_empty("BRIEFUTIL_OUTPUT_DIR");   }
     if (options.output_dir.empty()) {
         options.output_dir = briefutil::configured_output_dir(
             QCoreApplication::applicationDirPath().toStdString(),
@@ -496,8 +491,8 @@ int main(int argc, char** argv)
             return 2;
         }
         QFileInfo profile_info(QString::fromStdString(options.profile_path));
-        selected_entry.profile = std::move(loaded.profile);
-        selected_entry.path = profile_info.absoluteFilePath().toStdString();
+        selected_entry.profile  = std::move(loaded.profile);
+        selected_entry.path     = profile_info.absoluteFilePath().toStdString();
         selected_entry.base_dir = profile_info.absoluteDir().absolutePath().toStdString();
     }
     else {
@@ -557,9 +552,13 @@ int main(int argc, char** argv)
         if (!result.detail.empty()) {
             std::cerr << result.detail << "\n";
         }
-        return result.code == briefutil::Generation_result_code::INVALID_REQUEST
-            || result.code == briefutil::Generation_result_code::OUTPUT_EXISTS
-            ? 2 : 1;
+        const bool usage_error =
+            result.code == briefutil::Generation_result_code::INVALID_REQUEST ||
+            result.code == briefutil::Generation_result_code::OUTPUT_EXISTS;
+        if (usage_error) {
+            return 2;
+        }
+        return 1;
     }
 
     std::cout << result.output_path << "\n";

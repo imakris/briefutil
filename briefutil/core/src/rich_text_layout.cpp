@@ -63,7 +63,7 @@ static Font_id font_for_style(mark2haru::Inline_style style)
         case mark2haru::Inline_style::ITALIC:      return Font_id::SANS_ITALIC;
         case mark2haru::Inline_style::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
         case mark2haru::Inline_style::CODE:        return Font_id::MONO;
-        default:                        return Font_id::SANS;
+        default:                                   return Font_id::SANS;
     }
 }
 
@@ -74,17 +74,18 @@ static Font_id font_for_style(mark2haru::Inline_style style)
 
 struct Positioned_span
 {
-    float       x_mm;
-    std::string text;
-    Font_id     font;
-    float       size_pt;
-    color_t     color;
+    float          x_mm;
+    std::string    text;
+    Font_id        font;
+    float          size_pt;
+    color_t        color;
 };
 
 struct Laid_out_line
 {
-    std::vector<Positioned_span> spans;
-    float height_mm;   // line height
+    std::vector<Positioned_span>
+                   spans;
+    float          height_mm; // line height
 };
 
 
@@ -96,10 +97,13 @@ struct Laid_out_line
 // ============================================================================
 
 static std::vector<Laid_out_line> layout_runs(
-    const std::vector<mark2haru::Inline_run>& runs,
-    float left_mm, float max_width_mm,
-    float size_pt, float lead_pt, color_t color,
-    const Font_family_config& fonts = default_font_family())
+    const std::vector<mark2haru::Inline_run>&  runs,
+    float                                      left_mm,
+    float                                      max_width_mm,
+    float                                      size_pt,
+    float                                      lead_pt,
+    color_t                                    color,
+    const Font_family_config&                  fonts = default_font_family())
 {
     std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
@@ -128,7 +132,7 @@ static std::vector<Laid_out_line> layout_runs(
         if (it != word_width_cache.end()) {
             return it->second;
         }
-        auto m = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
+        auto  m        = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
         float width_mm = pt_to_mm(m.width_pt);
         word_width_cache.emplace(std::move(key), width_mm);
         return width_mm;
@@ -141,8 +145,8 @@ static std::vector<Laid_out_line> layout_runs(
     float cursor_x_mm = left_mm;
 
     // The span currently being accumulated (same style, same line)
-    Positioned_span building_span = { left_mm, "", Font_id::SANS, size_pt, color };
-    bool has_building_span = false;
+    Positioned_span building_span     = { left_mm, "", Font_id::SANS, size_pt, color };
+    bool            has_building_span = false;
 
     auto commit_building_span = [&]() {
         if (has_building_span && !building_span.text.empty()) {
@@ -182,8 +186,8 @@ static std::vector<Laid_out_line> layout_runs(
                     ? space_width_mm_for(fid) : 0.0f;
 
                 // Line break if word doesn't fit
-                if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm
-                    && cursor_x_mm > left_mm)
+                if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm &&
+                    cursor_x_mm                          > left_mm)
                 {
                     flush_line();
                     space_w_mm = 0;
@@ -192,10 +196,10 @@ static std::vector<Laid_out_line> layout_runs(
                 // If style changed or no span is being built, start a new one
                 if (!has_building_span || building_span.font != fid) {
                     commit_building_span();
-                    building_span.x_mm = cursor_x_mm;
-                    building_span.font = fid;
+                    building_span.x_mm    = cursor_x_mm;
+                    building_span.font    = fid;
                     building_span.size_pt = size_pt;
-                    building_span.color = color;
+                    building_span.color   = color;
                     building_span.text.clear();
                     has_building_span = true;
 
@@ -243,13 +247,14 @@ static std::vector<Laid_out_line> layout_runs(
 
 struct Page_cursor
 {
-    float m_y_mm;
-    float m_bottom_mm;
-    int   m_page_index = 0;
-    std::vector<std::vector<Page_element>>* m_pages;
+    float  m_y_mm;
+    float  m_bottom_mm;
+    int    m_page_index = 0;
+    std::vector<std::vector<Page_element>>*
+           m_pages;
 
-    float m_cont_top_mm;
-    float m_cont_bottom_mm;
+    float  m_cont_top_mm;
+    float  m_cont_bottom_mm;
 
     bool fits(float height_mm) const
     {
@@ -319,7 +324,7 @@ static color_t color_from_mark2haru(const mark2haru::color_t& color)
 
 static void append_mark2haru_table_elements(
     const mark2haru::Table_row_layout& row_layout,
-    std::vector<Page_element>& elements)
+    std::vector<Page_element>&         elements)
 {
     for (const auto& element : row_layout.elements) {
         std::visit([&](const auto& value) {
@@ -365,22 +370,22 @@ static void append_mark2haru_table_elements(
 // ============================================================================
 
 Layout_result layout_body(
-    const std::vector<mark2haru::Block>& blocks,
-    const Layout_params& params,
-    float first_page_top_mm,
-    float first_page_bottom_mm,
-    float cont_page_top_mm,
-    float cont_page_bottom_mm)
+    const std::vector<mark2haru::Block>&   blocks,
+    const Layout_params&                   params,
+    float                                  first_page_top_mm,
+    float                                  first_page_bottom_mm,
+    float                                  cont_page_top_mm,
+    float                                  cont_page_bottom_mm)
 {
     Layout_result result;
     result.pages.push_back({});   // first page
 
     Page_cursor cursor;
-    cursor.m_y_mm = first_page_top_mm;
-    cursor.m_bottom_mm = first_page_bottom_mm;
-    cursor.m_page_index = 0;
-    cursor.m_pages = &result.pages;
-    cursor.m_cont_top_mm = cont_page_top_mm;
+    cursor.m_y_mm           = first_page_top_mm;
+    cursor.m_bottom_mm      = first_page_bottom_mm;
+    cursor.m_page_index     = 0;
+    cursor.m_pages          = &result.pages;
+    cursor.m_cont_top_mm    = cont_page_top_mm;
     cursor.m_cont_bottom_mm = cont_page_bottom_mm;
 
     for (const auto& block : blocks) {
@@ -407,8 +412,8 @@ Layout_result layout_body(
             }
             else
             if constexpr (std::is_same_v<Block_type, mark2haru::Heading_block>) {
-                float hsize = heading_size(params.typo, params.typo.body_size_pt, b.level);
-                float hlead = hsize * 1.2f;
+                float hsize        = heading_size(params.typo, params.typo.body_size_pt, b.level);
+                float hlead        = hsize * 1.2f;
                 float space_before = heading_space_before(b.level);
 
                 cursor.ensure_space(space_before + pt_to_mm(hlead));
@@ -442,7 +447,7 @@ Layout_result layout_body(
             }
             else
             if constexpr (std::is_same_v<Block_type, mark2haru::List_block>) {
-                float item_left = params.left_mm + params.typo.list_indent_mm;
+                float item_left  = params.left_mm + params.typo.list_indent_mm;
                 float item_width = params.width_mm - params.typo.list_indent_mm;
 
                 for (int idx = 0; idx < (int)b.items.size(); idx++) {
@@ -452,9 +457,7 @@ Layout_result layout_body(
                     std::string marker;
                     if (b.ordered) {
                         marker = std::to_string(
-                            saturating_list_marker_number(
-                                b.start_number,
-                                static_cast<size_t>(idx))) + ".";
+                            saturating_list_marker_number(b.start_number, static_cast<size_t>(idx))) + ".";
                     }
                     else {
                         marker = "\xe2\x80\xa2"; // UTF-8 bullet •
@@ -544,11 +547,11 @@ Layout_result layout_body(
                 }
 
                 mark2haru::table_style_t table_style;
-                table_style.text_size_pt = params.typo.body_size_pt;
+                table_style.text_size_pt    = params.typo.body_size_pt;
                 table_style.text_leading_pt = params.typo.body_lead_pt;
                 table_style.cell_padding_pt = mm_to_pt(params.typo.table_cell_pad_mm);
                 table_style.border_width_pt = k_table_border_width_pt;
-                table_style.text_color = {
+                table_style.text_color      = {
                     params.body_color.r,
                     params.body_color.g,
                     params.body_color.b
@@ -621,10 +624,10 @@ Layout_result layout_body(
             if constexpr (std::is_same_v<Block_type, mark2haru::Code_block>) {
                 // Code block: monospace font, light grey background.
                 // Split across pages line-by-line if needed.
-                static constexpr float k_code_pad_mm = 3.0f;
-                static constexpr color_t k_code_bg = { 0.94f, 0.94f, 0.94f };
-                float code_size_pt = params.typo.body_size_pt * params.typo.code_scale;
-                float code_lead_pt = code_size_pt * 1.3f;
+                static constexpr float   k_code_pad_mm = 3.0f;
+                static constexpr color_t k_code_bg     = { 0.94f, 0.94f, 0.94f };
+                float                    code_size_pt  = params.typo.body_size_pt * params.typo.code_scale;
+                float                    code_lead_pt  = code_size_pt * 1.3f;
 
                 // Split code into lines (preserve all whitespace)
                 auto code_lines = split_lines(b.text);
@@ -648,7 +651,7 @@ Layout_result layout_body(
                     }
 
                     int chunk = std::min(lines_fit,
-                                         (int)(code_lines.size() - li));
+                        (int)(code_lines.size() - li));
 
                     float chunk_h = (float)chunk * line_h_mm
                         + 2 * k_code_pad_mm;

@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
         "BRIEFUTIL_OUTPUT_DIR should be authoritative even before it exists");
     qunsetenv("BRIEFUTIL_OUTPUT_DIR");
 
-    const QString portable_root = root.filePath("portable");
+    const QString portable_root   = root.filePath("portable");
     const QString portable_output = root.filePath("portable-output");
     QDir().mkpath(portable_root);
     QDir().mkpath(portable_output);
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
     const QString missing_conf_output = root.filePath("missing-conf-output");
     QFile conf2(QDir(portable_root).filePath("output_dir.conf"));
     require(conf2.open(QIODevice::WriteOnly | QIODevice::Truncate),
-            "could not rewrite output_dir.conf");
+        "could not rewrite output_dir.conf");
     conf2.write(missing_conf_output.toUtf8());
     conf2.close();
     require(

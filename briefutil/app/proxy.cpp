@@ -82,8 +82,8 @@ static void ensure_template_dir_ready(const QString& dir_path)
     std::string error;
     if (!briefutil::ensure_template_dir_ready(dir_path.toStdString(), &error)) {
         qWarning("briefutil: failed to initialize template directory '%s': %s",
-                 qPrintable(dir_path),
-                 error.c_str());
+            qPrintable(dir_path),
+            error.c_str());
     }
 }
 
@@ -106,7 +106,10 @@ static QString build_caption(const QString& version)
     return QStringLiteral("v%1").arg(version);
 }
 
-static QString build_details(const QString& version, const QString& commit, const QString& timestamp)
+static QString build_details(
+    const QString& version,
+    const QString& commit,
+    const QString& timestamp)
 {
     return QStringLiteral("briefutil %1\nCommit %2\nBuilt %3").arg(version, commit, timestamp);
 }
@@ -165,13 +168,13 @@ static bool parse_hex_color(const QString& v, color_t& out)
         return false;
     }
 
-    auto hex = match.captured(1);
+    auto hex  = match.captured(1);
     bool ok_r = false;
     bool ok_g = false;
     bool ok_b = false;
-    int r = hex.mid(0, 2).toInt(&ok_r, 16);
-    int g = hex.mid(2, 2).toInt(&ok_g, 16);
-    int b = hex.mid(4, 2).toInt(&ok_b, 16);
+    int  r    = hex.mid(0, 2).toInt(&ok_r, 16);
+    int  g    = hex.mid(2, 2).toInt(&ok_g, 16);
+    int  b    = hex.mid(4, 2).toInt(&ok_b, 16);
     if (!ok_r || !ok_g || !ok_b) {
         return false;
     }
@@ -197,21 +200,11 @@ enum class Font_role
 static Font_role font_role_from_string(const QString& role)
 {
     auto normalized = role.trimmed().toLower();
-    if (normalized == "sans") {
-        return Font_role::SANS;
-    }
-    if (normalized == "sans_bold") {
-        return Font_role::SANS_BOLD;
-    }
-    if (normalized == "sans_italic") {
-        return Font_role::SANS_ITALIC;
-    }
-    if (normalized == "sans_bold_italic") {
-        return Font_role::SANS_BOLD_ITALIC;
-    }
-    if (normalized == "mono") {
-        return Font_role::MONO;
-    }
+    if (normalized == "sans")             { return Font_role::SANS;             }
+    if (normalized == "sans_bold")        { return Font_role::SANS_BOLD;        }
+    if (normalized == "sans_italic")      { return Font_role::SANS_ITALIC;      }
+    if (normalized == "sans_bold_italic") { return Font_role::SANS_BOLD_ITALIC; }
+    if (normalized == "mono")             { return Font_role::MONO;             }
     return Font_role::ANY;
 }
 
@@ -301,9 +294,9 @@ static QString resolve_windows_font_path(QString path, const QStringList& base_d
 }
 
 static void append_windows_registry_fonts(
-    QHash<QString, QString>& map,
-    const QString& registry_path,
-    const QStringList& base_dirs)
+    QHash<QString, QString>&   map,
+    const QString&             registry_path,
+    const QStringList&         base_dirs)
 {
     QSettings settings(registry_path, QSettings::NativeFormat);
     for (const auto& key : settings.allKeys()) {
@@ -409,8 +402,8 @@ static QStringList font_name_candidates(const QString& family, Font_role role)
 
 static QString resolve_windows_system_font(const QString& family, Font_role role)
 {
-    const auto& fonts = installed_windows_font_files();
-    auto candidates = font_name_candidates(family, role);
+    const auto& fonts      = installed_windows_font_files();
+    auto        candidates = font_name_candidates(family, role);
     if (role != Font_role::ANY) {
         candidates.append(font_name_candidates(family, Font_role::ANY));
         candidates.removeDuplicates();
@@ -436,9 +429,11 @@ static QString resolve_font_value(const QString& value, Font_role role)
     auto s = trimmed.toStdString();
     if (looks_like_font_file(s)) {
         QFileInfo info(trimmed);
-        return info.exists() && info.isFile()
-            ? info.absoluteFilePath()
-            : QString();
+        return
+            info.exists() &&
+            info.isFile()
+                ? info.absoluteFilePath()
+                : QString();
     }
 
 #ifdef Q_OS_WIN
@@ -469,13 +464,13 @@ void Proxy::load_settings()
 {
     QSettings s("briefutil", "briefutil");
 
-    m_font_sans_input = normalize_saved_font_input(s.value("fonts/sans").toString());
-    m_font_sans_bold_input = normalize_saved_font_input(s.value("fonts/sans_bold").toString());
-    m_font_sans_italic_input = normalize_saved_font_input(s.value("fonts/sans_italic").toString());
+    m_font_sans_input             = normalize_saved_font_input(s.value("fonts/sans").toString());
+    m_font_sans_bold_input        = normalize_saved_font_input(s.value("fonts/sans_bold").toString());
+    m_font_sans_italic_input      = normalize_saved_font_input(s.value("fonts/sans_italic").toString());
     m_font_sans_bold_italic_input = normalize_saved_font_input(
         s.value("fonts/sans_bold_italic").toString());
-    m_font_mono_input = normalize_saved_font_input(s.value("fonts/mono").toString());
-    m_theme.fonts = font_config_from_inputs(
+    m_font_mono_input             = normalize_saved_font_input(s.value("fonts/mono").toString());
+    m_theme.fonts                 = font_config_from_inputs(
         m_font_sans_input,
         m_font_sans_bold_input,
         m_font_sans_italic_input,
@@ -495,7 +490,7 @@ void Proxy::load_settings()
         s.value("typo/header_scale", def_typo.header_scale).toFloat(),
         0.5f,
         2.0f);
-    m_theme.typo.body_scale = clamp_float(
+    m_theme.typo.body_scale   = clamp_float(
         s.value("typo/body_scale", def_typo.body_scale).toFloat(),
         0.5f,
         2.0f);
@@ -652,7 +647,7 @@ static QString unique_profile_file_name(const QDir& dir, const QString& base_nam
     }
 
     QString candidate = stem + ".json";
-    int counter = 2;
+    int     counter   = 2;
     while (dir.exists(candidate)) {
         candidate = stem + " " + QString::number(counter++) + ".json";
     }
@@ -662,13 +657,8 @@ static QString unique_profile_file_name(const QDir& dir, const QString& base_nam
 static bool open_generated_pdf(const QString& pdf_path)
 {
 #ifdef Q_OS_WIN
-    auto result = reinterpret_cast<qintptr>(ShellExecuteW(
-        nullptr,
-        L"open",
-        reinterpret_cast<LPCWSTR>(pdf_path.utf16()),
-        nullptr,
-        nullptr,
-        SW_SHOWNORMAL));
+    auto result = reinterpret_cast<qintptr>(
+        ShellExecuteW(nullptr, L"open", reinterpret_cast<LPCWSTR>(pdf_path.utf16()), nullptr, nullptr, SW_SHOWNORMAL));
     return result > 32;
 #else
     return QDesktopServices::openUrl(QUrl::fromLocalFile(pdf_path));
@@ -688,9 +678,9 @@ static QString briefutil_cli_path()
 }
 
 static bool write_utf8_temp_file(
-    QTemporaryFile& file,
-    const QString& text,
-    QString* error)
+    QTemporaryFile&    file,
+    const QString&     text,
+    QString*           error)
 {
     if (!file.open()) {
         if (error) {
@@ -721,12 +711,9 @@ static bool write_utf8_temp_file(
 static QString cli_failure_message(QProcess& process, const QString& process_error = {})
 {
     const QString stderr_text = QString::fromUtf8(process.readAllStandardError()).trimmed();
-    if (!stderr_text.isEmpty()) {
-        return stderr_text;
-    }
-    if (!process_error.isEmpty()) {
-        return QString("PDF generation failed: %1").arg(process_error);
-    }
+    if (!stderr_text.isEmpty())   { return stderr_text;                                             }
+    if (!process_error.isEmpty()) { return QString("PDF generation failed: %1").arg(process_error); }
+
     if (process.error() != QProcess::UnknownError) {
         return process.errorString();
     }
@@ -734,7 +721,7 @@ static QString cli_failure_message(QProcess& process, const QString& process_err
 }
 
 void Proxy::make_pdf(
-    int from,
+    int            from,
     const QString& to,
     const QString& subject,
     const QString& body)
@@ -744,21 +731,24 @@ void Proxy::make_pdf(
         return;
     }
 
-    if (!validate_font_value(m_font_sans_input, "sans")
-        || !validate_font_value(m_font_sans_bold_input, "sans_bold")
-        || !validate_font_value(m_font_sans_italic_input, "sans_italic")
-        || !validate_font_value(m_font_sans_bold_italic_input, "sans_bold_italic")
-        || !validate_font_value(m_font_mono_input, "mono")
-        || !is_valid_font_config(m_theme.fonts))
+    if (!validate_font_value(m_font_sans_input, "sans")                         ||
+        !validate_font_value(m_font_sans_bold_input, "sans_bold")               ||
+        !validate_font_value(m_font_sans_italic_input, "sans_italic")           ||
+        !validate_font_value(m_font_sans_bold_italic_input, "sans_bold_italic") ||
+        !validate_font_value(m_font_mono_input, "mono")                         ||
+        !is_valid_font_config(m_theme.fonts))
     {
-        emit pdf_generated(false,
-            "Invalid font configuration. Leave font fields empty for bundled fonts or use installed TrueType fonts or explicit .ttf files.");
+        emit pdf_generated(
+            false,
+            "Invalid font configuration. Leave font fields empty for bundled "
+            "fonts or use installed TrueType fonts or explicit .ttf files.");
         return;
     }
 
     const QString cli_path = briefutil_cli_path();
     if (!QFileInfo::exists(cli_path)) {
-        emit pdf_generated(false,
+        emit pdf_generated(
+            false,
             QString("Could not find the briefutil CLI executable: %1").arg(cli_path));
         return;
     }
@@ -769,12 +759,14 @@ void Proxy::make_pdf(
         QDir::tempPath() + "/briefutil-body-XXXXXX.md");
     QString temp_error;
     if (!write_utf8_temp_file(*recipient_file, to, &temp_error)) {
-        emit pdf_generated(false,
+        emit pdf_generated(
+            false,
             QString("Could not prepare recipient text for PDF generation: %1").arg(temp_error));
         return;
     }
     if (!write_utf8_temp_file(*body_file, body, &temp_error)) {
-        emit pdf_generated(false,
+        emit pdf_generated(
+            false,
             QString("Could not prepare body text for PDF generation: %1").arg(temp_error));
         return;
     }
@@ -782,27 +774,27 @@ void Proxy::make_pdf(
     const Sender_profile profile = m_profiles[from].profile;
     QStringList args;
     args
-        << "--to-file" << recipient_file->fileName()
-        << "--subject" << subject
-        << "--body-file" << body_file->fileName()
-        << "--profile-path" << m_profiles[from].path
-        << "--template-dir" << m_sender_template_dir
-        << "--output-dir" << m_output_dir
-        << "--layout" << m_layout_preset
-        << "--font-sans" << QString::fromStdString(m_theme.fonts.sans)
-        << "--font-sans-bold" << QString::fromStdString(m_theme.fonts.sans_bold)
-        << "--font-sans-italic" << QString::fromStdString(m_theme.fonts.sans_italic)
+        << "--to-file"               << recipient_file->fileName()
+        << "--subject"               << subject
+        << "--body-file"             << body_file->fileName()
+        << "--profile-path"          << m_profiles[from].path
+        << "--template-dir"          << m_sender_template_dir
+        << "--output-dir"            << m_output_dir
+        << "--layout"                << m_layout_preset
+        << "--font-sans"             << QString::fromStdString(m_theme.fonts.sans)
+        << "--font-sans-bold"        << QString::fromStdString(m_theme.fonts.sans_bold)
+        << "--font-sans-italic"      << QString::fromStdString(m_theme.fonts.sans_italic)
         << "--font-sans-bold-italic" << QString::fromStdString(m_theme.fonts.sans_bold_italic)
-        << "--font-mono" << QString::fromStdString(m_theme.fonts.mono)
-        << "--body-size" << QString::number(m_theme.typo.body_size_pt, 'g', 12)
-        << "--body-leading" << QString::number(m_theme.typo.body_lead_pt, 'g', 12)
-        << "--header-scale" << QString::number(m_theme.typo.header_scale * 100.0f, 'g', 12)
-        << "--body-scale" << QString::number(m_theme.typo.body_scale * 100.0f, 'g', 12)
-        << "--footer-scale" << QString::number(m_theme.typo.footer_scale * 100.0f, 'g', 12);
+        << "--font-mono"             << QString::fromStdString(m_theme.fonts.mono)
+        << "--body-size"             << QString::number(m_theme.typo.body_size_pt, 'g', 12)
+        << "--body-leading"          << QString::number(m_theme.typo.body_lead_pt, 'g', 12)
+        << "--header-scale"          << QString::number(m_theme.typo.header_scale * 100.0f, 'g', 12)
+        << "--body-scale"            << QString::number(m_theme.typo.body_scale * 100.0f, 'g', 12)
+        << "--footer-scale"          << QString::number(m_theme.typo.footer_scale * 100.0f, 'g', 12);
 
-    auto process = new QProcess(this);
-    auto timer = std::make_shared<QElapsedTimer>();
-    auto completed = std::make_shared<bool>(false);
+    auto process       = new QProcess(this);
+    auto timer         = std::make_shared<QElapsedTimer>();
+    auto completed     = std::make_shared<bool>(false);
     auto process_error = std::make_shared<QString>();
     timer->start();
 
@@ -818,12 +810,8 @@ void Proxy::make_pdf(
                 return;
             }
             const QString error_text = process->errorString();
-            if (process_error->isEmpty() && !error_text.isEmpty()) {
-                *process_error = error_text;
-            }
-            if (error != QProcess::FailedToStart) {
-                return;
-            }
+            if (process_error->isEmpty() && !error_text.isEmpty()) { *process_error = error_text; }
+            if (error != QProcess::FailedToStart)                  { return;                      }
             *completed = true;
             emit pdf_generated(
                 false,
@@ -896,33 +884,36 @@ void Proxy::make_pdf(
 // Settings accessors
 // ============================================================================
 
-QString Proxy::get_font_sans() const             { return m_font_sans_input; }
-QString Proxy::get_font_sans_bold() const        { return m_font_sans_bold_input; }
-QString Proxy::get_font_sans_italic() const      { return m_font_sans_italic_input; }
-QString Proxy::get_font_sans_bold_italic() const { return m_font_sans_bold_italic_input; }
-QString Proxy::get_font_mono() const             { return m_font_mono_input; }
-double  Proxy::get_body_size() const             { return m_theme.typo.body_size_pt; }
-double  Proxy::get_body_leading() const          { return m_theme.typo.body_lead_pt; }
+QString Proxy::get_font_sans() const                 { return m_font_sans_input;                 }
+QString Proxy::get_font_sans_bold() const            { return m_font_sans_bold_input;            }
+QString Proxy::get_font_sans_italic() const          { return m_font_sans_italic_input;          }
+QString Proxy::get_font_sans_bold_italic() const     { return m_font_sans_bold_italic_input;     }
+QString Proxy::get_font_mono() const                 { return m_font_mono_input;                 }
+double  Proxy::get_body_size() const                 { return m_theme.typo.body_size_pt;         }
+double  Proxy::get_body_leading() const              { return m_theme.typo.body_lead_pt;         }
 double  Proxy::get_header_font_scale_percent() const { return m_theme.typo.header_scale * 100.0; }
-double  Proxy::get_body_font_scale_percent() const   { return m_theme.typo.body_scale * 100.0; }
+double  Proxy::get_body_font_scale_percent() const   { return m_theme.typo.body_scale   * 100.0; }
 double  Proxy::get_footer_font_scale_percent() const { return m_theme.typo.footer_scale * 100.0; }
-QString Proxy::get_template_dir() const          { return m_sender_template_dir; }
-QString Proxy::get_layout_preset() const         { return m_layout_preset; }
+QString Proxy::get_template_dir() const              { return m_sender_template_dir;             }
+QString Proxy::get_layout_preset() const             { return m_layout_preset;                   }
 
 void Proxy::update_font_and_save(QString& slot, const QString& v)
 {
     slot = v.trimmed();
     m_theme.fonts = font_config_from_inputs(
-        m_font_sans_input, m_font_sans_bold_input, m_font_sans_italic_input,
-        m_font_sans_bold_italic_input, m_font_mono_input);
+        m_font_sans_input,
+        m_font_sans_bold_input,
+        m_font_sans_italic_input,
+        m_font_sans_bold_italic_input,
+        m_font_mono_input);
     save_settings();
 }
 
-void Proxy::set_font_sans(const QString& v)             { update_font_and_save(m_font_sans_input, v); }
-void Proxy::set_font_sans_bold(const QString& v)        { update_font_and_save(m_font_sans_bold_input, v); }
-void Proxy::set_font_sans_italic(const QString& v)      { update_font_and_save(m_font_sans_italic_input, v); }
-void Proxy::set_font_sans_bold_italic(const QString& v)  { update_font_and_save(m_font_sans_bold_italic_input, v); }
-void Proxy::set_font_mono(const QString& v)             { update_font_and_save(m_font_mono_input, v); }
+void Proxy::set_font_sans(const QString& v)             { update_font_and_save(m_font_sans_input, v);             }
+void Proxy::set_font_sans_bold(const QString& v)        { update_font_and_save(m_font_sans_bold_input, v);        }
+void Proxy::set_font_sans_italic(const QString& v)      { update_font_and_save(m_font_sans_italic_input, v);      }
+void Proxy::set_font_sans_bold_italic(const QString& v) { update_font_and_save(m_font_sans_bold_italic_input, v); }
+void Proxy::set_font_mono(const QString& v)             { update_font_and_save(m_font_mono_input, v);             }
 
 void Proxy::set_body_size(double v)
 {
@@ -1051,12 +1042,12 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     updated.style = style == "commercial"
         ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
 
-    updated.sender_lines = split_profile_lines(profile_data.value("senderLines").toString());
-    updated.email = profile_data.value("email").toString().trimmed().toStdString();
-    updated.language = normalize_profile_language(profile_data.value("language").toString()).toStdString();
+    updated.sender_lines        = split_profile_lines(profile_data.value("senderLines").toString());
+    updated.email               = profile_data.value("email").toString().trimmed().toStdString();
+    updated.language            = normalize_profile_language(profile_data.value("language").toString()).toStdString();
     updated.return_address_line = profile_data.value("returnAddressLine").toString().trimmed().toStdString();
-    updated.closing_phrase = profile_data.value("closingPhrase").toString().trimmed().toStdString();
-    updated.signer_name = profile_data.value("signerName").toString().trimmed().toStdString();
+    updated.closing_phrase      = profile_data.value("closingPhrase").toString().trimmed().toStdString();
+    updated.signer_name         = profile_data.value("signerName").toString().trimmed().toStdString();
 
     auto signature_image = normalize_asset_name(profile_data.value("signatureImage").toString());
     if (!validate_profile_image_name(signature_image)) {
@@ -1082,9 +1073,9 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
 
     // If the id changed, rename the backing JSON file as well so that the
     // template directory stays consistent with the in-memory profile list.
-    const QString old_path = m_profiles[index].path;
-    QString save_path = old_path;
-    const bool id_changed = updated.id != m_profiles[index].profile.id;
+    const QString old_path   = m_profiles[index].path;
+    QString       save_path  = old_path;
+    const bool    id_changed = updated.id != m_profiles[index].profile.id;
     if (id_changed) {
         QString safe_id = sanitize_filename(QString::fromStdString(updated.id));
         if (safe_id.isEmpty()) {
@@ -1097,7 +1088,8 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
         QFileInfo old_info(old_path);
         if (dir.exists(candidate_name)
             && QFileInfo(dir.filePath(candidate_name)).absoluteFilePath()
-               != old_info.absoluteFilePath()) {
+               != old_info.absoluteFilePath())
+        {
             int counter = 2;
             while (dir.exists(safe_id + " " + QString::number(counter) + ".json")) {
                 counter++;
@@ -1110,8 +1102,8 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
     std::string error;
     if (!::save_sender_profile(updated, save_path.toStdString(), &error)) {
         qWarning("briefutil: failed to save profile '%s': %s",
-                 qPrintable(save_path),
-                 error.c_str());
+            qPrintable(save_path),
+            error.c_str());
         return false;
     }
 
@@ -1159,7 +1151,7 @@ int Proxy::clone_sender_profile(int index)
     }
 
     QString candidate_id = base_id + " Copy";
-    int counter = 2;
+    int     counter      = 2;
     while (profile_name_exists(candidate_id, -1)) {
         candidate_id = base_id + " Copy " + QString::number(counter++);
     }
@@ -1169,8 +1161,8 @@ int Proxy::clone_sender_profile(int index)
     std::string error;
     if (!::save_sender_profile(entry.profile, entry.path.toStdString(), &error)) {
         qWarning("briefutil: failed to clone profile '%s': %s",
-                 qPrintable(entry.path),
-                 error.c_str());
+            qPrintable(entry.path),
+            error.c_str());
         return -1;
     }
 
@@ -1188,7 +1180,7 @@ bool Proxy::delete_sender_profile(int index)
     const QString path = m_profiles[index].path;
     if (QFileInfo::exists(path) && !QFile::remove(path)) {
         qWarning("briefutil: failed to delete sender profile '%s'",
-                 qPrintable(path));
+            qPrintable(path));
         return false;
     }
 
@@ -1205,12 +1197,8 @@ bool Proxy::profile_name_exists(const QString& name, int exclude_index) const
     }
 
     for (int i = 0; i < (int)m_profiles.size(); ++i) {
-        if (i == exclude_index) {
-            continue;
-        }
-        if (QString::fromStdString(m_profiles[i].profile.id) == trimmed) {
-            return true;
-        }
+        if (i == exclude_index)                                          { continue;    }
+        if (QString::fromStdString(m_profiles[i].profile.id) == trimmed) { return true; }
     }
     return false;
 }
@@ -1271,11 +1259,11 @@ void Proxy::set_window_dark_mode(QWindow* window, bool dark)
     if (!window) {
         return;
     }
-    HWND hwnd = reinterpret_cast<HWND>(window->winId());
-    BOOL useDarkMode = dark ? TRUE : FALSE;
+    HWND            hwnd                            = reinterpret_cast<HWND>(window->winId());
+    BOOL            useDarkMode                     = dark ? TRUE : FALSE;
     constexpr DWORD k_dwmwa_use_immersive_dark_mode = 20;
     DwmSetWindowAttribute(hwnd, k_dwmwa_use_immersive_dark_mode,
-                          &useDarkMode, sizeof(useDarkMode));
+        &useDarkMode, sizeof(useDarkMode));
 #else
     Q_UNUSED(window);
     Q_UNUSED(dark);

@@ -38,9 +38,9 @@ std::string localized_date(int year, int month, int day, const std::string& lang
 {
     if (year <= 0 || month <= 0 || day <= 0) {
         const auto now = QDate::currentDate();
-        year = now.year();
+        year  = now.year();
         month = now.month();
-        day = now.day();
+        day   = now.day();
     }
 
     static constexpr const char* k_en_months[] = {
@@ -57,8 +57,10 @@ std::string localized_date(int year, int month, int day, const std::string& lang
     if (normalize_language(language) == "de") {
         return std::to_string(day) + ". " + k_de_months[month] + " " + std::to_string(year);
     }
-    return std::string(k_en_months[month]) + " " + std::to_string(day) + ", "
-        + std::to_string(year);
+    return
+        std::string(k_en_months[month]) + " "  +
+        std::to_string(day)             + ", " +
+        std::to_string(year);
 }
 
 bool is_valid_font_config(const Font_family_config& fonts)
@@ -75,11 +77,12 @@ bool is_valid_font_config(const Font_family_config& fonts)
         return info.exists() && info.isFile();
     };
 
-    return valid_slot(fonts.sans)
-        && valid_slot(fonts.sans_bold)
-        && valid_slot(fonts.sans_italic)
-        && valid_slot(fonts.sans_bold_italic)
-        && valid_slot(fonts.mono);
+    return
+        valid_slot(fonts.sans)             &&
+        valid_slot(fonts.sans_bold)        &&
+        valid_slot(fonts.sans_italic)      &&
+        valid_slot(fonts.sans_bold_italic) &&
+        valid_slot(fonts.mono);
 }
 
 float font_scale_from_percent(double percent)
@@ -96,24 +99,20 @@ letter_layout_spec_t layout_spec_from_name(const std::string& preset)
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
         return static_cast<char>(std::tolower(c));
     });
-    if (value == "din_5008_form_a") {
-        return din_5008_form_a();
-    }
-    if (value == "us_letter") {
-        return us_letter();
-    }
+    if (value == "din_5008_form_a") { return din_5008_form_a(); }
+    if (value == "us_letter")       { return us_letter();       }
     return din_5008_form_b();
 }
 
 static Generation_result failure(
     Generation_result_code code,
-    std::string message,
-    std::string detail = {})
+    std::string            message,
+    std::string            detail = {})
 {
     Generation_result result;
-    result.code = code;
+    result.code    = code;
     result.message = std::move(message);
-    result.detail = std::move(detail);
+    result.detail  = std::move(detail);
     return result;
 }
 
@@ -151,17 +150,20 @@ Generation_result generate_brief_pdf(const Generation_request& request)
     if (!is_valid_font_config(request.theme.fonts)) {
         return failure(
             Generation_result_code::INVALID_FONT_CONFIG,
-            "Invalid font configuration. Leave font fields empty for bundled fonts or provide explicit .ttf font files.");
+            "Invalid font configuration. Leave font fields empty "
+            "for bundled fonts or provide explicit .ttf font files.");
     }
 
     const std::string output_path = make_output_path(request);
     QFileInfo output_info(QString::fromStdString(output_path));
     QDir output_dir = output_info.absoluteDir();
     if (!output_dir.exists() && !output_dir.mkpath(".")) {
-        return failure(
-            Generation_result_code::OUTPUT_ERROR,
-            "Could not create the output directory.",
-            output_dir.absolutePath().toStdString());
+        return
+            failure(
+                Generation_result_code::OUTPUT_ERROR,
+                "Could not create the output directory.",
+                output_dir.absolutePath().toStdString()
+            );
     }
     if (output_info.exists() && !request.overwrite_output) {
         return failure(
@@ -177,9 +179,9 @@ Generation_result generate_brief_pdf(const Generation_request& request)
 
     Letter_input input;
     input.recipient = request.recipient;
-    input.subject = request.subject;
-    input.body = request.body;
-    input.date = localized_date(
+    input.subject   = request.subject;
+    input.body      = request.body;
+    input.date      = localized_date(
         request.date_year,
         request.date_month,
         request.date_day,
@@ -197,13 +199,15 @@ Generation_result generate_brief_pdf(const Generation_request& request)
 
     if (!render_result.ok) {
         QFile::remove(QString::fromStdString(temp_path));
-        return failure(
-            Generation_result_code::RENDER_ERROR,
-            render_result.message.empty() ? render_result.detail : render_result.message,
-            render_result.detail);
+        return
+            failure(
+                Generation_result_code::RENDER_ERROR,
+                render_result.message.empty() ? render_result.detail : render_result.message,
+                render_result.detail
+            );
     }
 
-    const QString q_temp_path = QString::fromStdString(temp_path);
+    const QString q_temp_path   = QString::fromStdString(temp_path);
     const QString q_output_path = QString::fromStdString(output_path);
     QString backup_path;
     if (!request.overwrite_output && QFileInfo::exists(q_output_path)) {
@@ -220,10 +224,12 @@ Generation_result generate_brief_pdf(const Generation_request& request)
         QFile::remove(backup_path);
         if (!QFile::rename(q_output_path, backup_path)) {
             QFile::remove(q_temp_path);
-            return failure(
-                Generation_result_code::OUTPUT_ERROR,
-                "Could not prepare the existing PDF for replacement.",
-                output_path);
+            return
+                failure(
+                    Generation_result_code::OUTPUT_ERROR,
+                    "Could not prepare the existing PDF for replacement.",
+                    output_path
+                );
         }
     }
 
@@ -232,18 +238,20 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             QFile::rename(backup_path, q_output_path);
         }
         QFile::remove(QString::fromStdString(temp_path));
-        return failure(
-            Generation_result_code::OUTPUT_ERROR,
-            "Could not move the generated PDF into place.",
-            output_path);
+        return
+            failure(
+                Generation_result_code::OUTPUT_ERROR,
+                "Could not move the generated PDF into place.",
+                output_path
+            );
     }
     if (!backup_path.isEmpty()) {
         QFile::remove(backup_path);
     }
 
     Generation_result result;
-    result.ok = true;
-    result.code = Generation_result_code::OK;
+    result.ok          = true;
+    result.code        = Generation_result_code::OK;
     result.output_path = output_path;
     return result;
 }

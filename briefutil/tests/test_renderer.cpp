@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
         std::printf("wrap_text newlines: %zu lines\n", lines.size());
         if (lines.size() != 4) {
             std::fprintf(stderr, "FAIL: expected 4 lines, got %zu\n",
-                         lines.size());
+                lines.size());
             return 1;
         }
     }
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
         });
 
         // Separator - length matched to return-address text
-        auto ret_m = measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
+        auto  ret_m      = measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
         float sep_end_mm = 25.4f + ret_m.width_pt / (72.0f / 25.4f);
         p.elements.push_back(line_segment_t{
             25.4f, 54.61f, sep_end_mm, 54.61f, 0.5f, k_black
@@ -125,9 +125,9 @@ int main(int argc, char* argv[])
             if (i > 0) {
                 body += "\n\n";
             }
-            body += "Dies ist Absatz " + std::to_string(i + 1)
-                + ". Der Text ist lang genug, um mehrere Seiten zu f"
-                "\xfc" "llen und die Paginierung zu testen. "
+            body += "Dies ist Absatz " + std::to_string(i + 1) +
+                ". Der Text ist lang genug,"
+                " um mehrere Seiten zu f\xfc""llen und die Paginierung zu testen. "
                 "Wir pr" "\xfc" "fen, ob der " "\xdc" "berlauf korrekt "
                 "auf die n" "\xe4" "chste Seite umgebrochen wird.";
         }
@@ -163,8 +163,8 @@ int main(int argc, char* argv[])
             if (i > 0) {
                 cont_body += "\n\n";
             }
-            cont_body += "Fortsetzung Absatz " + std::to_string(i + 9)
-                + ". Weitere Informationen auf der zweiten Seite.";
+            cont_body += "Fortsetzung Absatz " + std::to_string(i + 9) +
+                ". Weitere Informationen auf der zweiten Seite.";
         }
 
         p.elements.push_back(Text_block{
@@ -206,7 +206,7 @@ int main(int argc, char* argv[])
 
     if (!result.ok) {
         std::fprintf(stderr, "FAIL: %s (%s)\n",
-                     result.message.c_str(), result.detail.c_str());
+            result.message.c_str(), result.detail.c_str());
         return 1;
     }
 

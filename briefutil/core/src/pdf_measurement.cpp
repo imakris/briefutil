@@ -15,9 +15,10 @@
 
 struct Pdf_measure_context
 {
-    std::shared_ptr<const mark2haru::Measurement_context> m_metrics;
+    std::shared_ptr<const mark2haru::Measurement_context>
+                       m_metrics;
     Font_family_config m_current_fc;
-    std::string m_last_error;
+    std::string        m_last_error;
 
     bool init(const Font_family_config& fc)
     {
@@ -37,8 +38,8 @@ struct Pdf_measure_context
 };
 
 static Pdf_measure_context& get_measure_context(
-    const Font_family_config& fc,
-    std::string* detail = nullptr)
+    const Font_family_config&  fc,
+    std::string*               detail = nullptr)
 {
     static Pdf_measure_context ctx;
 
@@ -65,8 +66,8 @@ static Pdf_measure_context& get_measure_context(
 // ============================================================================
 
 bool pdf_measurement_ready(
-    const Font_family_config& fonts,
-    std::string* detail)
+    const Font_family_config&  fonts,
+    std::string*               detail)
 {
     auto& ctx = get_measure_context(fonts, detail);
     return ctx.ready();
@@ -78,21 +79,21 @@ bool pdf_measurement_ready(
 // ============================================================================
 
 text_metrics_t measure_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float leading_pt,
-    float max_width_mm,
-    bool wrap,
-    const Font_family_config& fonts)
+    const std::string&         text,
+    Font_id                    font,
+    float                      size_pt,
+    float                      leading_pt,
+    float                      max_width_mm,
+    bool                       wrap,
+    const Font_family_config&  fonts)
 {
     auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {
         return {};
     }
 
-    const auto pdf_font = mark2haru_font_for(font);
-    const float lead = leading_pt > 0 ? leading_pt : size_pt;
+    const auto  pdf_font = mark2haru_font_for(font);
+    const float lead     = leading_pt > 0 ? leading_pt : size_pt;
 
     std::vector<std::string> lines;
     if (wrap) {
@@ -117,11 +118,11 @@ text_metrics_t measure_text(
 }
 
 std::vector<std::string> wrap_text(
-    const std::string& text,
-    Font_id font,
-    float size_pt,
-    float max_width_mm,
-    const Font_family_config& fonts)
+    const std::string&         text,
+    Font_id                    font,
+    float                      size_pt,
+    float                      max_width_mm,
+    const Font_family_config&  fonts)
 {
     auto& ctx = get_measure_context(fonts);
     if (!ctx.ready()) {
@@ -158,18 +159,15 @@ image_dimensions_t measure_png(const std::string& path)
         0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
     };
     auto* d = reinterpret_cast<const unsigned char*>(header.constData());
-    if (std::memcmp(d, k_png_sig, 8) != 0) {
-        return empty;
-    }
-    if (std::memcmp(d + 12, "IHDR", 4) != 0) {
-        return empty;
-    }
+    if (std::memcmp(d, k_png_sig, 8)   != 0) { return empty; }
+    if (std::memcmp(d + 12, "IHDR", 4) != 0) { return empty; }
 
     auto rd_u32 = [&](int o) -> unsigned {
-        return (unsigned(d[o]) << 24)
-             | (unsigned(d[o + 1]) << 16)
-             | (unsigned(d[o + 2]) << 8)
-             |  unsigned(d[o + 3]);
+        return
+            (unsigned(d[o    ]) << 24) |
+            (unsigned(d[o + 1]) << 16) |
+            (unsigned(d[o + 2]) << 8)  |
+             unsigned(d[o + 3]);
     };
 
     image_dimensions_t dims;

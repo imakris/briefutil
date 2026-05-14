@@ -21,38 +21,38 @@ enum class Generation_result_code
 
 struct Profile_snapshot
 {
-    Sender_profile profile;
-    std::string profile_path;
-    std::string profile_base_dir;
+    Sender_profile         profile;
+    std::string            profile_path;
+    std::string            profile_base_dir;
 };
 
 struct Generation_request
 {
-    Profile_snapshot profile;
-    std::string recipient;
-    std::string subject;
-    std::string body;
+    Profile_snapshot       profile;
+    std::string            recipient;
+    std::string            subject;
+    std::string            body;
 
-    std::string output_path;
-    std::string output_dir;
-    std::string timestamp_prefix;
-    bool overwrite_output = false;
+    std::string            output_path;
+    std::string            output_dir;
+    std::string            timestamp_prefix;
+    bool                   overwrite_output = false;
 
-    int date_year = 0;
-    int date_month = 0;
-    int date_day = 0;
+    int                    date_year        = 0;
+    int                    date_month       = 0;
+    int                    date_day         = 0;
 
-    Theme_config theme = default_theme();
-    letter_layout_spec_t layout = din_5008_form_b();
+    Theme_config           theme            = default_theme();
+    letter_layout_spec_t   layout           = din_5008_form_b();
 };
 
 struct Generation_result
 {
-    bool ok = false;
-    Generation_result_code code = Generation_result_code::INVALID_REQUEST;
-    std::string output_path;
-    std::string message;
-    std::string detail;
+    bool                   ok               = false;
+    Generation_result_code code             = Generation_result_code::INVALID_REQUEST;
+    std::string            output_path;
+    std::string            message;
+    std::string            detail;
 };
 
 std::string normalize_language(const std::string& language);

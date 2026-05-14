@@ -46,17 +46,13 @@ int main(int argc, char* argv[])
     loaded.profile.signature_image.clear();
 
     const QString unicode_subject = QString::fromUtf8(
-        "Bitte um "
-        "\xC3\x9C"
-        "berpr"
-        "\xC3\xBC"
-        "fung der Beitragsanpassung");
+        "Bitte um " "\xC3\x9C" "berpr" "\xC3\xBC" "fung der Beitragsanpassung");
 
     Letter_input input;
     input.recipient = "Versicherung AG\nLeistungsabteilung\nBeispielweg 7\n12345 Berlin";
-    input.subject = unicode_subject.toUtf8().toStdString();
-    input.date = "27. M\xC3\xA4rz 2026";
-    input.body = "Dies ist ein kurzer Testbrief.";
+    input.subject   = unicode_subject.toUtf8().toStdString();
+    input.date      = "27. M\xC3\xA4rz 2026";
+    input.body      = "Dies ist ein kurzer Testbrief.";
 
     QString output_path = tmp_dir + "/" + unicode_subject + ".pdf";
     QFile::remove(output_path);

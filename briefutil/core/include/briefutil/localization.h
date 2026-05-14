@@ -18,20 +18,20 @@
 struct Localization
 {
     // Closing line above the signer name (e.g. "Sincerely,").
-    std::string closing = "Sincerely,";
+    std::string    closing                 = "Sincerely,";
 
     // Page footer template for multi-page letters.
     // Tokens: {current}, {total}.
-    std::string page_number_format = "Page {current} of {total}";
+    std::string    page_number_format      = "Page {current} of {total}";
 
     // Placeholder text rendered when an embedded image cannot be loaded.
     // Tokens: {path}.
-    std::string image_not_found_format = "[Image not found: {path}]";
+    std::string    image_not_found_format  = "[Image not found: {path}]";
 
     // User-facing error strings returned in Render_result::message.
-    std::string error_pdf_create_failed = "Failed to create the PDF.";
-    std::string error_pdf_save_failed   = "Failed to save the PDF.";
-    std::string error_table_too_wide    = "A table is too wide for the available page area.";
+    std::string    error_pdf_create_failed = "Failed to create the PDF.";
+    std::string    error_pdf_save_failed   = "Failed to save the PDF.";
+    std::string    error_table_too_wide    = "A table is too wide for the available page area.";
     std::string error_pdf_open_failed_format =
         "The PDF was created but could not be opened automatically: {path}";
 };
@@ -42,7 +42,7 @@ struct Localization
 // ============================================================================
 
 inline std::string format_replace(
-    std::string s,
+    std::string        s,
     const std::string& token,
     const std::string& value)
 {
@@ -56,7 +56,8 @@ inline std::string format_replace(
 
 inline std::string format_page_number(
     const std::string& format_template,
-    int current, int total)
+    int                current,
+    int                total)
 {
     auto out = format_replace(format_template, "{current}", std::to_string(current));
     return format_replace(out, "{total}", std::to_string(total));

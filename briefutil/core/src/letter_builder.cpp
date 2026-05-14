@@ -48,20 +48,20 @@ static std::string build_sender_text(const Sender_profile& profile)
 }
 
 static float footer_block_height_mm(
-    const Sender_profile& profile,
-    const typography_config_t& typo,
-    const letter_layout_spec_t& layout,
-    float body_width_mm,
-    const Font_family_config& fonts,
-    bool include_page_number)
+    const Sender_profile&          profile,
+    const typography_config_t&     typo,
+    const letter_layout_spec_t&    layout,
+    float                          body_width_mm,
+    const Font_family_config&      fonts,
+    bool                           include_page_number)
 {
     float height_mm = 0.0f;
     if (include_page_number) {
         height_mm += pt_to_mm(typo.footer_size_pt);
     }
 
-    if (profile.style != Profile_style::COMMERCIAL
-        || profile.footer_lines.empty())
+    if (profile.style != Profile_style::COMMERCIAL ||
+        profile.footer_lines.empty())
     {
         return height_mm;
     }
@@ -88,16 +88,17 @@ static float footer_block_height_mm(
 }
 
 static float footer_top_y_mm(
-    const Sender_profile& profile,
-    const typography_config_t& typo,
-    const letter_layout_spec_t& layout,
-    float body_width_mm,
-    const Font_family_config& fonts,
-    bool include_page_number)
+    const Sender_profile&          profile,
+    const typography_config_t&     typo,
+    const letter_layout_spec_t&    layout,
+    float                          body_width_mm,
+    const Font_family_config&      fonts,
+    bool                           include_page_number)
 {
-    return layout.page_height_mm - layout.footer_margin_mm
-        - footer_block_height_mm(
-            profile, typo, layout, body_width_mm, fonts, include_page_number);
+    return
+        layout.page_height_mm   -
+        layout.footer_margin_mm -
+        footer_block_height_mm(profile, typo, layout, body_width_mm, fonts, include_page_number);
 }
 
 
@@ -106,15 +107,15 @@ static float footer_top_y_mm(
 // ============================================================================
 
 Build_letter_result build_letter(
-    const Sender_profile& profile,
-    const Letter_input& input,
-    const std::string& profile_dir,
-    const Theme_config& theme,
-    const letter_layout_spec_t& layout,
-    const Localization& loc)
+    const Sender_profile&          profile,
+    const Letter_input&            input,
+    const std::string&             profile_dir,
+    const Theme_config&            theme,
+    const letter_layout_spec_t&    layout,
+    const Localization&            loc)
 {
-    const auto typo = scaled_typography(theme.typo);
-    float body_width_mm = layout.page_width_mm - layout.margin_left_mm - layout.margin_right_mm;
+    const auto typo          = scaled_typography(theme.typo);
+    float      body_width_mm = layout.page_width_mm - layout.margin_left_mm - layout.margin_right_mm;
 
     Document doc;
     doc.page_width_mm  = layout.page_width_mm;
@@ -125,8 +126,8 @@ Build_letter_result build_letter(
     std::string measurement_detail;
     if (!pdf_measurement_ready(theme.fonts, &measurement_detail)) {
         return { {}, measurement_detail.empty()
-                    ? "PDF measurement is unavailable."
-                    : measurement_detail };
+            ? "PDF measurement is unavailable."
+            : measurement_detail };
     }
 
     auto ret_metrics = measure_text(
@@ -157,15 +158,16 @@ Build_letter_result build_letter(
         theme.fonts);
 
     float sender_bottom_mm = layout.sender_y_mm + pt_to_mm(sender_metrics.height_pt);
-    float date_bottom_mm = layout.date_y_mm + pt_to_mm(date_metrics.height_pt);
+    float date_bottom_mm   = layout.date_y_mm + pt_to_mm(date_metrics.height_pt);
     float info_block_bottom_mm = std::max(
         layout.sender_y_mm + layout.info_block_min_h_mm,
         std::max(sender_bottom_mm, date_bottom_mm));
 
-    bool has_subject = !input.subject.empty();
+    bool  has_subject  = !input.subject.empty();
     float subject_y_mm = info_block_bottom_mm + layout.subject_gap_mm;
-    float body_y_mm = has_subject ? (subject_y_mm + layout.subject_to_body_mm)
-                                  : subject_y_mm;
+    float body_y_mm = has_subject
+        ? (subject_y_mm + layout.subject_to_body_mm)
+        : subject_y_mm;
 
     const std::string& closing_text = profile.closing_phrase.empty()
         ? loc.closing
@@ -180,8 +182,8 @@ Build_letter_result build_letter(
         body_width_mm,
         false,
         theme.fonts);
-    float closing_height_mm = pt_to_mm(layout.closing_skip_baselines * typo.body_lead_pt)
-        + pt_to_mm(closing_metrics.height_pt);
+    float closing_height_mm = pt_to_mm(
+        layout.closing_skip_baselines * typo.body_lead_pt) + pt_to_mm(closing_metrics.height_pt);
 
     float sig_height_mm = 0;
     std::string sig_path;
@@ -196,8 +198,9 @@ Build_letter_result build_letter(
         sig_height_mm = layout.sig_width_mm * aspect;
     }
     float signer_height_mm = pt_to_mm(typo.body_lead_pt);
-    if (!profile.signer_title.empty())
+    if (!profile.signer_title.empty()) {
         signer_height_mm += pt_to_mm(typo.body_lead_pt);
+    }
     float total_closing_mm = closing_height_mm + sig_height_mm
         + signer_height_mm + layout.closing_extra_room_mm;
 
@@ -276,7 +279,7 @@ Build_letter_result build_letter(
                     float logo_w = layout.company_w_mm;
                     float aspect = logo_dims.height_px / logo_dims.width_px;
                     float logo_h = logo_w * aspect;
-                    float max_h = layout.top_rule_y_mm - layout.logo_rule_gap_mm - layout.logo_top_mm;
+                    float max_h  = layout.top_rule_y_mm - layout.logo_rule_gap_mm - layout.logo_top_mm;
                     if (max_h > 0 && logo_h > max_h) {
                         float scale = max_h / logo_h;
                         logo_w *= scale;
@@ -395,7 +398,7 @@ Build_letter_result build_letter(
         // Page number (only on multi-page)
         if (include_page_number) {
             std::string page_num = format_page_number(loc.page_number_format,
-                                                       pi + 1, total_pages);
+                pi + 1, total_pages);
             auto page_num_metrics = measure_text(
                 page_num,
                 Font_id::SANS,
@@ -446,13 +449,13 @@ Build_letter_result build_letter(
 
 
 Render_result generate_letter_pdf(
-    const Sender_profile& profile,
-    const Letter_input& input,
-    const std::string& profile_dir,
-    const std::string& output_path,
-    const Theme_config& theme,
-    const letter_layout_spec_t& layout,
-    const Localization& loc)
+    const Sender_profile&          profile,
+    const Letter_input&            input,
+    const std::string&             profile_dir,
+    const std::string&             output_path,
+    const Theme_config&            theme,
+    const letter_layout_spec_t&    layout,
+    const Localization&            loc)
 {
     auto br = build_letter(profile, input, profile_dir, theme, layout, loc);
     if (!br.error.empty()) {

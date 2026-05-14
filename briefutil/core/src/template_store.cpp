@@ -69,12 +69,9 @@ std::string configured_output_dir(
         output_dir = read_output_dir_conf(
             QDir(portable_root).filePath("output_dir.conf").toStdString());
     }
-    if (output_dir.empty()) {
-        output_dir = read_output_dir_conf(join_path(application_dir, "output_dir.conf"));
-    }
-    if (output_dir.empty()) {
-        output_dir = read_output_dir_conf(join_path(current_dir, "output_dir.conf"));
-    }
+    if (output_dir.empty()) { output_dir = read_output_dir_conf(join_path(application_dir, "output_dir.conf")); }
+    if (output_dir.empty()) { output_dir = read_output_dir_conf(join_path(current_dir, "output_dir.conf"));     }
+
     if (!output_dir.empty() && QDir(QString::fromStdString(output_dir)).exists()) {
         return with_trailing_slash(QString::fromStdString(output_dir));
     }
@@ -83,9 +80,9 @@ std::string configured_output_dir(
 
 static bool write_file_if_missing(
     const QString& path,
-    const char* data,
-    size_t size,
-    std::string* error)
+    const char*    data,
+    size_t         size,
+    std::string*   error)
 {
     if (QFileInfo::exists(path)) {
         return true;
@@ -115,23 +112,26 @@ static bool write_file_if_missing(
 static bool template_dir_has_entries(const QDir& templates_dir)
 {
     return !templates_dir.entryList(
-            QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)
+        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)
         .empty();
 }
 
 static bool seed_default_templates(QDir& templates_dir, std::string* error)
 {
-    return write_file_if_missing(
+    return
+        write_file_if_missing(
             templates_dir.filePath("Max Mustermann.json"),
             k_default_profile_simple_json,
             std::strlen(k_default_profile_simple_json),
             error)
-        && write_file_if_missing(
+        &&
+        write_file_if_missing(
             templates_dir.filePath("Max Mustermann, Mustermann AG.json"),
             k_default_profile_commercial_json,
             std::strlen(k_default_profile_commercial_json),
             error)
-        && write_file_if_missing(
+        &&
+        write_file_if_missing(
             templates_dir.filePath("mustermann_signature.png"),
             reinterpret_cast<const char*>(mustermann_signature_png::data().first),
             mustermann_signature_png::data().second,
@@ -164,15 +164,15 @@ bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
 }
 
 std::vector<Profile_entry> discover_profiles(
-    const std::string& template_dir,
-    std::vector<std::string>* errors)
+    const std::string&         template_dir,
+    std::vector<std::string>*  errors)
 {
     std::vector<Profile_entry> profiles;
     QDir dir(QString::fromStdString(template_dir));
     const auto profile_files = dir.entryList({ "*.json" }, QDir::Files, QDir::Name);
     for (const auto& profile_file : profile_files) {
         const auto profile_path = dir.filePath(profile_file);
-        auto result = load_sender_profile(profile_path.toStdString());
+        auto       result       = load_sender_profile(profile_path.toStdString());
         if (result.ok) {
             profiles.push_back({
                 std::move(result.profile),

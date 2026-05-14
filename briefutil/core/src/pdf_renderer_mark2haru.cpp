@@ -17,9 +17,9 @@ static float pt_x(float x_mm) { return mm_to_pt(x_mm); }
 static float pt_y(float y_mm) { return mm_to_pt(y_mm); }
 
 static bool render_text_block(
-    mark2haru::Pdf_writer& writer,
-    const Text_block& tb,
-    const Font_family_config& fonts)
+    mark2haru::Pdf_writer&     writer,
+    const Text_block&          tb,
+    const Font_family_config&  fonts)
 {
     std::vector<std::string> lines;
     if (tb.wrap) {
@@ -38,10 +38,10 @@ static bool render_text_block(
         return true;
     }
 
-    float lead = tb.leading_pt > 0 ? tb.leading_pt : tb.size_pt;
-    float y_top_pt = pt_y(tb.y_mm);
-    auto font = mark2haru_font_for(tb.font);
-    const mark2haru::color_t color = { tb.color.r, tb.color.g, tb.color.b };
+    float                    lead     = tb.leading_pt > 0 ? tb.leading_pt : tb.size_pt;
+    float                    y_top_pt = pt_y(tb.y_mm);
+    auto                     font     = mark2haru_font_for(tb.font);
+    const mark2haru::color_t color    = { tb.color.r, tb.color.g, tb.color.b };
 
     for (size_t i = 0; i < lines.size(); ++i) {
         writer.draw_text(
@@ -57,7 +57,7 @@ static bool render_text_block(
 
 static bool render_text_span(
     mark2haru::Pdf_writer& writer,
-    const Text_span& ts)
+    const Text_span&       ts)
 {
     auto font = mark2haru_font_for(ts.font);
     writer.draw_text(
@@ -72,7 +72,7 @@ static bool render_text_span(
 
 static bool render_line_segment(
     mark2haru::Pdf_writer& writer,
-    const line_segment_t& ls)
+    const line_segment_t&  ls)
 {
     writer.stroke_line(
         pt_x(ls.x1_mm),
@@ -86,7 +86,7 @@ static bool render_line_segment(
 
 static bool render_filled_rect(
     mark2haru::Pdf_writer& writer,
-    const filled_rect_t& fr)
+    const filled_rect_t&   fr)
 {
     writer.fill_rect(
         pt_x(fr.x_mm),
@@ -98,8 +98,8 @@ static bool render_filled_rect(
 }
 
 static bool render_image_block(
-    const Image_block& ib,
-    const Localization& loc,
+    const Image_block&     ib,
+    const Localization&    loc,
     mark2haru::Pdf_writer& writer)
 {
     auto image_path = qstring_to_path(QString::fromUtf8(ib.path.c_str()));
@@ -128,18 +128,18 @@ static bool render_image_block(
 }
 
 static Render_result render_pdf_mark2haru_impl(
-    const Document& doc,
-    const std::string& output_path,
-    const Font_family_config& fonts,
-    const Localization& loc)
+    const Document&            doc,
+    const std::string&         output_path,
+    const Font_family_config&  fonts,
+    const Localization&        loc)
 {
     std::string detail;
     auto metrics = make_mark2haru_measurement_context(fonts, &detail);
     if (!metrics) {
         return { false, "", loc.error_pdf_create_failed,
                  detail.empty()
-                    ? "Failed to initialize the mark2haru measurement context."
-                    : detail };
+                     ? "Failed to initialize the mark2haru measurement context."
+                     : detail };
     }
 
     mark2haru::Pdf_writer writer(
@@ -197,10 +197,10 @@ static Render_result render_pdf_mark2haru_impl(
 }
 
 Render_result render_pdf(
-    const Document& doc,
-    const std::string& output_path,
-    const Font_family_config& fonts,
-    const Localization& loc)
+    const Document&            doc,
+    const std::string&         output_path,
+    const Font_family_config&  fonts,
+    const Localization&        loc)
 {
     return render_pdf_mark2haru_impl(doc, output_path, fonts, loc);
 }
