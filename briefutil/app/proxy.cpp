@@ -4,6 +4,7 @@
 #include "briefutil/localization.h"
 #include "briefutil/path_utils.h"
 #include "briefutil/sender_profile.h"
+#include "briefutil/sender_profile_schema.h"
 #include "briefutil/template_store.h"
 
 #include <QCoreApplication>
@@ -1021,19 +1022,15 @@ QVariantMap Proxy::get_sender_profile(int index) const
 
     const auto& profile = m_profiles[index].profile;
     QVariantMap result;
-    result.insert("id", QString::fromStdString(profile.id));
-    result.insert("style", profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
-    result.insert("senderLines", join_lines(profile.sender_lines));
-    result.insert("email", QString::fromStdString(profile.email));
-    result.insert("language", normalize_profile_language(QString::fromStdString(profile.language)));
-    result.insert("returnAddressLine", QString::fromStdString(profile.return_address_line));
-    result.insert("closingPhrase", QString::fromStdString(profile.closing_phrase));
-    result.insert("signerName", QString::fromStdString(profile.signer_name));
-    result.insert("signatureImage", QString::fromStdString(profile.signature_image));
-    result.insert("logoImage", QString::fromStdString(profile.logo_image));
+    for (const auto& f : k_sender_string_fields) {
+        result.insert(f.qml_key, QString::fromStdString(profile.*f.member));
+    }
+    for (const auto& f : k_sender_string_array_fields) {
+        result.insert(f.qml_key, join_lines(profile.*f.member));
+    }
+    result.insert("language",     normalize_profile_language(QString::fromStdString(profile.language)));
+    result.insert("style",        profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
     result.insert("topRuleColor", color_to_hex(profile.top_rule_color));
-    result.insert("footerLines", join_lines(profile.footer_lines));
-    result.insert("signerTitle", QString::fromStdString(profile.signer_title));
     return result;
 }
 

@@ -1,4 +1,5 @@
 #include "briefutil/sender_profile.h"
+#include "briefutil/sender_profile_schema.h"
 
 #include <QFile>
 #include <QJsonArray>
@@ -76,27 +77,20 @@ Profile_load_result load_sender_profile(const std::string& json_path)
     auto obj = doc.object();
     Sender_profile p;
 
-    p.id           = qs(obj.value("id").toString());
-    p.sender_lines = json_string_array(obj, "sender_lines");
-    p.email        = qs(obj.value("email").toString());
-    p.language     = qs(obj.value("language").toString());
+    for (const auto& f : k_sender_string_fields) {
+        p.*f.member = qs(obj.value(f.json_key).toString());
+    }
+    for (const auto& f : k_sender_string_array_fields) {
+        p.*f.member = json_string_array(obj, f.json_key);
+    }
     if (p.language.empty()) {
         p.language = "en";
     }
-    p.return_address_line = qs(obj.value("return_address_line").toString());
-    p.closing_phrase      = qs(obj.value("closing_phrase").toString());
-    p.signer_name         = qs(obj.value("signer_name").toString());
-    p.signature_image     = qs(obj.value("signature_image").toString());
 
     auto style_str = obj.value("style").toString().toLower();
     p.style = (style_str == "commercial")
         ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
-
-    // Commercial fields
-    p.logo_image     = qs(obj.value("logo_image").toString());
-    p.top_rule_color = json_color(obj, "top_rule_color",      p.top_rule_color);
-    p.footer_lines   = json_string_array(obj, "footer_lines");
-    p.signer_title   = qs(obj.value("signer_title").toString());
+    p.top_rule_color = json_color(obj, "top_rule_color", p.top_rule_color);
 
     if (p.id.empty()) {
         return { false, {}, "Profile missing 'id' field: " + json_path };
@@ -111,19 +105,14 @@ bool save_sender_profile(
     std::string*           error)
 {
     QJsonObject obj;
-    obj.insert("id",                  QString::fromStdString(profile.id));
-    obj.insert("style",               profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
-    obj.insert("sender_lines",        json_string_array(profile.sender_lines));
-    obj.insert("email",               QString::fromStdString(profile.email));
-    obj.insert("language",            QString::fromStdString(profile.language));
-    obj.insert("return_address_line", QString::fromStdString(profile.return_address_line));
-    obj.insert("closing_phrase",      QString::fromStdString(profile.closing_phrase));
-    obj.insert("signer_name",         QString::fromStdString(profile.signer_name));
-    obj.insert("signature_image",     QString::fromStdString(profile.signature_image));
-    obj.insert("logo_image",          QString::fromStdString(profile.logo_image));
-    obj.insert("top_rule_color",      json_color_array(profile.top_rule_color));
-    obj.insert("footer_lines",        json_string_array(profile.footer_lines));
-    obj.insert("signer_title",        QString::fromStdString(profile.signer_title));
+    for (const auto& f : k_sender_string_fields) {
+        obj.insert(f.json_key, QString::fromStdString(profile.*f.member));
+    }
+    for (const auto& f : k_sender_string_array_fields) {
+        obj.insert(f.json_key, json_string_array(profile.*f.member));
+    }
+    obj.insert("style",          profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
+    obj.insert("top_rule_color", json_color_array(profile.top_rule_color));
 
     QSaveFile file(QString::fromStdString(json_path));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
