@@ -17,8 +17,9 @@
 
 inline constexpr float k_pts_per_mm = 72.0f / 25.4f;
 
-inline float mm_to_pt(float mm) { return mm * k_pts_per_mm; }
-inline float pt_to_mm(float pt) { return pt / k_pts_per_mm; }
+inline float mm_to_pt(float mm)  { return mm * k_pts_per_mm; }
+inline float pt_to_mm(float pt)  { return pt / k_pts_per_mm; }
+inline float pt_to_mm(double pt) { return static_cast<float>(pt / static_cast<double>(k_pts_per_mm)); }
 
 // Split text on newline boundaries, preserving empty segments.
 inline std::vector<std::string> split_lines(const std::string& text)
