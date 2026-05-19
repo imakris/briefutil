@@ -168,6 +168,29 @@ bool validate_range(
     return false;
 }
 
+bool parse_numeric_option(
+    int&               index,
+    const QStringList& args,
+    const char*        option,
+    double             minimum,
+    double             maximum,
+    double&            target)
+{
+    auto raw = value_for(index, args, option);
+    if (!raw) {
+        return false;
+    }
+    auto parsed = parse_double_value(*raw, option);
+    if (!parsed) {
+        return false;
+    }
+    if (!validate_range(*parsed, minimum, maximum, option)) {
+        return false;
+    }
+    target = *parsed;
+    return true;
+}
+
 bool valid_layout_name(const std::string& value)
 {
     const auto normalized = lower_ascii(value);
@@ -327,78 +350,33 @@ std::optional<Cli_options> parse_args(const QStringList& args)
         }
         else
         if (arg == "--body-size") {
-            auto value = read_value("--body-size");
-            if (!value) {
+            if (!parse_numeric_option(i, args, "--body-size", 6.0, 24.0, options.body_size)) {
                 return std::nullopt;
             }
-            auto parsed = parse_double_value(*value, "--body-size");
-            if (!parsed) {
-                return std::nullopt;
-            }
-            if (!validate_range(*parsed, 6.0, 24.0, "--body-size")) {
-                return std::nullopt;
-            }
-            options.body_size = *parsed;
         }
         else
         if (arg == "--body-leading") {
-            auto value = read_value("--body-leading");
-            if (!value) {
+            if (!parse_numeric_option(i, args, "--body-leading", 6.0, 36.0, options.body_leading)) {
                 return std::nullopt;
             }
-            auto parsed = parse_double_value(*value, "--body-leading");
-            if (!parsed) {
-                return std::nullopt;
-            }
-            if (!validate_range(*parsed, 6.0, 36.0, "--body-leading")) {
-                return std::nullopt;
-            }
-            options.body_leading = *parsed;
         }
         else
         if (arg == "--header-scale") {
-            auto value = read_value("--header-scale");
-            if (!value) {
+            if (!parse_numeric_option(i, args, "--header-scale", 50.0, 200.0, options.header_scale)) {
                 return std::nullopt;
             }
-            auto parsed = parse_double_value(*value, "--header-scale");
-            if (!parsed) {
-                return std::nullopt;
-            }
-            if (!validate_range(*parsed, 50.0, 200.0, "--header-scale")) {
-                return std::nullopt;
-            }
-            options.header_scale = *parsed;
         }
         else
         if (arg == "--body-scale") {
-            auto value = read_value("--body-scale");
-            if (!value) {
+            if (!parse_numeric_option(i, args, "--body-scale", 50.0, 200.0, options.body_scale)) {
                 return std::nullopt;
             }
-            auto parsed = parse_double_value(*value, "--body-scale");
-            if (!parsed) {
-                return std::nullopt;
-            }
-            if (!validate_range(*parsed, 50.0, 200.0, "--body-scale")) {
-                return std::nullopt;
-            }
-            options.body_scale = *parsed;
         }
         else
         if (arg == "--footer-scale") {
-            auto value = read_value("--footer-scale");
-            if (!value) {
+            if (!parse_numeric_option(i, args, "--footer-scale", 50.0, 200.0, options.footer_scale)) {
                 return std::nullopt;
             }
-            auto parsed = parse_double_value(*value, "--footer-scale");
-            if (!parsed) {
-                return std::nullopt;
-            }
-            if (!validate_range(*parsed, 50.0, 200.0, "--footer-scale")) {
-                return std::nullopt;
-            }
-            options.footer_scale = *parsed;
         }
         else
         if (arg == "--force") {
