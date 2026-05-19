@@ -77,6 +77,26 @@ static float clamp_float(float value, float minimum, float maximum)
     return std::clamp(value, minimum, maximum);
 }
 
+namespace {
+
+struct Typo_setting
+{
+    const char*                   key;
+    float typography_config_t::*  field;
+    float                         min_value;
+    float                         max_value;
+};
+
+constexpr Typo_setting k_typo_settings[] = {
+    { "typo/body_size",    &typography_config_t::body_size_pt, 6.0f, 24.0f },
+    { "typo/body_leading", &typography_config_t::body_lead_pt, 6.0f, 36.0f },
+    { "typo/header_scale", &typography_config_t::header_scale, 0.5f, 2.0f  },
+    { "typo/body_scale",   &typography_config_t::body_scale,   0.5f, 2.0f  },
+    { "typo/footer_scale", &typography_config_t::footer_scale, 0.5f, 2.0f  },
+};
+
+} // anonymous namespace
+
 static void ensure_template_dir_ready(const QString& dir_path)
 {
     std::string error;
@@ -464,40 +484,30 @@ void Proxy::load_settings()
 {
     QSettings s("briefutil", "briefutil");
 
-    m_font_sans_input             = normalize_saved_font_input(s.value("fonts/sans").toString());
-    m_font_sans_bold_input        = normalize_saved_font_input(s.value("fonts/sans_bold").toString());
-    m_font_sans_italic_input      = normalize_saved_font_input(s.value("fonts/sans_italic").toString());
-    m_font_sans_bold_italic_input = normalize_saved_font_input(
-        s.value("fonts/sans_bold_italic").toString());
-    m_font_mono_input             = normalize_saved_font_input(s.value("fonts/mono").toString());
-    m_theme.fonts                 = font_config_from_inputs(
+    const std::pair<const char*, QString*> font_slots[] = {
+        { "fonts/sans",             &m_font_sans_input },
+        { "fonts/sans_bold",        &m_font_sans_bold_input },
+        { "fonts/sans_italic",      &m_font_sans_italic_input },
+        { "fonts/sans_bold_italic", &m_font_sans_bold_italic_input },
+        { "fonts/mono",             &m_font_mono_input },
+    };
+    for (const auto& [key, slot] : font_slots) {
+        *slot = normalize_saved_font_input(s.value(key).toString());
+    }
+    m_theme.fonts = font_config_from_inputs(
         m_font_sans_input,
         m_font_sans_bold_input,
         m_font_sans_italic_input,
         m_font_sans_bold_italic_input,
         m_font_mono_input);
 
-    auto def_typo = default_typography();
-    m_theme.typo.body_size_pt = clamp_float(
-        s.value("typo/body_size", def_typo.body_size_pt).toFloat(),
-        6.0f,
-        24.0f);
-    m_theme.typo.body_lead_pt = clamp_float(
-        s.value("typo/body_leading", def_typo.body_lead_pt).toFloat(),
-        6.0f,
-        36.0f);
-    m_theme.typo.header_scale = clamp_float(
-        s.value("typo/header_scale", def_typo.header_scale).toFloat(),
-        0.5f,
-        2.0f);
-    m_theme.typo.body_scale   = clamp_float(
-        s.value("typo/body_scale", def_typo.body_scale).toFloat(),
-        0.5f,
-        2.0f);
-    m_theme.typo.footer_scale = clamp_float(
-        s.value("typo/footer_scale", def_typo.footer_scale).toFloat(),
-        0.5f,
-        2.0f);
+    const auto def_typo = default_typography();
+    for (const auto& t : k_typo_settings) {
+        m_theme.typo.*t.field = clamp_float(
+            s.value(t.key, def_typo.*t.field).toFloat(),
+            t.min_value,
+            t.max_value);
+    }
 
     QString saved_dir = s.value("paths/template_dir").toString();
     if (qEnvironmentVariableIsEmpty("BRIEFUTIL_TEMPLATE_DIR") && !saved_dir.isEmpty()) {
@@ -513,21 +523,25 @@ void Proxy::save_settings() const
 {
     QSettings s("briefutil", "briefutil");
 
-    s.setValue("fonts/sans",             m_font_sans_input);
-    s.setValue("fonts/sans_bold",        m_font_sans_bold_input);
-    s.setValue("fonts/sans_italic",      m_font_sans_italic_input);
-    s.setValue("fonts/sans_bold_italic", m_font_sans_bold_italic_input);
-    s.setValue("fonts/mono",             m_font_mono_input);
-    s.setValue("typo/body_size",         (double)m_theme.typo.body_size_pt);
-    s.setValue("typo/body_leading",      (double)m_theme.typo.body_lead_pt);
-    s.setValue("typo/header_scale",      (double)m_theme.typo.header_scale);
-    s.setValue("typo/body_scale",        (double)m_theme.typo.body_scale);
-    s.setValue("typo/footer_scale",      (double)m_theme.typo.footer_scale);
+    const std::pair<const char*, const QString*> font_slots[] = {
+        { "fonts/sans",             &m_font_sans_input },
+        { "fonts/sans_bold",        &m_font_sans_bold_input },
+        { "fonts/sans_italic",      &m_font_sans_italic_input },
+        { "fonts/sans_bold_italic", &m_font_sans_bold_italic_input },
+        { "fonts/mono",             &m_font_mono_input },
+    };
+    for (const auto& [key, slot] : font_slots) {
+        s.setValue(key, *slot);
+    }
+    for (const auto& t : k_typo_settings) {
+        s.setValue(t.key, static_cast<double>(m_theme.typo.*t.field));
+    }
+
     if (qEnvironmentVariableIsEmpty("BRIEFUTIL_TEMPLATE_DIR")) {
         s.setValue("paths/template_dir", m_sender_template_dir);
     }
-    s.setValue("layout/preset",          m_layout_preset);
-    s.setValue("appearance/darkMode",    m_dark_mode);
+    s.setValue("layout/preset",       m_layout_preset);
+    s.setValue("appearance/darkMode", m_dark_mode);
 }
 
 Localization Proxy::current_localization(const Sender_profile& profile) const
