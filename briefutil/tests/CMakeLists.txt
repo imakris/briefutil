@@ -1,10 +1,9 @@
-# Tests are EXCLUDE_FROM_ALL so they don't slow down the regular build, but
-# they're still registered with CTest so `ctest` can run them once they've
-# been built explicitly (e.g. `cmake --build . --target check`).
+# Test executables are part of the regular build so `ctest` can run a freshly
+# built tree without a separate build target.
 include(CTest)
 
 function(briefutil_add_test_executable target source_file)
-    add_executable(${target} EXCLUDE_FROM_ALL ${source_file})
+    add_executable(${target} ${source_file})
     target_link_libraries(${target} PRIVATE briefutil_core)
     briefutil_copy_runtime_dlls(${target})
     briefutil_copy_mark2haru_fonts(${target})
@@ -17,6 +16,7 @@ briefutil_add_test_executable(test_cli                 test_cli.cpp)
 briefutil_add_test_executable(test_cli_output          test_cli_output.cpp)
 briefutil_add_test_executable(test_md_to_pdf           test_md_to_pdf.cpp)
 briefutil_add_test_executable(test_path_utils          test_path_utils.cpp)
+briefutil_add_test_executable(test_sender_profile_schema test_sender_profile_schema.cpp)
 briefutil_add_test_executable(test_template_store      test_template_store.cpp)
 briefutil_add_test_executable(test_unicode_output_path test_unicode_output_path.cpp)
 
@@ -42,13 +42,14 @@ add_test(NAME test_brief_service       COMMAND test_brief_service)
 add_test(NAME test_cli                 COMMAND test_cli)
 add_test(NAME test_cli_output          COMMAND test_cli_output)
 add_test(NAME test_path_utils          COMMAND test_path_utils)
+add_test(NAME test_sender_profile_schema
+         COMMAND test_sender_profile_schema)
 add_test(NAME test_template_store      COMMAND test_template_store)
 add_test(NAME test_unicode_output_path COMMAND test_unicode_output_path)
 add_test(NAME test_md_to_pdf
          COMMAND test_md_to_pdf "${_briefutil_test_data_dir}/test_sample.md")
 
-# Convenience target that builds every test executable in one step. Use
-# `cmake --build . --target check` followed by `ctest` to run the suite.
+# Convenience target that depends on every test executable.
 add_custom_target(check
     DEPENDS
         test_renderer
@@ -58,6 +59,7 @@ add_custom_target(check
         test_cli_output
         test_md_to_pdf
         test_path_utils
+        test_sender_profile_schema
         test_template_store
         test_unicode_output_path
 )

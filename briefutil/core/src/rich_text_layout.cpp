@@ -331,8 +331,8 @@ static void append_mark2haru_table_elements(
             using Element_type = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<Element_type, mark2haru::Table_text_span>) {
                 elements.push_back(Text_span{
-                    pt_to_mm(static_cast<float>(value.x_pt)),
-                    pt_to_mm(static_cast<float>(value.y_pt)),
+                    pt_to_mm(value.x_pt),
+                    pt_to_mm(value.y_pt),
                     value.text,
                     font_from_mark2haru(value.font),
                     static_cast<float>(value.size_pt),
@@ -342,10 +342,10 @@ static void append_mark2haru_table_elements(
             else
             if constexpr (std::is_same_v<Element_type, mark2haru::table_line_t>) {
                 elements.push_back(line_segment_t{
-                    pt_to_mm(static_cast<float>(value.x1_pt)),
-                    pt_to_mm(static_cast<float>(value.y1_pt)),
-                    pt_to_mm(static_cast<float>(value.x2_pt)),
-                    pt_to_mm(static_cast<float>(value.y2_pt)),
+                    pt_to_mm(value.x1_pt),
+                    pt_to_mm(value.y1_pt),
+                    pt_to_mm(value.x2_pt),
+                    pt_to_mm(value.y2_pt),
                     static_cast<float>(value.width_pt),
                     color_from_mark2haru(value.color)
                 });
@@ -353,10 +353,10 @@ static void append_mark2haru_table_elements(
             else
             if constexpr (std::is_same_v<Element_type, mark2haru::table_fill_rect_t>) {
                 elements.push_back(filled_rect_t{
-                    pt_to_mm(static_cast<float>(value.x_pt)),
-                    pt_to_mm(static_cast<float>(value.y_pt)),
-                    pt_to_mm(static_cast<float>(value.width_pt)),
-                    pt_to_mm(static_cast<float>(value.height_pt)),
+                    pt_to_mm(value.x_pt),
+                    pt_to_mm(value.y_pt),
+                    pt_to_mm(value.width_pt),
+                    pt_to_mm(value.height_pt),
                     color_from_mark2haru(value.color)
                 });
             }
@@ -581,7 +581,7 @@ Layout_result layout_body(
                         append_mark2haru_table_elements(
                             row_layout,
                             cursor.current_elements());
-                        const float row_h = pt_to_mm(static_cast<float>(row_layout.height_pt));
+                        const float row_h = pt_to_mm(row_layout.height_pt);
                         cursor.m_y_mm += row_h;
                         return row_h;
                     };
@@ -597,7 +597,7 @@ Layout_result layout_body(
                             mm_to_pt(cursor.m_y_mm),
                             table_style,
                             *metrics);
-                        const float row_h = pt_to_mm(static_cast<float>(probe.height_pt));
+                        const float row_h = pt_to_mm(probe.height_pt);
 
                         // If the row doesn't fit, move to the next page,
                         // re-emit the header rows on the new page, and then

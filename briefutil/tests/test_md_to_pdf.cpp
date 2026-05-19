@@ -6,17 +6,15 @@
 #include "briefutil/pdf_renderer.h"
 #include "briefutil/sender_profile.h"
 
+#include "test_helpers.h"
+
 #include <QCoreApplication>
-#include <QDir>
-#include <QFile>
 
 #include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <string>
 
-
-static std::string qs(const QString& s) { return s.toStdString(); }
 
 int main(int argc, char* argv[])
 {
@@ -41,25 +39,12 @@ int main(int argc, char* argv[])
     std::string body = ss.str();
     std::printf("Read %zu bytes from %s\n", body.size(), md_path);
 
-    // Write a temp profile
-    QString tmp_dir = QDir::tempPath() + "/briefutil_md_test";
-    QDir().mkpath(tmp_dir);
-    QString profile_path = tmp_dir + "/profile.json";
-    {
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "Cannot write temp profile\n");
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-    }
-
-    auto lr = load_sender_profile(qs(profile_path));
-    if (!lr.ok) {
-        std::fprintf(stderr, "Profile load failed: %s\n", lr.error.c_str());
+    Profile_fixture fx("briefutil_md_test", k_default_profile_simple_json);
+    if (!fx.ok) {
+        std::fprintf(stderr, "Profile setup failed: %s\n", fx.error.c_str());
         return 1;
     }
-    lr.profile.signature_image.clear();
+    fx.profile.signature_image.clear();
 
     Letter_input input;
     input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
@@ -68,11 +53,9 @@ int main(int argc, char* argv[])
     input.date      = "14. M\xc3\xa4rz 2026";
     input.body      = body;
 
-    auto br = build_letter(lr.profile, input, qs(tmp_dir));
+    auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
     if (!br.error.empty()) {
         std::fprintf(stderr, "Build failed: %s\n", br.error.c_str());
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
         return 1;
     }
 
@@ -89,14 +72,9 @@ int main(int argc, char* argv[])
             "Render failed: %s (%s)\n",
             rr.message.c_str(),
             rr.detail.c_str());
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
         return 1;
     }
 
     std::printf("PDF saved to: %s\n", output);
-
-    QFile::remove(profile_path);
-    QDir().rmdir(tmp_dir);
     return 0;
 }

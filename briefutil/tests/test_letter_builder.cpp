@@ -8,6 +8,8 @@
 #include "briefutil/pdf_renderer.h"
 #include "briefutil/sender_profile.h"
 
+#include "test_helpers.h"
+
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QDir>
@@ -19,8 +21,6 @@
 #include <string>
 #include <variant>
 
-
-static std::string qs(const QString& s) { return s.toStdString(); }
 
 static bool nearly_equal(float a, float b, float eps = 0.01f)
 {
@@ -50,25 +50,13 @@ int main(int argc, char* argv[])
 
     // -- Test 1: parse embedded simple profile JSON --
     {
-        QString tmp_path = QDir::tempPath() + "/briefutil_test_simple.json";
-        QFile f(tmp_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write temp profile: %s\n",
-                qs(tmp_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto result = load_sender_profile(qs(tmp_path));
-        QFile::remove(tmp_path);
-
-        if (!result.ok) {
-            std::fprintf(stderr, "FAIL: profile load: %s\n", result.error.c_str());
+        Profile_fixture fx("briefutil_test_simple", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: profile load: %s\n", fx.error.c_str());
             return 1;
         }
 
-        auto& p = result.profile;
+        auto& p = fx.profile;
         if (p.id != "Max Mustermann") {
             std::fprintf(stderr, "FAIL: expected id 'Max Mustermann', got '%s'\n",
                 p.id.c_str());
@@ -95,29 +83,14 @@ int main(int argc, char* argv[])
 
     // -- Test 2: build and render a simple letter --
     {
-        // Write profile to temp
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write test profile: %s\n",
-                qs(profile_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
+        Profile_fixture fx("briefutil_test", k_default_profile_simple_json);
+        if (!fx.ok) {
             std::fprintf(stderr, "FAIL: profile load for letter test: %s\n",
-                lr.error.c_str());
+                fx.error.c_str());
             return 1;
         }
-
         // Clear signature_image since the test dir has no PNG
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\nHerrn Erich Beispiel\n"
@@ -135,7 +108,7 @@ int main(int argc, char* argv[])
             "\n"
             "Bei R\xc3" "\xbc" "ckfragen stehen wir Ihnen jederzeit zur Verf\xc3\xbcgung.";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: build_letter: %s\n", br.error.c_str());
             return 1;
@@ -170,29 +143,16 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Valid PDF file\n");
-
-        // Cleanup temp
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 3: multi-page letter (long body) --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test2";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write multi-page test profile: %s\n",
-                qs(profile_path).c_str());
+        Profile_fixture fx("briefutil_test2", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: multi-page test setup: %s\n", fx.error.c_str());
             return 1;
         }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -212,7 +172,7 @@ int main(int argc, char* argv[])
         }
         input.body = body;
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: multi-page build_letter: %s\n", br.error.c_str());
             return 1;
@@ -232,50 +192,33 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Multi-page PDF: %s\n", mp_output.c_str());
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 4: commercial profile load + render --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test3";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write commercial test profile: %s\n",
-                qs(profile_path).c_str());
+        Profile_fixture fx("briefutil_test3", k_default_profile_commercial_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: commercial profile load: %s\n", fx.error.c_str());
             return 1;
         }
-        f.write(k_default_profile_commercial_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
-            std::fprintf(stderr, "FAIL: commercial profile load: %s\n",
-                lr.error.c_str());
-            return 1;
-        }
-        if (lr.profile.style != Profile_style::COMMERCIAL) {
+        if (fx.profile.style != Profile_style::COMMERCIAL) {
             std::fprintf(stderr, "FAIL: expected commercial style\n");
             return 1;
         }
-        if (lr.profile.footer_lines.size() != 2) {
+        if (fx.profile.footer_lines.size() != 2) {
             std::fprintf(stderr, "FAIL: expected 2 commercial footer lines, got %zu\n",
-                lr.profile.footer_lines.size());
+                fx.profile.footer_lines.size());
             return 1;
         }
-        if (lr.profile.return_address_line
+        if (fx.profile.return_address_line
             != "Muster AG \xE2\x80\xA2 Musterstr. 6 \xE2\x80\xA2 12345 Musterstadt")
         {
             std::fprintf(stderr, "FAIL: commercial return_address_line is incorrect: '%s'\n",
-                lr.profile.return_address_line.c_str());
+                fx.profile.return_address_line.c_str());
             return 1;
         }
 
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -285,7 +228,7 @@ int main(int argc, char* argv[])
             "Sehr geehrte Damen und Herren,\n\n"
             "anbei erhalten Sie unser aktualisiertes Angebot.";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: commercial build_letter: %s\n", br.error.c_str());
             return 1;
@@ -312,14 +255,14 @@ int main(int argc, char* argv[])
             - default_layout.margin_left_mm
             - default_layout.margin_right_mm;
         const auto first_footer_metrics = measure_text(
-            lr.profile.footer_lines[0],
+            fx.profile.footer_lines[0],
             Font_id::SANS,
             default_typo.footer_text_size_pt,
             default_typo.footer_text_size_pt,
             default_body_width_mm,
             true);
         const auto second_footer_metrics = measure_text(
-            lr.profile.footer_lines[1],
+            fx.profile.footer_lines[1],
             Font_id::SANS,
             default_typo.footer_text_size_pt,
             default_typo.footer_text_size_pt,
@@ -373,7 +316,7 @@ int main(int argc, char* argv[])
                     }
                 }
 
-                if (text->text == lr.profile.footer_lines[0]) {
+                if (text->text == fx.profile.footer_lines[0]) {
                     found_first_footer_line = true;
                     if (!nearly_equal(text->x_mm, default_layout.margin_left_mm) ||
                         !nearly_equal(text->y_mm, expected_footer_y)             ||
@@ -391,7 +334,7 @@ int main(int argc, char* argv[])
                     }
                 }
 
-                if (text->text == lr.profile.footer_lines[1]) {
+                if (text->text == fx.profile.footer_lines[1]) {
                     found_second_footer_line = true;
                     if (!text->wrap) {
                         std::fprintf(
@@ -486,33 +429,17 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Commercial PDF: %s\n", commercial_output.c_str());
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 5: empty subject does not create placeholder or extra gap --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test4";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write empty-subject test profile: %s\n",
-                qs(profile_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
+        Profile_fixture fx("briefutil_test4", k_default_profile_simple_json);
+        if (!fx.ok) {
             std::fprintf(stderr, "FAIL: empty-subject profile load: %s\n",
-                lr.error.c_str());
+                fx.error.c_str());
             return 1;
         }
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -520,7 +447,7 @@ int main(int argc, char* argv[])
         input.date = "14. M\xc3\xa4rz 2026";
         input.body = "Erste Zeile ohne Betreff";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: empty-subject build_letter: %s\n", br.error.c_str());
             return 1;
@@ -554,33 +481,17 @@ int main(int argc, char* argv[])
             std::fprintf(stderr, "FAIL: empty-subject body block not found\n");
             return 1;
         }
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 6: profile closing overrides localization; page numbers still localize --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test_loc";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write loc test profile: %s\n",
-                qs(profile_path).c_str());
+        Profile_fixture fx("briefutil_test_loc", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: loc profile load: %s\n", fx.error.c_str());
             return 1;
         }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
-            std::fprintf(stderr, "FAIL: loc profile load: %s\n", lr.error.c_str());
-            return 1;
-        }
-        lr.profile.signature_image.clear();
-        lr.profile.closing_phrase = "Warm regards,";
+        fx.profile.signature_image.clear();
+        fx.profile.closing_phrase = "Warm regards,";
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -616,9 +527,9 @@ int main(int argc, char* argv[])
         }
 
         auto br = build_letter(
-            lr.profile,
+            fx.profile,
             input,
-            qs(tmp_dir),
+            qs(fx.tmp_dir),
             default_theme(),
             din_5008_form_b(),
             custom);
@@ -678,28 +589,13 @@ int main(int argc, char* argv[])
         }
         std::printf("[OK] Profile closing override + localized page number applied\n");
 
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 7: image-bearing corpus renders --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test_parity";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write parity test profile: %s\n",
-                qs(profile_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
-            std::fprintf(stderr, "FAIL: parity profile load: %s\n", lr.error.c_str());
+        Profile_fixture fx("briefutil_test_parity", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: parity profile load: %s\n", fx.error.c_str());
             return 1;
         }
 
@@ -713,13 +609,13 @@ int main(int argc, char* argv[])
             "Zweiter Absatz mit mehr Text, damit die Layout- und "
             "Umbruchlogik zusammen mit einer Signaturgrafik ausgef\xc3\xbchrt wird.";
 
-        const QString signature_path = tmp_dir + "/mustermann_signature.png";
+        const QString signature_path = fx.tmp_dir + "/mustermann_signature.png";
         if (!write_test_signature_png(signature_path)) {
             std::fprintf(stderr, "FAIL: could not write image test signature PNG\n");
             return 1;
         }
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: image build_letter: %s\n", br.error.c_str());
             return 1;
@@ -739,35 +635,18 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Image-bearing corpus rendered\n");
-
-        QFile::remove(profile_path);
-        QFile::remove(signature_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 7: ordered list markers saturate when start number overflowed --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test_overflow_list";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write overflow-list test profile: %s\n",
-                qs(profile_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
+        Profile_fixture fx("briefutil_test_overflow_list", k_default_profile_simple_json);
+        if (!fx.ok) {
             std::fprintf(stderr, "FAIL: overflow-list profile load: %s\n",
-                lr.error.c_str());
+                fx.error.c_str());
             return 1;
         }
-        lr.profile.signature_image.clear();
-        lr.profile.closing_phrase = "Warm regards,";
+        fx.profile.signature_image.clear();
+        fx.profile.closing_phrase = "Warm regards,";
 
         Letter_input input;
         input.recipient = "Firma Beispiel GmbH\n54321 Beispielstadt";
@@ -777,7 +656,7 @@ int main(int argc, char* argv[])
             "999999999999999999999999999999. First\n"
             "1000000000000000000000000000000. Second";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: overflow-list build_letter: %s\n", br.error.c_str());
             return 1;
@@ -801,9 +680,6 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Ordered-list markers saturate safely after parser clamp\n");
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 8: profile save/load preserves blank sender and footer lines --
@@ -956,26 +832,13 @@ int main(int argc, char* argv[])
 
     // -- Test 11: table columns expand only when that reduces table height --
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test_table_height";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write table-height test profile: %s\n",
-                qs(profile_path).c_str());
-            return 1;
-        }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
+        Profile_fixture fx("briefutil_test_table_height", k_default_profile_simple_json);
+        if (!fx.ok) {
             std::fprintf(stderr, "FAIL: table-height profile load: %s\n",
-                lr.error.c_str());
+                fx.error.c_str());
             return 1;
         }
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Gartenbau Lindenhof\nFrau Clara Berg\n"
@@ -990,7 +853,7 @@ int main(int argc, char* argv[])
             "| Thymian | sonnig | gut f\xc3\xbc" "r Insekten |\n"
             "| Erdbeeren | halbschattig | regelm\xc3\xa4\xc3\x9f" "ig ernten |\n";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: table-height build_letter: %s\n", br.error.c_str());
             return 1;
@@ -1030,9 +893,6 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Table columns expand when doing so reduces row height\n");
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     // -- Test 12: table column rebalancing
@@ -1044,24 +904,12 @@ int main(int argc, char* argv[])
     // width and wrap unnecessarily (e.g. "Betrag (\xe2\x82\xac)" splitting
     // into two lines).
     {
-        QString tmp_dir = QDir::tempPath() + "/briefutil_test_table_rebalance";
-        QDir().mkpath(tmp_dir);
-
-        QString profile_path = tmp_dir + "/test_profile.json";
-        QFile f(profile_path);
-        if (!f.open(QIODevice::WriteOnly)) {
-            std::fprintf(stderr, "FAIL: cannot write rebalance test profile\n");
+        Profile_fixture fx("briefutil_test_table_rebalance", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: rebalance profile load: %s\n", fx.error.c_str());
             return 1;
         }
-        f.write(k_default_profile_simple_json);
-        f.close();
-
-        auto lr = load_sender_profile(qs(profile_path));
-        if (!lr.ok) {
-            std::fprintf(stderr, "FAIL: rebalance profile load: %s\n", lr.error.c_str());
-            return 1;
-        }
-        lr.profile.signature_image.clear();
+        fx.profile.signature_image.clear();
 
         Letter_input input;
         input.recipient = "Beispiel GmbH\nMusterstra\xc3\x9f""e 1\n12345 Beispielstadt";
@@ -1075,7 +923,7 @@ int main(int argc, char* argv[])
             "| Korkboden in K\xc3\xbc" "che und Badezimmern entfernen, Untergrund"
                 " reinigen und vorbereiten | pauschal | 500,00 |\n";
 
-        auto br = build_letter(lr.profile, input, qs(tmp_dir));
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
         if (!br.error.empty()) {
             std::fprintf(stderr, "FAIL: rebalance build_letter: %s\n", br.error.c_str());
             return 1;
@@ -1115,9 +963,6 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Table column widths rebalance to avoid narrow-column wraps\n");
-
-        QFile::remove(profile_path);
-        QDir().rmdir(tmp_dir);
     }
 
     std::printf("\nAll letter-builder tests passed.\n");
