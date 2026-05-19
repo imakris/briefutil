@@ -6,8 +6,6 @@
 #include <mark2haru/pdf_writer.h>
 #include <mark2haru/png_image.h>
 
-#include <type_traits>
-
 
 // ============================================================================
 // mark2haru renderer
@@ -16,10 +14,16 @@
 static float pt_x(float x_mm) { return mm_to_pt(x_mm); }
 static float pt_y(float y_mm) { return mm_to_pt(y_mm); }
 
-static bool render_text_block(
-    mark2haru::Pdf_writer&     writer,
-    const Text_block&          tb,
-    const Font_family_config&  fonts)
+struct Render_context
+{
+    const Font_family_config&  fonts;
+    const Localization&        loc;
+};
+
+static bool render(
+    mark2haru::Pdf_writer&  writer,
+    const Text_block&       tb,
+    const Render_context&   ctx)
 {
     std::vector<std::string> lines;
     if (tb.wrap) {
@@ -28,7 +32,7 @@ static bool render_text_block(
             tb.font,
             tb.size_pt,
             tb.width_mm,
-            fonts);
+            ctx.fonts);
     }
     else {
         lines = split_lines(tb.text);
@@ -55,9 +59,10 @@ static bool render_text_block(
     return true;
 }
 
-static bool render_text_span(
-    mark2haru::Pdf_writer& writer,
-    const Text_span&       ts)
+static bool render(
+    mark2haru::Pdf_writer&  writer,
+    const Text_span&        ts,
+    const Render_context&)
 {
     auto font = mark2haru_font_for(ts.font);
     writer.draw_text(
@@ -70,9 +75,10 @@ static bool render_text_span(
     return true;
 }
 
-static bool render_line_segment(
-    mark2haru::Pdf_writer& writer,
-    const line_segment_t&  ls)
+static bool render(
+    mark2haru::Pdf_writer&  writer,
+    const line_segment_t&   ls,
+    const Render_context&)
 {
     writer.stroke_line(
         pt_x(ls.x1_mm),
@@ -84,9 +90,10 @@ static bool render_line_segment(
     return true;
 }
 
-static bool render_filled_rect(
-    mark2haru::Pdf_writer& writer,
-    const filled_rect_t&   fr)
+static bool render(
+    mark2haru::Pdf_writer&  writer,
+    const filled_rect_t&    fr,
+    const Render_context&)
 {
     writer.fill_rect(
         pt_x(fr.x_mm),
@@ -97,17 +104,17 @@ static bool render_filled_rect(
     return true;
 }
 
-static bool render_image_block(
-    const Image_block&     ib,
-    const Localization&    loc,
-    mark2haru::Pdf_writer& writer)
+static bool render(
+    mark2haru::Pdf_writer&  writer,
+    const Image_block&      ib,
+    const Render_context&   ctx)
 {
     auto image_path = qstring_to_path(QString::fromUtf8(ib.path.c_str()));
 
     mark2haru::Png_image image;
     if (!image.load_from_file(image_path)) {
         const std::string placeholder =
-            format_image_not_found(loc.image_not_found_format, ib.path);
+            format_image_not_found(ctx.loc.image_not_found_format, ib.path);
         writer.draw_text(
             pt_x(ib.x_mm),
             pt_y(ib.y_mm),
@@ -150,6 +157,8 @@ static Render_result render_pdf_mark2haru_impl(
         return { false, "", loc.error_pdf_create_failed, writer.font_error() };
     }
 
+    const Render_context ctx{ fonts, loc };
+
     bool first_page = true;
     for (const auto& page_def : doc.pages) {
         if (!first_page) {
@@ -159,27 +168,7 @@ static Render_result render_pdf_mark2haru_impl(
 
         for (const auto& elem : page_def.elements) {
             bool ok = std::visit([&](const auto& e) {
-                using Element_type = std::decay_t<decltype(e)>;
-                if constexpr (std::is_same_v<Element_type, Text_block>) {
-                    return render_text_block(writer, e, fonts);
-                }
-                else
-                if constexpr (std::is_same_v<Element_type, line_segment_t>) {
-                    return render_line_segment(writer, e);
-                }
-                else
-                if constexpr (std::is_same_v<Element_type, Image_block>) {
-                    return render_image_block(e, loc, writer);
-                }
-                else
-                if constexpr (std::is_same_v<Element_type, Text_span>) {
-                    return render_text_span(writer, e);
-                }
-                else
-                if constexpr (std::is_same_v<Element_type, filled_rect_t>) {
-                    return render_filled_rect(writer, e);
-                }
-                return false;
+                return render(writer, e, ctx);
             }, elem);
             if (!ok) {
                 return { false, "", loc.error_pdf_create_failed, "mark2haru rendering failed." };
