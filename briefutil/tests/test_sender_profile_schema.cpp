@@ -184,6 +184,81 @@ static void require_language_stays_explicit()
     require(loaded.profile.language == "de", "explicit language should round-trip");
 }
 
+static void require_invalid_profiles_rejected()
+{
+    QTemporaryDir root;
+    require(root.isValid(), "could not create temporary directory");
+
+    auto write_profile = [&](const char* name, const char* json) -> QString {
+        const QString path = root.filePath(name);
+        QFile file(path);
+        require(file.open(QIODevice::WriteOnly), "could not write profile fixture");
+        file.write(json);
+        file.close();
+        return path;
+    };
+    auto loads = [&](const char* name, const char* json) -> bool {
+        return load_sender_profile(qs(write_profile(name, json))).ok;
+    };
+
+    require(!loads("traversal_image.json", R"({
+        "id": "Traversal Image",
+        "style": "simple",
+        "signature_image": "../secret.png"
+    })"), "signature image escaping the profile dir must be rejected");
+    require(!loads("absolute_image.json", R"({
+        "id": "Absolute Image",
+        "style": "simple",
+        "logo_image": "C:/Windows/system32/evil.png"
+    })"), "absolute logo image path must be rejected");
+    require(!loads("non_png_image.json", R"({
+        "id": "Non Png Image",
+        "style": "simple",
+        "signature_image": "signature.jpg"
+    })"), "non-.png signature image must be rejected");
+    require(!loads("bad_color_range.json", R"({
+        "id": "Bad Color Range",
+        "style": "commercial",
+        "top_rule_color": [200, 300, 200]
+    })"), "out-of-range colour channel must be rejected");
+    require(!loads("bad_color_size.json", R"({
+        "id": "Bad Color Size",
+        "style": "commercial",
+        "top_rule_color": [200, 200]
+    })"), "wrong-size colour array must be rejected");
+    require(!loads("bad_color_type.json", R"({
+        "id": "Bad Color Type",
+        "style": "commercial",
+        "top_rule_color": [200, "x", 200]
+    })"), "non-integer colour channel must be rejected");
+
+    auto valid = load_sender_profile(qs(write_profile("valid_commercial.json", R"({
+        "id": "Valid Commercial",
+        "style": "commercial",
+        "signature_image": "signature.png",
+        "logo_image": "logo.png",
+        "top_rule_color": [10, 20, 30]
+    })")));
+    require(valid.ok, "valid commercial profile must load");
+    require(valid.profile.signature_image == "signature.png",
+        "valid profile should keep its signature image");
+    require(valid.profile.logo_image == "logo.png",
+        "valid profile should keep its logo image");
+
+    // A minimal profile with no image fields and no colour key must load: an
+    // empty image name is valid (no image), and an absent top_rule_color keeps
+    // the struct default rather than being treated as malformed.
+    auto minimal = load_sender_profile(qs(write_profile("minimal.json", R"({
+        "id": "Minimal",
+        "style": "simple"
+    })")));
+    require(minimal.ok, "minimal profile without image or colour must load");
+    require(minimal.profile.signature_image.empty(),
+        "minimal profile should have no signature image");
+    require(minimal.profile.top_rule_color.r == 200 / 255.0f,
+        "absent top_rule_color should keep the struct default");
+}
+
 int main(int argc, char* argv[])
 {
     QCoreApplication app(argc, argv);
@@ -191,6 +266,7 @@ int main(int argc, char* argv[])
     require_unique_schema_keys();
     require_schema_maps_expected_fields();
     require_language_stays_explicit();
+    require_invalid_profiles_rejected();
 
     std::printf("All sender profile schema tests passed.\n");
     return 0;

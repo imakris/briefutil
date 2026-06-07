@@ -1,11 +1,14 @@
 #include "briefutil/sender_profile.h"
 #include "briefutil/sender_profile_schema.h"
+#include "briefutil/path_utils.h"
 
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+
+#include <cmath>
 
 // Use Qt's JSON parser; it is already available through Qt6::Core.
 
@@ -24,20 +27,48 @@ static std::vector<std::string> json_string_array(
     return result;
 }
 
-static color_t json_color(
+enum class Color_parse
+{
+    ABSENT,
+    OK,
+    INVALID,
+};
+
+// Parses a "[r, g, b]" colour, requiring exactly three integer channels in
+// 0..255. ABSENT (key missing) leaves the caller's default in place; INVALID
+// (key present but malformed) is surfaced as a profile load error rather than
+// silently substituting a fallback or coercing bad values to black.
+static Color_parse parse_json_color(
     const QJsonObject& obj,
     const char*        key,
-    color_t            fallback)
+    color_t&           out)
 {
-    auto arr = obj.value(key).toArray();
-    if (arr.size() != 3) {
-        return fallback;
+    if (!obj.contains(key)) {
+        return Color_parse::ABSENT;
     }
-    return {
-        (float)arr[0].toInt() / 255.0f,
-        (float)arr[1].toInt() / 255.0f,
-        (float)arr[2].toInt() / 255.0f,
-    };
+    const auto value = obj.value(key);
+    if (!value.isArray()) {
+        return Color_parse::INVALID;
+    }
+    const auto arr = value.toArray();
+    if (arr.size() != 3) {
+        return Color_parse::INVALID;
+    }
+
+    float channels[3];
+    for (int i = 0; i < 3; ++i) {
+        const auto channel = arr[i];
+        if (!channel.isDouble()) {
+            return Color_parse::INVALID;
+        }
+        const double raw = channel.toDouble();
+        if (raw < 0.0 || raw > 255.0 || raw != std::floor(raw)) {
+            return Color_parse::INVALID;
+        }
+        channels[i] = (float)raw / 255.0f;
+    }
+    out = { channels[0], channels[1], channels[2] };
+    return Color_parse::OK;
 }
 
 static QJsonArray json_string_array(const std::vector<std::string>& lines)
@@ -91,7 +122,29 @@ Profile_load_result load_sender_profile(const std::string& json_path)
     auto style_str = obj.value("style").toString().toLower();
     p.style = (style_str == "commercial")
         ? Profile_style::COMMERCIAL : Profile_style::SIMPLE;
-    p.top_rule_color = json_color(obj, "top_rule_color", p.top_rule_color);
+    if (parse_json_color(obj, "top_rule_color", p.top_rule_color) == Color_parse::INVALID) {
+        return {
+            false,
+            {},
+            "Profile 'top_rule_color' must be three integers in 0..255: " + json_path,
+        };
+    }
+
+    auto reject_image = [&](const char* key) -> Profile_load_result {
+        return {
+            false,
+            {},
+            std::string("Profile '") + key
+                + "' must be a relative .png asset name (no '..' or absolute path): "
+                + json_path,
+        };
+    };
+    if (!briefutil::is_valid_profile_image_name(p.signature_image)) {
+        return reject_image("signature_image");
+    }
+    if (!briefutil::is_valid_profile_image_name(p.logo_image)) {
+        return reject_image("logo_image");
+    }
 
     if (p.id.empty()) {
         return { false, {}, "Profile missing 'id' field: " + json_path };

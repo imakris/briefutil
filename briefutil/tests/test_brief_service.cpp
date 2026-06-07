@@ -128,5 +128,20 @@ int main(int argc, char* argv[])
         fail("invalid font config should be INVALID_FONT_CONFIG");
     }
 
+    // A fully specified but impossible calendar date (Feb 31) must be rejected
+    // rather than rendered verbatim.
+    invalid = request;
+    invalid.output_path = root.filePath("bad-date.pdf").toStdString();
+    invalid.overwrite_output = false;
+    invalid.date_year  = 2026;
+    invalid.date_month = 2;
+    invalid.date_day   = 31;
+    invalid_result = briefutil::generate_brief_pdf(invalid);
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
+        fail("impossible calendar date should be INVALID_REQUEST");
+    }
+
     return 0;
 }

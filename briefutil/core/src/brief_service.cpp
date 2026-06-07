@@ -153,6 +153,17 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             "Invalid font configuration. Leave font fields empty "
             "for bundled fonts or provide explicit .ttf font files.");
     }
+    // A fully specified date must be a real calendar date; an unset date
+    // (any component <= 0) falls back to today inside localized_date.
+    if (request.date_year  > 0 &&
+        request.date_month > 0 &&
+        request.date_day   > 0 &&
+        !QDate(request.date_year, request.date_month, request.date_day).isValid())
+    {
+        return failure(
+            Generation_result_code::INVALID_REQUEST,
+            "The letter date is not a valid calendar date.");
+    }
 
     const std::string output_path = make_output_path(request);
     QFileInfo output_info(QString::fromStdString(output_path));
