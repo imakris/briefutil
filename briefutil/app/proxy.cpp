@@ -98,14 +98,16 @@ constexpr Typo_setting k_typo_settings[] = {
 
 } // anonymous namespace
 
-static void ensure_template_dir_ready(const QString& dir_path)
+static bool ensure_template_dir_ready(const QString& dir_path)
 {
     std::string error;
     if (!briefutil::ensure_template_dir_ready(dir_path.toStdString(), &error)) {
         qWarning("briefutil: failed to initialize template directory '%s': %s",
             qPrintable(dir_path),
             error.c_str());
+        return false;
     }
+    return true;
 }
 
 static QString build_info_value(QSettings& settings, const QString& key, const QString& fallback)
@@ -654,19 +656,33 @@ static QString sanitize_filename(const QString& input)
     return QString::fromStdString(briefutil::sanitize_filename_component(input.toStdString()));
 }
 
+static QString unique_file_name(const QDir& dir, const QString& stem, const QString& extension)
+{
+    QString candidate = stem + "." + extension;
+    int     counter   = 2;
+    while (dir.exists(candidate)) {
+        candidate = stem + " " + QString::number(counter++) + "." + extension;
+    }
+    return candidate;
+}
+
 static QString unique_profile_file_name(const QDir& dir, const QString& base_name)
 {
     QString stem = sanitize_filename(base_name);
     if (stem.isEmpty()) {
         stem = "profile";
     }
+    return unique_file_name(dir, stem, "json");
+}
 
-    QString candidate = stem + ".json";
-    int     counter   = 2;
-    while (dir.exists(candidate)) {
-        candidate = stem + " " + QString::number(counter++) + ".json";
+static QString unique_image_file_name(const QDir& dir, const QString& file_name)
+{
+    QFileInfo info(file_name);
+    QString   stem = info.completeBaseName();
+    if (stem.isEmpty()) {
+        stem = "image";
     }
-    return candidate;
+    return unique_file_name(dir, stem, info.suffix());
 }
 
 static bool open_generated_pdf(const QString& pdf_path)
@@ -968,12 +984,18 @@ void Proxy::set_template_dir(const QString& v)
     }
 
     QDir normalized(dir);
-    m_sender_template_dir = normalized.absolutePath();
-    if (!m_sender_template_dir.endsWith('/')) {
-        m_sender_template_dir += '/';
+    QString candidate = normalized.absolutePath();
+    if (!candidate.endsWith('/')) {
+        candidate += '/';
     }
 
-    ensure_template_dir_ready(m_sender_template_dir);
+    // Only commit to a template directory the app could actually initialize;
+    // otherwise keep the previous one rather than persisting a broken path.
+    if (!ensure_template_dir_ready(candidate)) {
+        return;
+    }
+
+    m_sender_template_dir = candidate;
     save_settings();
     install_template_watcher();
     discover_profiles();
@@ -1122,7 +1144,12 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
         && QFileInfo(save_path).absoluteFilePath()
            != QFileInfo(old_path).absoluteFilePath())
     {
-        QFile::remove(old_path);
+        if (!QFile::remove(old_path)) {
+            qWarning("briefutil: saved profile to '%s' but could not remove the "
+                "previous file '%s'; it may reappear as a duplicate until removed.",
+                qPrintable(save_path),
+                qPrintable(old_path));
+        }
         m_profiles[index].path = save_path;
     }
 
@@ -1248,13 +1275,29 @@ QString Proxy::import_template_image(const QUrl& source_url) const
         return QString();
     }
 
-    auto target_name = source_info.fileName();
-    auto target_path = QDir(m_sender_template_dir).filePath(target_name);
-    if (QFileInfo(target_path).absoluteFilePath() != source_info.absoluteFilePath()) {
-        QFile::remove(target_path);
-        if (!QFile::copy(source_info.absoluteFilePath(), target_path)) {
-            return QString();
-        }
+    QDir dir(m_sender_template_dir);
+
+    // Re-importing a file already inside the template directory is a no-op.
+    if (QFileInfo(dir.filePath(source_info.fileName())).absoluteFilePath()
+        == source_info.absoluteFilePath())
+    {
+        return source_info.fileName();
+    }
+
+    // Never overwrite an existing asset; other profiles may reference it by
+    // name. Pick a fresh unique name and copy through a temporary file so a
+    // failed copy can neither destroy an existing asset nor leave a partial
+    // file under the final name.
+    const QString target_name = unique_image_file_name(dir, source_info.fileName());
+    const QString target_path = dir.filePath(target_name);
+    const QString temp_path    = target_path + ".importing";
+    QFile::remove(temp_path);
+    if (!QFile::copy(source_info.absoluteFilePath(), temp_path)) {
+        return QString();
+    }
+    if (!QFile::rename(temp_path, target_path)) {
+        QFile::remove(temp_path);
+        return QString();
     }
     return target_name;
 }
