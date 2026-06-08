@@ -1020,6 +1020,63 @@ int main(int argc, char* argv[])
         std::printf("[OK] Over-tall closing block is rejected instead of overflowing\n");
     }
 
+    // -- Test 15: inline styles preserve source whitespace --
+    //
+    // mark2haru keeps boundary whitespace in run text, so the layout must not
+    // synthesize a space between styled runs that were adjacent in the source.
+    {
+        Profile_fixture fx("briefutil_test_inline_ws", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: inline-whitespace profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+
+        auto body_spans = [&](const char* body) -> std::string {
+            Letter_input input;
+            input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+            input.subject   = "Whitespace";
+            input.body      = body;
+            auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+            if (!br.error.empty()) {
+                return std::string("<error: ") + br.error + ">";
+            }
+            std::string out;
+            for (const auto& page : br.doc.pages) {
+                for (const auto& element : page.elements) {
+                    if (const auto* span = std::get_if<Text_span>(&element)) {
+                        out += span->text;
+                    }
+                }
+            }
+            return out;
+        };
+
+        struct whitespace_case_t
+        {
+            const char* body;
+            const char* expected;
+        };
+        const whitespace_case_t cases[] = {
+            { "foo**bar**",       "foobar"      },
+            { "**bold**_italic_", "bolditalic"  },
+            { "hello,**world**",  "hello,world" },
+            { "foo **bar**",      "foo bar"     },
+            { "foo `bar`baz",     "foo barbaz"  },
+            { "**a** **b**",      "a b"         },
+        };
+        for (const auto& c : cases) {
+            const std::string actual = body_spans(c.body);
+            if (actual != c.expected) {
+                std::fprintf(stderr,
+                    "FAIL: body '%s' rendered as '%s', expected '%s'\n",
+                    c.body, actual.c_str(), c.expected);
+                return 1;
+            }
+        }
+        std::printf("[OK] Inline styles preserve source whitespace (no synthesized spaces)\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

@@ -168,65 +168,76 @@ static std::vector<Laid_out_line> layout_runs(
         cursor_x_mm = left_mm;
     };
 
-    for (const auto& run : runs) {
-        Font_id fid = font_for_style(run.style);
+    // Place one word, preceded by a single space only when the source had
+    // whitespace before it and we are not at the start of a line. Spaces are
+    // never invented between styled runs that were adjacent in the source, so
+    // "foo**bar**" stays "foobar" rather than becoming "foo bar".
+    auto emit_word = [&](Font_id fid, const std::string& word, bool space_before) {
+        const float word_w_mm  = word_width_mm(fid, word);
+        float       space_w_mm = (space_before && cursor_x_mm > left_mm)
+            ? space_width_mm_for(fid) : 0.0f;
 
-        // Split run text on explicit newlines
+        // Line break if the word (plus any separating space) doesn't fit.
+        if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm &&
+            cursor_x_mm                          > left_mm)
+        {
+            flush_line();
+            space_w_mm = 0.0f;
+        }
+
+        const bool with_space = space_w_mm > 0.0f;
+        if (!has_building_span || building_span.font != fid) {
+            commit_building_span();
+            building_span.x_mm    = cursor_x_mm;
+            building_span.font    = fid;
+            building_span.size_pt = size_pt;
+            building_span.color   = color;
+            building_span.text    = with_space ? " " + word : word;
+            has_building_span     = true;
+        }
+        else {
+            building_span.text += with_space ? " " + word : word;
+        }
+
+        cursor_x_mm += space_w_mm + word_w_mm;
+    };
+
+    // Tracks whether source whitespace has been seen since the last placed
+    // word. It carries across run boundaries so the rendered spacing follows
+    // the original Markdown instead of being synthesized between every word.
+    bool pending_space = false;
+
+    for (const auto& run : runs) {
+        const Font_id fid = font_for_style(run.style);
+
+        // Split run text on explicit newlines; everything else is words
+        // separated by spaces, with whitespace recorded as break points.
         size_t pos = 0;
         while (pos <= run.text.size()) {
-            size_t nl = run.text.find('\n', pos);
-            std::string segment = (nl == std::string::npos)
-                ? run.text.substr(pos)
-                : run.text.substr(pos, nl - pos);
+            const size_t nl      = run.text.find('\n', pos);
+            const size_t seg_end = (nl == std::string::npos) ? run.text.size() : nl;
 
-            for_each_word(segment, [&](const std::string& word) {
-                float word_w_mm = word_width_mm(fid, word);
-
-                float space_w_mm = (cursor_x_mm > left_mm)
-                    ? space_width_mm_for(fid) : 0.0f;
-
-                // Line break if word doesn't fit
-                if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm &&
-                    cursor_x_mm                          > left_mm)
-                {
-                    flush_line();
-                    space_w_mm = 0;
+            size_t p = pos;
+            while (p < seg_end) {
+                if (run.text[p] == ' ') {
+                    pending_space = true;
+                    ++p;
+                    continue;
                 }
-
-                // If style changed or no span is being built, start a new one
-                if (!has_building_span || building_span.font != fid) {
-                    commit_building_span();
-                    building_span.x_mm    = cursor_x_mm;
-                    building_span.font    = fid;
-                    building_span.size_pt = size_pt;
-                    building_span.color   = color;
-                    building_span.text.clear();
-                    has_building_span = true;
-
-                    if (cursor_x_mm > left_mm) {
-                        building_span.text = " " + word;
-                    }
-                    else {
-                        building_span.text = word;
-                    }
+                size_t word_end = p;
+                while (word_end < seg_end && run.text[word_end] != ' ') {
+                    ++word_end;
                 }
-                else {
-                    // Same style: append to current span
-                    if (cursor_x_mm > left_mm) {
-                        building_span.text += " " + word;
-                    }
-                    else {
-                        building_span.text += word;
-                    }
-                }
-
-                cursor_x_mm += space_w_mm + word_w_mm;
-            });
+                emit_word(fid, run.text.substr(p, word_end - p), pending_space);
+                pending_space = false;
+                p = word_end;
+            }
 
             if (nl == std::string::npos) {
                 break;
             }
             flush_line();
+            pending_space = false;
             pos = nl + 1;
         }
     }
