@@ -257,6 +257,32 @@ Build_letter_result build_letter(
 
     int total_pages = (int)body_layout.pages.size();
 
+    // The body layout moves the closing block onto a fresh continuation page
+    // when it does not fit after the body. Guarantee it can fit there at all:
+    // a closing taller than an entire continuation-page body (an oversized
+    // signature image or a very large typography scale) cannot be placed
+    // anywhere, and must fail rather than silently overflow into the footer.
+    {
+        const float lead_mm = pt_to_mm(typo.body_lead_pt);
+        float closing_block_mm =
+            pt_to_mm(layout.closing_skip_baselines * typo.body_lead_pt)
+            + lead_mm + layout.closing_after_pad_mm;
+        if (!sig_path.empty()) {
+            closing_block_mm += sig_height_mm + layout.signature_after_pad_mm;
+        }
+        closing_block_mm += lead_mm; // signer name line
+        if (!profile.signer_title.empty()) {
+            closing_block_mm += lead_mm; // signer title line
+        }
+
+        const float closing_page_bottom = footer_top_y_mm(
+            profile, typo, layout, body_width_mm, theme.fonts, total_pages > 1)
+            - layout.page_bottom_buffer_mm;
+        if (closing_block_mm > closing_page_bottom - layout.cont_top_mm) {
+            return { {}, loc.error_closing_does_not_fit };
+        }
+    }
+
     // Build pages
     for (int pi = 0; pi < total_pages; pi++) {
         Page page;

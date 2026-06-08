@@ -7,6 +7,7 @@
 #include "briefutil/pdf_measurement.h"
 #include "briefutil/pdf_renderer.h"
 #include "briefutil/sender_profile.h"
+#include "briefutil/typography_config.h"
 
 #include "test_helpers.h"
 
@@ -963,6 +964,60 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] Table column widths rebalance to avoid narrow-column wraps\n");
+    }
+
+    // -- Test 13: a table row taller than a page is rejected, not overflowed --
+    {
+        Profile_fixture fx("briefutil_test_table_overflow", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: table-overflow profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+
+        std::string cell;
+        for (int i = 0; i < 1500; ++i) {
+            cell += "lorem ";
+        }
+
+        Letter_input input;
+        input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+        input.subject   = "Tall table";
+        input.body      = "| Col |\n| --- |\n| " + cell + " |\n";
+
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+        if (br.error.empty()) {
+            std::fprintf(stderr, "FAIL: a table row taller than a page should fail, not overflow\n");
+            return 1;
+        }
+        std::printf("[OK] Over-tall table row is rejected instead of overflowing\n");
+    }
+
+    // -- Test 14: a closing block taller than a page is rejected --
+    {
+        Profile_fixture fx("briefutil_test_closing_overflow", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: closing-overflow profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        // Keep signature_image non-empty (the PNG is absent, so the renderer's
+        // fallback aspect applies) and make the signature absurdly wide so the
+        // closing block cannot fit on any page.
+        letter_layout_spec_t layout = din_5008_form_b();
+        layout.sig_width_mm = 1000.0f;
+
+        Letter_input input;
+        input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+        input.subject   = "Overflow";
+        input.body      = "Short body.";
+
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir), default_theme(), layout);
+        if (br.error.empty()) {
+            std::fprintf(stderr,
+                "FAIL: an oversized closing block should fail to fit, not overflow\n");
+            return 1;
+        }
+        std::printf("[OK] Over-tall closing block is rejected instead of overflowing\n");
     }
 
     std::printf("\nAll letter-builder tests passed.\n");

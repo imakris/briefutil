@@ -607,6 +607,13 @@ Layout_result layout_body(
                             for (int hi = 0; hi < header_rows && hi < ri; hi++) {
                                 emit_row(hi);
                             }
+                            // After re-emitting the header on a fresh page the
+                            // row must still fit; a row taller than the page
+                            // body cannot be placed without overflowing.
+                            if (!cursor.fits(row_h)) {
+                                result.error = params.loc.error_table_row_too_tall;
+                                return;
+                            }
                             emit_row(ri);
                         }
                         else {

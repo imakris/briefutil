@@ -32,6 +32,10 @@ struct Localization
     std::string    error_pdf_create_failed = "Failed to create the PDF.";
     std::string    error_pdf_save_failed   = "Failed to save the PDF.";
     std::string    error_table_too_wide    = "A table is too wide for the available page area.";
+    std::string    error_table_row_too_tall =
+        "A table row is too tall to fit on a page. Reduce its content or the typography scale.";
+    std::string    error_closing_does_not_fit =
+        "The closing block does not fit on the page. Use a smaller signature or typography scale.";
     std::string error_pdf_open_failed_format =
         "The PDF was created but could not be opened automatically: {path}";
 };
@@ -97,6 +101,12 @@ inline Localization german_localization()
     L.error_pdf_save_failed   = "PDF konnte nicht gespeichert werden.";
     L.error_table_too_wide    = "Eine Tabelle ist zu breit f\xc3\xbcr den "
                                 "verf\xc3\xbcgbaren Seitenbereich.";
+    L.error_table_row_too_tall =
+        "Eine Tabellenzeile ist zu hoch f\xc3\xbcr eine Seite. Bitte den Inhalt "
+        "oder die Schriftskalierung verringern.";
+    L.error_closing_does_not_fit =
+        "Der Schlussblock passt nicht auf die Seite. Bitte eine kleinere "
+        "Signatur oder Schriftskalierung verwenden.";
     L.error_pdf_open_failed_format =
         "PDF wurde erstellt, konnte aber nicht automatisch ge\xc3\xb6" "ffnet "
         "werden: {path}";
