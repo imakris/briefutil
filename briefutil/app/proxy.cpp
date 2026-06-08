@@ -1021,7 +1021,7 @@ bool Proxy::validate_font_value(const QString& v, const QString& role) const
     return !resolve_font_value(trimmed, font_role_from_string(role)).isEmpty();
 }
 
-bool Proxy::validate_directory(const QString& v) const
+bool Proxy::validate_directory_syntax_and_root(const QString& v) const
 {
     auto trimmed = v.trimmed();
     if (trimmed.isEmpty()) {

@@ -34,7 +34,8 @@ struct Layout_result
     // Each inner vector holds the elements for one page.
     std::vector<std::vector<Page_element>> pages;
 
-    // Total height consumed on the last page (mm from that page's body top)
+    // Y position where layout ended on the last page, in mm from the page top.
+    // This is an absolute page coordinate, not a height relative to the body.
     float                                  last_page_used_mm = 0;
 
     // Non-empty if layout failed (e.g. table too wide). Caller should

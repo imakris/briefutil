@@ -175,8 +175,6 @@ The important fields are:
 
 Commercial profiles can additionally define:
 
-- `company_name`
-- `company_name_color`
 - `top_rule_color`
 - `footer_lines`
 - `signer_title`

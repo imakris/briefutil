@@ -111,7 +111,7 @@ Window {
     // Template dir validation
     // ====================================================================
 
-    readonly property bool templateDirOk: proxyObj ? proxyObj.validate_directory(templateDir) : true
+    readonly property bool templateDirOk: proxyObj ? proxyObj.validate_directory_syntax_and_root(templateDir) : true
 
     function syncLayoutPresetCombo() {
         for (var i = 0; i < layoutPresetModel.count; i++) {

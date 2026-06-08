@@ -1,5 +1,5 @@
-#ifndef __mustermann_signature_png__
-#define __mustermann_signature_png__
+#ifndef BRIEFUTIL_EMBEDDED_MUSTERMANN_SIGNATURE_PNG_H
+#define BRIEFUTIL_EMBEDDED_MUSTERMANN_SIGNATURE_PNG_H
 
 #include <utility>
 #include <cstdint>
