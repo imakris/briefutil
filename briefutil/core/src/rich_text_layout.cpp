@@ -96,6 +96,23 @@ struct Laid_out_line
 // Each run's text may contain newlines (hard line breaks).
 // ============================================================================
 
+// Advance past one UTF-8 code point starting at byte index i. Malformed or
+// truncated sequences advance by a single byte so progress is always made.
+static size_t utf8_advance(const std::string& s, size_t i)
+{
+    // Precondition: i < s.size(); callers iterate strictly within the string.
+    const unsigned char c = (unsigned char)s[i];
+    size_t len = 1;
+    if ((c & 0x80) == 0x00) { len = 1; } else
+    if ((c & 0xE0) == 0xC0) { len = 2; } else
+    if ((c & 0xF0) == 0xE0) { len = 3; } else
+    if ((c & 0xF8) == 0xF0) { len = 4; }
+    if (i + len > s.size()) {
+        len = s.size() - i;
+    }
+    return i + len;
+}
+
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<mark2haru::Inline_run>&  runs,
     float                                      left_mm,
@@ -168,11 +185,11 @@ static std::vector<Laid_out_line> layout_runs(
         cursor_x_mm = left_mm;
     };
 
-    // Place one word, preceded by a single space only when the source had
-    // whitespace before it and we are not at the start of a line. Spaces are
-    // never invented between styled runs that were adjacent in the source, so
-    // "foo**bar**" stays "foobar" rather than becoming "foo bar".
-    auto emit_word = [&](Font_id fid, const std::string& word, bool space_before) {
+    // Place a word that already fits on a line, preceded by a single space
+    // only when the source had whitespace before it and we are not at the
+    // start of a line. Spaces are never invented between styled runs that were
+    // adjacent in the source, so "foo**bar**" stays "foobar".
+    auto place_word = [&](Font_id fid, const std::string& word, bool space_before) {
         const float word_w_mm  = word_width_mm(fid, word);
         float       space_w_mm = (space_before && cursor_x_mm > left_mm)
             ? space_width_mm_for(fid) : 0.0f;
@@ -200,6 +217,42 @@ static std::vector<Laid_out_line> layout_runs(
         }
 
         cursor_x_mm += space_w_mm + word_w_mm;
+    };
+
+    // Split a token wider than the whole line into pieces that each fit,
+    // breaking at UTF-8 code-point boundaries so a long URL or path wraps
+    // instead of overrunning the right margin.
+    auto split_to_width = [&](Font_id fid, const std::string& word) -> std::vector<std::string> {
+        std::vector<std::string> pieces;
+        size_t start = 0;
+        while (start < word.size()) {
+            size_t fit_end = utf8_advance(word, start); // always take >= 1 code point
+            while (fit_end < word.size()) {
+                const size_t next = utf8_advance(word, fit_end);
+                if (word_width_mm(fid, word.substr(start, next - start)) > max_width_mm) {
+                    break;
+                }
+                fit_end = next;
+            }
+            pieces.push_back(word.substr(start, fit_end - start));
+            start = fit_end;
+        }
+        return pieces;
+    };
+
+    // Place a word, breaking it across lines when it is wider than the line.
+    auto emit_word = [&](Font_id fid, const std::string& word, bool space_before) {
+        if (word_width_mm(fid, word) <= max_width_mm) {
+            place_word(fid, word, space_before);
+            return;
+        }
+        const std::vector<std::string> pieces = split_to_width(fid, word);
+        for (size_t i = 0; i < pieces.size(); ++i) {
+            if (i > 0) {
+                flush_line();
+            }
+            place_word(fid, pieces[i], i == 0 ? space_before : false);
+        }
     };
 
     // Tracks whether source whitespace has been seen since the last placed

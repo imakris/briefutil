@@ -1077,6 +1077,52 @@ int main(int argc, char* argv[])
         std::printf("[OK] Inline styles preserve source whitespace (no synthesized spaces)\n");
     }
 
+    // -- Test 16: an over-long token wraps instead of overrunning the margin --
+    {
+        Profile_fixture fx("briefutil_test_long_token", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: long-token profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+
+        const std::string url = "https://example.com/" + std::string(180, 'a');
+
+        Letter_input input;
+        input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+        input.subject   = "Long URL";
+        input.body      = url;
+
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: long-token body should build, got error: %s\n",
+                br.error.c_str());
+            return 1;
+        }
+
+        int         span_count = 0;
+        std::string joined;
+        for (const auto& page : br.doc.pages) {
+            for (const auto& element : page.elements) {
+                if (const auto* span = std::get_if<Text_span>(&element)) {
+                    joined += span->text;
+                    ++span_count;
+                }
+            }
+        }
+        if (joined != url) {
+            std::fprintf(stderr,
+                "FAIL: long token lost characters on wrap (got %zu chars, expected %zu)\n",
+                joined.size(), url.size());
+            return 1;
+        }
+        if (span_count < 2) {
+            std::fprintf(stderr, "FAIL: long token did not wrap (%d span)\n", span_count);
+            return 1;
+        }
+        std::printf("[OK] Over-long token wraps across lines without overrunning the margin\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }
