@@ -143,5 +143,60 @@ int main(int argc, char* argv[])
         fail("impossible calendar date should be INVALID_REQUEST");
     }
 
+    invalid = request;
+    invalid.output_path = root.filePath("partial-date-year.pdf").toStdString();
+    invalid.overwrite_output = false;
+    invalid.date_year  = 2026;
+    invalid.date_month = 0;
+    invalid.date_day   = 0;
+    invalid_result = briefutil::generate_brief_pdf(invalid);
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
+        fail("date with only year set should be INVALID_REQUEST");
+    }
+
+    invalid = request;
+    invalid.output_path = root.filePath("partial-date-year-month.pdf").toStdString();
+    invalid.overwrite_output = false;
+    invalid.date_year  = 2026;
+    invalid.date_month = 4;
+    invalid.date_day   = 0;
+    invalid_result = briefutil::generate_brief_pdf(invalid);
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
+        fail("date with year and month set should be INVALID_REQUEST");
+    }
+
+    invalid = request;
+    invalid.output_path = root.filePath("partial-date-invalid-month.pdf").toStdString();
+    invalid.overwrite_output = false;
+    invalid.date_year  = 2026;
+    invalid.date_month = 13;
+    invalid.date_day   = 0;
+    invalid_result = briefutil::generate_brief_pdf(invalid);
+    if (invalid_result.ok ||
+        invalid_result.code != briefutil::Generation_result_code::INVALID_REQUEST)
+    {
+        fail("date with invalid month and unset day should be INVALID_REQUEST");
+    }
+
+    auto fallback = request;
+    fallback.output_path = root.filePath("fallback-date.pdf").toStdString();
+    fallback.overwrite_output = false;
+    fallback.date_year  = 0;
+    fallback.date_month = 0;
+    fallback.date_day   = 0;
+    auto fallback_result = briefutil::generate_brief_pdf(fallback);
+    if (!fallback_result.ok || !QFileInfo::exists(QString::fromStdString(fallback.output_path))) {
+        std::fprintf(
+            stderr,
+            "FAIL: fully unset date should fall back to today: %s (%s)\n",
+            fallback_result.message.c_str(),
+            fallback_result.detail.c_str());
+        return 1;
+    }
+
     return 0;
 }

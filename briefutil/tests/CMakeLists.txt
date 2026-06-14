@@ -20,6 +20,23 @@ briefutil_add_test_executable(test_sender_profile_schema test_sender_profile_sch
 briefutil_add_test_executable(test_template_store      test_template_store.cpp)
 briefutil_add_test_executable(test_unicode_output_path test_unicode_output_path.cpp)
 
+if(BRIEFUTIL_BUILD_GUI)
+    briefutil_add_test_executable(test_proxy_sender_profile test_proxy_sender_profile.cpp)
+    target_include_directories(test_proxy_sender_profile PRIVATE
+        ${CMAKE_SOURCE_DIR}/app
+    )
+    target_sources(test_proxy_sender_profile PRIVATE
+        ${CMAKE_SOURCE_DIR}/app/cli_output.cpp
+        ${CMAKE_SOURCE_DIR}/app/proxy.cpp
+    )
+    target_link_libraries(test_proxy_sender_profile PRIVATE
+        Qt6::Gui
+    )
+    if(WIN32)
+        target_link_libraries(test_proxy_sender_profile PRIVATE dwmapi)
+    endif()
+endif()
+
 target_compile_definitions(test_cli PRIVATE
     BRIEFUTIL_CLI_PATH="$<TARGET_FILE:briefutil_cli>"
 )
@@ -48,18 +65,26 @@ add_test(NAME test_template_store      COMMAND test_template_store)
 add_test(NAME test_unicode_output_path COMMAND test_unicode_output_path)
 add_test(NAME test_md_to_pdf
          COMMAND test_md_to_pdf "${_briefutil_test_data_dir}/test_sample.md")
+if(BRIEFUTIL_BUILD_GUI)
+    add_test(NAME test_proxy_sender_profile COMMAND test_proxy_sender_profile)
+endif()
 
 # Convenience target that depends on every test executable.
+set(_briefutil_check_targets
+    test_renderer
+    test_letter_builder
+    test_brief_service
+    test_cli
+    test_cli_output
+    test_md_to_pdf
+    test_path_utils
+    test_sender_profile_schema
+    test_template_store
+    test_unicode_output_path
+)
+if(BRIEFUTIL_BUILD_GUI)
+    list(APPEND _briefutil_check_targets test_proxy_sender_profile)
+endif()
 add_custom_target(check
-    DEPENDS
-        test_renderer
-        test_letter_builder
-        test_brief_service
-        test_cli
-        test_cli_output
-        test_md_to_pdf
-        test_path_utils
-        test_sender_profile_schema
-        test_template_store
-        test_unicode_output_path
+    DEPENDS ${_briefutil_check_targets}
 )

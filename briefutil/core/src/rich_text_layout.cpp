@@ -113,6 +113,11 @@ static size_t utf8_advance(const std::string& s, size_t i)
     return i + len;
 }
 
+static bool is_inline_breakable_whitespace(char c)
+{
+    return c == ' ' || c == '\t';
+}
+
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<mark2haru::Inline_run>&  runs,
     float                                      left_mm,
@@ -264,7 +269,7 @@ static std::vector<Laid_out_line> layout_runs(
         const Font_id fid = font_for_style(run.style);
 
         // Split run text on explicit newlines; everything else is words
-        // separated by spaces, with whitespace recorded as break points.
+        // separated by breakable whitespace, recorded as break points.
         size_t pos = 0;
         while (pos <= run.text.size()) {
             const size_t nl      = run.text.find('\n', pos);
@@ -272,13 +277,15 @@ static std::vector<Laid_out_line> layout_runs(
 
             size_t p = pos;
             while (p < seg_end) {
-                if (run.text[p] == ' ') {
+                if (is_inline_breakable_whitespace(run.text[p])) {
                     pending_space = true;
                     ++p;
                     continue;
                 }
                 size_t word_end = p;
-                while (word_end < seg_end && run.text[word_end] != ' ') {
+                while (word_end < seg_end &&
+                       !is_inline_breakable_whitespace(run.text[word_end]))
+                {
                     ++word_end;
                 }
                 emit_word(fid, run.text.substr(p, word_end - p), pending_space);

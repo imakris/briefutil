@@ -1102,7 +1102,9 @@ bool Proxy::save_sender_profile(int index, const QVariantMap& profile_data)
         }
         updated.top_rule_color = top_rule_color;
     }
-    updated.logo_image = logo_image.toStdString();
+    updated.logo_image = updated.style == Profile_style::COMMERCIAL
+        ? logo_image.toStdString()
+        : std::string();
 
     // If the id changed, rename the backing JSON file as well so that the
     // template directory stays consistent with the in-memory profile list.

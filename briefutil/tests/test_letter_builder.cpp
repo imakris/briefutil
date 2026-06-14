@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <string>
 #include <variant>
+#include <vector>
 
 
 static bool nearly_equal(float a, float b, float eps = 0.01f)
@@ -1032,24 +1033,36 @@ int main(int argc, char* argv[])
         }
         fx.profile.signature_image.clear();
 
-        auto body_spans = [&](const char* body) -> std::string {
+        auto collect_body_spans = [&](const char* body) -> std::vector<std::string> {
             Letter_input input;
             input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
             input.subject   = "Whitespace";
             input.body      = body;
             auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
             if (!br.error.empty()) {
-                return std::string("<error: ") + br.error + ">";
+                return { std::string("<error: ") + br.error + ">" };
             }
-            std::string out;
+            std::vector<std::string> spans;
             for (const auto& page : br.doc.pages) {
                 for (const auto& element : page.elements) {
                     if (const auto* span = std::get_if<Text_span>(&element)) {
-                        out += span->text;
+                        spans.push_back(span->text);
                     }
                 }
             }
+            return spans;
+        };
+
+        auto join_spans = [](const std::vector<std::string>& spans) -> std::string {
+            std::string out;
+            for (const auto& span : spans) {
+                out += span;
+            }
             return out;
+        };
+
+        auto body_spans = [&](const char* body) -> std::string {
+            return join_spans(collect_body_spans(body));
         };
 
         struct whitespace_case_t
@@ -1064,6 +1077,11 @@ int main(int argc, char* argv[])
             { "foo **bar**",      "foo bar"     },
             { "foo `bar`baz",     "foo barbaz"  },
             { "**a** **b**",      "a b"         },
+            { "foo\tbar",         "foo bar"     },
+            { "foo\t\tbar",       "foo bar"     },
+            { "foo\t**bar**",     "foo bar"     },
+            { "**foo**\tbar",     "foo bar"     },
+            { "foo\t**bar**baz",  "foo barbaz"  },
         };
         for (const auto& c : cases) {
             const std::string actual = body_spans(c.body);
@@ -1074,7 +1092,61 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
-        std::printf("[OK] Inline styles preserve source whitespace (no synthesized spaces)\n");
+
+        std::vector<std::string> wrap_tokens;
+        std::string              wrap_body;
+        for (int i = 0; i < 32; ++i) {
+            const std::string token = "tabwrap" + std::to_string(1000 + i);
+            if (!wrap_body.empty()) {
+                wrap_body += '\t';
+            }
+            wrap_body += token;
+            wrap_tokens.push_back(token);
+        }
+
+        const std::vector<std::string> wrapped_spans =
+            collect_body_spans(wrap_body.c_str());
+        if (wrapped_spans.size() < 2) {
+            std::fprintf(stderr,
+                "FAIL: tab-separated text did not wrap across body spans\n");
+            return 1;
+        }
+
+        size_t next_token = 0;
+        for (const auto& span : wrapped_spans) {
+            if (span.find('\t') != std::string::npos) {
+                std::fprintf(stderr, "FAIL: rendered span still contains a tab\n");
+                return 1;
+            }
+
+            std::string expected_span;
+            while (next_token < wrap_tokens.size()) {
+                if (!expected_span.empty()) {
+                    expected_span += ' ';
+                }
+                expected_span += wrap_tokens[next_token];
+                ++next_token;
+                if (expected_span == span) {
+                    break;
+                }
+                if (expected_span.size() > span.size()) {
+                    break;
+                }
+            }
+
+            if (expected_span != span) {
+                std::fprintf(stderr,
+                    "FAIL: tab wrap split inside a token: '%s'\n",
+                    span.c_str());
+                return 1;
+            }
+        }
+        if (next_token != wrap_tokens.size()) {
+            std::fprintf(stderr, "FAIL: tab wrap did not render every token\n");
+            return 1;
+        }
+
+        std::printf("[OK] Inline styles preserve source whitespace and normalize tabs\n");
     }
 
     // -- Test 16: an over-long token wraps instead of overrunning the margin --
