@@ -165,8 +165,19 @@ Build_letter_result build_letter(
 
     bool  has_subject  = !input.subject.empty();
     float subject_y_mm = info_block_bottom_mm + layout.subject_gap_mm;
+    auto  subject_metrics = measure_text(
+        input.subject,
+        Font_id::SANS_BOLD,
+        typo.body_size_pt,
+        typo.body_lead_pt,
+        body_width_mm,
+        true,
+        theme.fonts);
+    float subject_extra_height_mm = has_subject
+        ? pt_to_mm(subject_metrics.height_pt - typo.body_size_pt)
+        : 0.0f;
     float body_y_mm = has_subject
-        ? (subject_y_mm + layout.subject_to_body_mm)
+        ? (subject_y_mm + layout.subject_to_body_mm + subject_extra_height_mm)
         : subject_y_mm;
 
     const std::string& closing_text = profile.closing_phrase.empty()
@@ -197,8 +208,10 @@ Build_letter_result build_letter(
             : layout.sig_default_aspect;
         sig_height_mm = layout.sig_width_mm * aspect;
     }
+    const bool has_signer_title =
+        !profile.signer_title.empty() && profile.signer_title != profile.signer_name;
     float signer_height_mm = pt_to_mm(typo.body_lead_pt);
-    if (!profile.signer_title.empty()) {
+    if (has_signer_title) {
         signer_height_mm += pt_to_mm(typo.body_lead_pt);
     }
     float total_closing_mm = closing_height_mm + sig_height_mm
@@ -271,7 +284,7 @@ Build_letter_result build_letter(
             closing_block_mm += sig_height_mm + layout.signature_after_pad_mm;
         }
         closing_block_mm += lead_mm; // signer name line
-        if (!profile.signer_title.empty()) {
+        if (has_signer_title) {
             closing_block_mm += lead_mm; // signer title line
         }
 
@@ -359,7 +372,7 @@ Build_letter_result build_letter(
                     layout.margin_left_mm, subject_y_mm, body_width_mm,
                     input.subject,
                     Font_id::SANS_BOLD, typo.body_size_pt, typo.body_lead_pt,
-                    k_black, false
+                    k_black, true
                 });
             }
         }
@@ -400,7 +413,7 @@ Build_letter_result build_letter(
                 k_black, false
             });
 
-            if (!profile.signer_title.empty()) {
+            if (has_signer_title) {
                 after_closing += pt_to_mm(typo.body_lead_pt);
                 page.elements.push_back(Text_block{
                     layout.margin_left_mm, after_closing, body_width_mm,

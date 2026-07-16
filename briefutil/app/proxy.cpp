@@ -497,6 +497,28 @@ void Proxy::load_settings()
     for (const auto& [key, slot] : font_slots) {
         *slot = normalize_saved_font_input(s.value(key).toString());
     }
+
+    if (!s.value("fonts/print_default_v1", false).toBool()) {
+        const QString preferred = "Noto Sans";
+        if (m_font_sans_input.isEmpty()             &&
+            m_font_sans_bold_input.isEmpty()        &&
+            m_font_sans_italic_input.isEmpty()      &&
+            m_font_sans_bold_italic_input.isEmpty() &&
+            !resolve_font_value(preferred, Font_role::SANS).isEmpty()             &&
+            !resolve_font_value(preferred, Font_role::SANS_BOLD).isEmpty()        &&
+            !resolve_font_value(preferred, Font_role::SANS_ITALIC).isEmpty()      &&
+            !resolve_font_value(preferred, Font_role::SANS_BOLD_ITALIC).isEmpty())
+        {
+            m_font_sans_input             = preferred;
+            m_font_sans_bold_input        = preferred;
+            m_font_sans_italic_input      = preferred;
+            m_font_sans_bold_italic_input = preferred;
+            for (const auto& [key, slot] : font_slots) {
+                s.setValue(key, *slot);
+            }
+        }
+        s.setValue("fonts/print_default_v1", true);
+    }
     m_theme.fonts = font_config_from_inputs(
         m_font_sans_input,
         m_font_sans_bold_input,

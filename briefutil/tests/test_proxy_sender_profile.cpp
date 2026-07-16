@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <QTemporaryDir>
 #include <QVariantMap>
 
@@ -64,10 +65,23 @@ static void require_simple_save_drops_stale_invalid_logo()
     const QByteArray output_dir   = root.filePath("output").toLocal8Bit();
     qputenv("BRIEFUTIL_TEMPLATE_DIR", template_dir);
     qputenv("BRIEFUTIL_OUTPUT_DIR", output_dir);
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root.path());
 
     Proxy proxy;
     require(proxy.get_sender_templates().size() == 1,
         "proxy should discover the initial profile");
+    if (proxy.validate_font_value("Noto Sans", "sans") &&
+        proxy.validate_font_value("Noto Sans", "sans_bold") &&
+        proxy.validate_font_value("Noto Sans", "sans_italic") &&
+        proxy.validate_font_value("Noto Sans", "sans_bold_italic"))
+    {
+        require(proxy.get_font_sans()             == "Noto Sans" &&
+                proxy.get_font_sans_bold()        == "Noto Sans" &&
+                proxy.get_font_sans_italic()      == "Noto Sans" &&
+                proxy.get_font_sans_bold_italic() == "Noto Sans",
+            "proxy should prefer the installed print font for a new configuration");
+    }
 
     auto simple_payload = editable_profile_payload(proxy);
     simple_payload.insert("style", "simple");

@@ -1195,6 +1195,68 @@ int main(int argc, char* argv[])
         std::printf("[OK] Over-long token wraps across lines without overrunning the margin\n");
     }
 
+    // -- Test 17: print layout wraps subjects, keeps leading, and deduplicates signer lines --
+    {
+        Profile_fixture fx("briefutil_test_print_layout", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: print-layout profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+        fx.profile.signer_name  = "Same Signer";
+        fx.profile.signer_title = "Same Signer";
+
+        Letter_input input;
+        input.recipient = "Recipient";
+        input.subject   = "Antrag auf erg\xc3\xa4nzende F\xc3\xb6rderung und Betreuung f\xc3\xbcr ein Kind mit einem sehr langen Betreff";
+        input.body      = "First body line.";
+
+        auto theme = default_theme();
+        theme.typo.body_size_pt = 9.0f;
+        theme.typo.body_lead_pt = 9.0f;
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir), theme);
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: print-layout build: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        const Text_block* subject = nullptr;
+        const Text_span*  body    = nullptr;
+        int               signer_count = 0;
+        for (const auto& element : br.doc.pages[0].elements) {
+            if (const auto* text = std::get_if<Text_block>(&element)) {
+                if (text->text == input.subject) {
+                    subject = text;
+                }
+                if (text->text == fx.profile.signer_name) {
+                    signer_count++;
+                }
+            }
+            if (const auto* span = std::get_if<Text_span>(&element);
+                span && span->text == input.body)
+            {
+                body = span;
+            }
+        }
+
+        const auto typo = scaled_typography(theme.typo);
+        const auto subject_lines = wrap_text(
+            input.subject,
+            Font_id::SANS_BOLD,
+            typo.body_size_pt,
+            din_5008_form_b().page_width_mm - din_5008_form_b().margin_left_mm
+                - din_5008_form_b().margin_right_mm);
+        if (!subject || !subject->wrap || subject_lines.size() < 2 || !body ||
+            body->y_mm < subject->y_mm + din_5008_form_b().subject_to_body_mm
+                + pt_to_mm((subject_lines.size() - 1) * typo.body_lead_pt) ||
+            typo.body_lead_pt < typo.body_size_pt * 1.2f || signer_count != 1)
+        {
+            std::fprintf(stderr, "FAIL: print layout regression\n");
+            return 1;
+        }
+        std::printf("[OK] Print layout wraps subjects, keeps leading, and deduplicates signer lines\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

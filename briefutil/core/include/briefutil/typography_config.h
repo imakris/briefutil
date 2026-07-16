@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
 
 
@@ -90,6 +91,7 @@ inline typography_config_t scaled_typography(typography_config_t typo)
 {
     typo.body_size_pt *= typo.body_scale;
     typo.body_lead_pt *= typo.body_scale;
+    typo.body_lead_pt = std::max(typo.body_lead_pt, typo.body_size_pt * 1.2f);
 
     typo.sender_size_pt *= typo.header_scale;
     typo.sender_lead_pt *= typo.header_scale;
