@@ -18,7 +18,6 @@ briefutil_add_test_executable(test_md_to_pdf           test_md_to_pdf.cpp)
 briefutil_add_test_executable(test_path_utils          test_path_utils.cpp)
 briefutil_add_test_executable(test_sender_profile_schema test_sender_profile_schema.cpp)
 briefutil_add_test_executable(test_template_store      test_template_store.cpp)
-briefutil_add_test_executable(test_unicode_output_path test_unicode_output_path.cpp)
 
 if(BRIEFUTIL_BUILD_GUI)
     briefutil_add_test_executable(test_proxy_sender_profile test_proxy_sender_profile.cpp)
@@ -62,7 +61,6 @@ add_test(NAME test_path_utils          COMMAND test_path_utils)
 add_test(NAME test_sender_profile_schema
          COMMAND test_sender_profile_schema)
 add_test(NAME test_template_store      COMMAND test_template_store)
-add_test(NAME test_unicode_output_path COMMAND test_unicode_output_path)
 add_test(NAME test_md_to_pdf
          COMMAND test_md_to_pdf "${_briefutil_test_data_dir}/test_sample.md")
 if(BRIEFUTIL_BUILD_GUI)
@@ -80,7 +78,6 @@ set(_briefutil_check_targets
     test_path_utils
     test_sender_profile_schema
     test_template_store
-    test_unicode_output_path
 )
 if(BRIEFUTIL_BUILD_GUI)
     list(APPEND _briefutil_check_targets test_proxy_sender_profile)

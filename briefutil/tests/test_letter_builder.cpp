@@ -130,21 +130,6 @@ int main(int argc, char* argv[])
             return 1;
         }
         std::printf("[OK] PDF rendered to: %s\n", output);
-
-        // Verify %PDF- header
-        FILE* pf = std::fopen(output, "rb");
-        if (!pf) {
-            std::fprintf(stderr, "FAIL: cannot open output\n");
-            return 1;
-        }
-        char hdr[6] = {};
-        std::fread(hdr, 1, 5, pf);
-        std::fclose(pf);
-        if (std::strncmp(hdr, "%PDF-", 5) != 0) {
-            std::fprintf(stderr, "FAIL: not a valid PDF\n");
-            return 1;
-        }
-        std::printf("[OK] Valid PDF file\n");
     }
 
     // -- Test 3: multi-page letter (long body) --

@@ -224,7 +224,6 @@ The CMake project also defines a few development-only test executables:
 - `test_md_to_pdf`
 - `test_path_utils`
 - `test_template_store`
-- `test_unicode_output_path`
 
 Typical examples:
 
