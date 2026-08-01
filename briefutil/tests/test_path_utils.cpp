@@ -42,6 +42,30 @@ int main()
         briefutil::sanitize_filename_component("Hello \t  World..") == "Hello World__",
         "whitespace should collapse and trailing dots should be replaced");
 
+    // A filename component has to fit a directory entry, so an unbounded
+    // subject line must not produce an unbounded stem.
+    const std::string long_ascii(500, 'a');
+    require(
+        briefutil::sanitize_filename_component(long_ascii).size() ==
+            briefutil::k_max_filename_component_bytes,
+        "an over-long component should be truncated to the documented bound");
+
+    // "\xc3\xa4" is a two-byte code point. With one leading ASCII byte the
+    // bound falls in the middle of one, so the cut has to back up by one byte
+    // instead of emitting a half sequence.
+    std::string long_utf8 = "x";
+    while (long_utf8.size() < 500) {
+        long_utf8 += "\xc3\xa4";
+    }
+    require(
+        briefutil::sanitize_filename_component(long_utf8).size() ==
+            briefutil::k_max_filename_component_bytes - 1,
+        "truncation should stop on a UTF-8 code-point boundary");
+
+    require(
+        briefutil::sanitize_filename_component(std::string(119, 'a') + " tail").back() == '_',
+        "a trailing space exposed by truncation should be replaced");
+
     require(
         briefutil::is_valid_profile_image_name("signature.png"),
         "simple PNG asset should be valid");

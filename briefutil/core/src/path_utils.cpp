@@ -73,6 +73,21 @@ static bool is_reserved_windows_stem(std::string value)
     return false;
 }
 
+// Truncate to at most `max_bytes` without splitting a UTF-8 sequence: back up
+// over any continuation bytes that would be orphaned by the cut.
+static std::string truncate_utf8(std::string value, size_t max_bytes)
+{
+    if (value.size() <= max_bytes) {
+        return value;
+    }
+    size_t end = max_bytes;
+    while (end > 0 && (static_cast<unsigned char>(value[end]) & 0xC0) == 0x80) {
+        --end;
+    }
+    value.resize(end);
+    return value;
+}
+
 std::string sanitize_filename_component(const std::string& input)
 {
     std::string value = trim_ascii(input);
@@ -102,6 +117,7 @@ std::string sanitize_filename_component(const std::string& input)
     if (is_reserved_windows_stem(value)) {
         value = "_" + value;
     }
+    value = truncate_utf8(std::move(value), k_max_filename_component_bytes);
     for (size_t i = value.size(); i > 0 && (value[i - 1] == ' ' || value[i - 1] == '.'); --i) {
         value[i - 1] = '_';
     }

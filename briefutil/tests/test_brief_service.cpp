@@ -1,4 +1,5 @@
 #include "briefutil/brief_service.h"
+#include "briefutil/path_utils.h"
 #include "briefutil/template_store.h"
 
 #include <QByteArray>
@@ -136,6 +137,32 @@ int main(int argc, char* argv[])
             "FAIL: overwrite path left working files behind: %s\n",
             leftovers.join(", ").toUtf8().constData());
         return 1;
+    }
+
+    // A subject long enough to push the derived staging name past a directory
+    // entry's byte limit must still produce a usable file.
+    auto long_subject = request;
+    long_subject.subject          = std::string(500, 'S');
+    long_subject.output_path.clear();
+    long_subject.output_dir       = dir.filePath("long").toStdString();
+    long_subject.overwrite_output = false;
+    auto long_subject_result = briefutil::generate_brief_pdf(long_subject);
+    if (!long_subject_result.ok) {
+        std::fprintf(
+            stderr,
+            "FAIL: long subject generation failed: %s (%s)\n",
+            long_subject_result.message.c_str(),
+            long_subject_result.detail.c_str());
+        return 1;
+    }
+    {
+        // "yyyy-MM-dd HH-mm-ss-zzz " (24) + the sanitized stem + ".pdf".
+        const size_t max_name_bytes = 24 + briefutil::k_max_filename_component_bytes + 4;
+        const QString produced =
+            QFileInfo(QString::fromStdString(long_subject_result.output_path)).fileName();
+        if (static_cast<size_t>(produced.toUtf8().size()) > max_name_bytes) {
+            fail("a long subject produced an unbounded output filename");
+        }
     }
 
     auto invalid = request;
