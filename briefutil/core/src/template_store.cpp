@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLatin1StringView>
+#include <QLockFile>
 #include <QSaveFile>
 #include <QStandardPaths>
 
@@ -16,6 +18,11 @@
 namespace briefutil {
 
 static constexpr const char* k_template_init_marker = ".briefutil_templates_initialized";
+static constexpr const char* k_template_seed_lock   = ".briefutil_templates_seeding";
+
+// Seeding writes three small files, so a run that has to wait is waiting for
+// another briefutil process that is about to finish.
+static constexpr int k_template_seed_lock_timeout_ms = 10000;
 
 static std::string with_trailing_slash(QString path)
 {
@@ -111,14 +118,32 @@ static bool write_file_if_missing(
 
 static bool template_dir_has_entries(const QDir& templates_dir)
 {
-    return !templates_dir.entryList(
-        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)
-        .empty();
+    const auto entries = templates_dir.entryList(
+        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+    for (const auto& entry : entries) {
+        // briefutil's own bookkeeping is not user content. The seed lock in
+        // particular is present while this very check runs.
+        if (entry != QLatin1StringView(k_template_init_marker) &&
+            entry != QLatin1StringView(k_template_seed_lock))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool seed_default_templates(QDir& templates_dir, std::string* error)
 {
+    // The signature image lands before the profiles that reference it, so a
+    // reader scanning the directory mid-seed can never load a profile whose
+    // image is still missing.
     return
+        write_file_if_missing(
+            templates_dir.filePath("mustermann_signature.png"),
+            reinterpret_cast<const char*>(mustermann_signature_png::data().first),
+            mustermann_signature_png::data().second,
+            error)
+        &&
         write_file_if_missing(
             templates_dir.filePath("Max Mustermann.json"),
             k_default_profile_simple_json,
@@ -129,12 +154,6 @@ static bool seed_default_templates(QDir& templates_dir, std::string* error)
             templates_dir.filePath("Max Mustermann, Mustermann AG.json"),
             k_default_profile_commercial_json,
             std::strlen(k_default_profile_commercial_json),
-            error)
-        &&
-        write_file_if_missing(
-            templates_dir.filePath("mustermann_signature.png"),
-            reinterpret_cast<const char*>(mustermann_signature_png::data().first),
-            mustermann_signature_png::data().second,
             error);
 }
 
@@ -150,6 +169,23 @@ bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
     }
 
     const auto marker_path = templates_dir.filePath(k_template_init_marker);
+    if (QFileInfo::exists(marker_path)) {
+        return true;
+    }
+
+    // Only one process may seed a given directory. Without this, two runs both
+    // observe an unseeded directory and both write into it, and the caller of
+    // the losing run is told the directory is ready while it is still being
+    // filled in. The marker is re-read under the lock because the winner may
+    // have finished between the check above and the lock being granted.
+    QLockFile seed_lock(templates_dir.filePath(k_template_seed_lock));
+    seed_lock.setStaleLockTime(0);
+    if (!seed_lock.tryLock(k_template_seed_lock_timeout_ms)) {
+        if (error) {
+            *error = "Another briefutil run is initializing the template directory.";
+        }
+        return false;
+    }
     if (QFileInfo::exists(marker_path)) {
         return true;
     }

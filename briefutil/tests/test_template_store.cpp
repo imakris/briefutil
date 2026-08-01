@@ -53,6 +53,13 @@ int main(int argc, char* argv[])
     require(
         briefutil::discover_profiles(env_template_dir.toStdString()).size() >= 2,
         "seeded profiles should be discoverable");
+    // Two profiles, the signature image and the marker. Anything else means
+    // seeding left working state behind.
+    require(
+        QDir(env_template_dir)
+            .entryList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)
+            .size() == 4,
+        "seeding should leave only the seeded files and the marker");
     const QString simple_profile_path = QDir(env_template_dir).filePath("Max Mustermann.json");
     require(QFile::remove(simple_profile_path), "could not delete default profile");
     require(
