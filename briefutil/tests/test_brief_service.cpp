@@ -1,9 +1,12 @@
 #include "briefutil/brief_service.h"
 #include "briefutil/template_store.h"
 
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QStringList>
 #include <QTemporaryDir>
 
 #include <cstdlib>
@@ -13,6 +16,28 @@ static void fail(const char* message)
 {
     std::fprintf(stderr, "FAIL: %s\n", message);
     std::exit(1);
+}
+
+// Every file briefutil creates beside the output PDF is a dot file, so this
+// covers staging files and the publish lock without naming either.
+static QStringList hidden_leftovers(const QDir& dir)
+{
+    QStringList leftovers;
+    for (const auto& entry : dir.entryList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot)) {
+        if (entry.startsWith('.')) {
+            leftovers.push_back(entry);
+        }
+    }
+    return leftovers;
+}
+
+static QByteArray read_all(const QString& path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        fail("could not read a generated PDF");
+    }
+    return file.readAll();
 }
 
 int main(int argc, char* argv[])
@@ -66,15 +91,31 @@ int main(int argc, char* argv[])
             generated.detail.c_str());
         return 1;
     }
-    if (!dir.entryList({ "*.tmp.*", "*.replace.*", ".*.tmp.*", ".*.replace.*" },
-            QDir::Files | QDir::Hidden).isEmpty())
-    {
-        fail("initial generation left temporary files behind");
+    if (!hidden_leftovers(dir).isEmpty()) {
+        fail("initial generation left working files behind");
     }
 
+    const QByteArray original_bytes = read_all(output_path);
     auto exists = briefutil::generate_brief_pdf(request);
     if (exists.ok || exists.code != briefutil::Generation_result_code::OUTPUT_EXISTS) {
         fail("existing output should be rejected without overwrite");
+    }
+    if (read_all(output_path) != original_bytes) {
+        fail("a rejected generation must leave the existing PDF byte-identical");
+    }
+    if (!hidden_leftovers(dir).isEmpty()) {
+        fail("rejected generation left working files behind");
+    }
+
+    // Staging files abandoned by a run that died before publishing must be
+    // reclaimed by the next run rather than accumulating in the user's
+    // output directory.
+    for (const char* abandoned : { ".letter.pdf.tmp.dead1", ".letter.pdf.tmp.dead2" }) {
+        QFile stale(dir.filePath(QString::fromLatin1(abandoned)));
+        if (!stale.open(QIODevice::WriteOnly)) {
+            fail("could not create an abandoned staging file");
+        }
+        stale.write("stale", 5);
     }
 
     request.overwrite_output = true;
@@ -88,11 +129,13 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const auto leftovers = dir.entryList(
-        { "*.tmp.*", "*.replace.*", ".*.tmp.*", ".*.replace.*" },
-        QDir::Files | QDir::Hidden);
+    const auto leftovers = hidden_leftovers(dir);
     if (!leftovers.isEmpty()) {
-        fail("overwrite path left temporary files behind");
+        std::fprintf(
+            stderr,
+            "FAIL: overwrite path left working files behind: %s\n",
+            leftovers.join(", ").toUtf8().constData());
+        return 1;
     }
 
     auto invalid = request;

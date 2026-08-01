@@ -5,13 +5,27 @@
 
 #include <QDate>
 #include <QDateTime>
-#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLockFile>
+#include <QRandomGenerator>
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace briefutil {
 
@@ -116,6 +130,73 @@ static Generation_result failure(
     return result;
 }
 
+// How long a run waits for another briefutil run that is already publishing
+// the same target. Generation takes well under a second, so a wait this long
+// only happens when the other run is itself blocked, and failing then is more
+// useful than blocking the caller indefinitely.
+static constexpr int k_target_lock_timeout_ms = 30000;
+
+enum class Publish_outcome
+{
+    PUBLISHED,
+    TARGET_EXISTS,
+    FAILED,
+};
+
+// Hands the staged file over to its final name in one indivisible step.
+//
+// `replace_existing` selects the replacing OS primitive. Without it the
+// platform's non-replacing rename IS the exclusion test, so there is no window
+// between deciding that the target is absent and publishing into it. Neither
+// path moves the target out of the way first, so no crash between two
+// statements can leave the target missing.
+static Publish_outcome publish_staged_file(
+    const QString&  staged_path,
+    const QString&  target_path,
+    bool            replace_existing,
+    std::string*    detail)
+{
+    if (!replace_existing) {
+        QFile staged(staged_path);
+        if (staged.rename(target_path)) {
+            return Publish_outcome::PUBLISHED;
+        }
+        // QFile::rename never overwrites, so a target that is present after
+        // the attempt is the reason the attempt failed.
+        if (QFileInfo::exists(target_path)) {
+            return Publish_outcome::TARGET_EXISTS;
+        }
+        if (detail) {
+            *detail = staged.errorString().toStdString();
+        }
+        return Publish_outcome::FAILED;
+    }
+
+#if defined(_WIN32)
+    // MOVEFILE_COPY_ALLOWED is deliberately omitted: a copy is not atomic, and
+    // the staging file always lives in the target's own directory.
+    const std::wstring staged_native = staged_path.toStdWString();
+    const std::wstring target_native = target_path.toStdWString();
+    if (MoveFileExW(staged_native.c_str(), target_native.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+        return Publish_outcome::PUBLISHED;
+    }
+    if (detail) {
+        *detail = "Win32 error " + std::to_string(static_cast<unsigned long>(GetLastError()));
+    }
+#else
+    if (std::rename(
+            QFile::encodeName(staged_path).constData(),
+            QFile::encodeName(target_path).constData()) == 0)
+    {
+        return Publish_outcome::PUBLISHED;
+    }
+    if (detail) {
+        *detail = std::strerror(errno);
+    }
+#endif
+    return Publish_outcome::FAILED;
+}
+
 static std::string make_output_path(const Generation_request& request)
 {
     if (!request.output_path.empty()) {
@@ -175,9 +256,10 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             "The letter date is not a valid calendar date.");
     }
 
-    const std::string output_path = make_output_path(request);
-    QFileInfo output_info(QString::fromStdString(output_path));
-    QDir output_dir = output_info.absoluteDir();
+    const std::string output_path   = make_output_path(request);
+    const QString     q_output_path = QString::fromStdString(output_path);
+    QFileInfo         output_info(q_output_path);
+    QDir              output_dir    = output_info.absoluteDir();
     if (!output_dir.exists() && !output_dir.mkpath(".")) {
         return
             failure(
@@ -186,17 +268,48 @@ Generation_result generate_brief_pdf(const Generation_request& request)
                 output_dir.absolutePath().toStdString()
             );
     }
-    if (output_info.exists() && !request.overwrite_output) {
+
+    // Serialize every run that publishes this target, across processes. The
+    // lock is what makes the existence check and the staging sweep below exact
+    // instead of a guess: while it is held no other briefutil run can create,
+    // replace or stage this target. A stale lock time of zero means a lock is
+    // only ever reclaimed once its owning process is provably gone, so a long
+    // render is never robbed of its lock.
+    const QString staging_prefix = QStringLiteral(".") + output_info.fileName() + ".tmp.";
+    const QString lock_path      = output_dir.filePath(
+        QStringLiteral(".") + output_info.fileName() + ".lock");
+
+    QLockFile target_lock(lock_path);
+    target_lock.setStaleLockTime(0);
+    if (!target_lock.tryLock(k_target_lock_timeout_ms)) {
+        return
+            failure(
+                Generation_result_code::OUTPUT_ERROR,
+                "Another briefutil run is already writing this PDF.",
+                output_path
+            );
+    }
+
+    // Reclaim staging files left behind by runs that died before publishing.
+    // Holding the lock is what makes this safe: no live run owns any of them.
+    for (const auto& entry : output_dir.entryList(QDir::Files | QDir::Hidden)) {
+        if (entry.startsWith(staging_prefix)) {
+            QFile::remove(output_dir.filePath(entry));
+        }
+    }
+
+    if (!request.overwrite_output && QFileInfo::exists(q_output_path)) {
         return failure(
             Generation_result_code::OUTPUT_EXISTS,
             "The output PDF already exists.",
             output_path);
     }
 
-    const std::string temp_path = output_dir.filePath(
-        QString(".") + output_info.fileName() + ".tmp." + QString::number(QCoreApplication::applicationPid()))
-        .toStdString();
-    QFile::remove(QString::fromStdString(temp_path));
+    // A unique staging name keeps two runs off each other's partial output even
+    // if the lock file itself lives on a filesystem that cannot honour it.
+    const QString q_temp_path = output_dir.filePath(
+        staging_prefix + QString::number(QRandomGenerator::global()->generate64(), 16));
+    const std::string temp_path = q_temp_path.toStdString();
 
     Letter_input input;
     input.recipient = request.recipient;
@@ -219,7 +332,7 @@ Generation_result generate_brief_pdf(const Generation_request& request)
         loc);
 
     if (!render_result.ok) {
-        QFile::remove(QString::fromStdString(temp_path));
+        QFile::remove(q_temp_path);
         return
             failure(
                 Generation_result_code::RENDER_ERROR,
@@ -228,46 +341,27 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             );
     }
 
-    const QString q_temp_path   = QString::fromStdString(temp_path);
-    const QString q_output_path = QString::fromStdString(output_path);
-    QString backup_path;
-    if (!request.overwrite_output && QFileInfo::exists(q_output_path)) {
-        QFile::remove(q_temp_path);
-        return failure(
-            Generation_result_code::OUTPUT_EXISTS,
-            "The output PDF already exists.",
-            output_path);
-    }
-    if (request.overwrite_output && QFileInfo::exists(q_output_path)) {
-        backup_path = output_dir.filePath(
-            QString(".") + output_info.fileName() + ".replace."
-            + QString::number(QCoreApplication::applicationPid()));
-        QFile::remove(backup_path);
-        if (!QFile::rename(q_output_path, backup_path)) {
-            QFile::remove(q_temp_path);
-            return
-                failure(
-                    Generation_result_code::OUTPUT_ERROR,
-                    "Could not prepare the existing PDF for replacement.",
-                    output_path
-                );
-        }
-    }
+    std::string          publish_detail;
+    const Publish_outcome published = publish_staged_file(
+        q_temp_path,
+        q_output_path,
+        request.overwrite_output,
+        &publish_detail);
 
-    if (!QFile::rename(q_temp_path, q_output_path)) {
-        if (!backup_path.isEmpty()) {
-            QFile::rename(backup_path, q_output_path);
+    if (published != Publish_outcome::PUBLISHED) {
+        QFile::remove(q_temp_path);
+        if (published == Publish_outcome::TARGET_EXISTS) {
+            return failure(
+                Generation_result_code::OUTPUT_EXISTS,
+                "The output PDF already exists.",
+                output_path);
         }
-        QFile::remove(QString::fromStdString(temp_path));
         return
             failure(
                 Generation_result_code::OUTPUT_ERROR,
                 "Could not move the generated PDF into place.",
-                output_path
+                publish_detail.empty() ? output_path : output_path + ": " + publish_detail
             );
-    }
-    if (!backup_path.isEmpty()) {
-        QFile::remove(backup_path);
     }
 
     Generation_result result;

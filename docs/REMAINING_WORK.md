@@ -97,20 +97,15 @@ briefutil::generate_brief_pdf(const briefutil::Generation_request& request);
 - Keep `cli/main.cpp` as a thin frontend over `generate_brief_pdf` (unchanged).
   After this change both frontends share one generator.
 
-**Fold in #11 (temp-file naming) here.** `brief_service.cpp` builds the
-pre-rename temp path from the process id only. Two concurrent in-process
-generations would share a pid and could collide, so switch to a random/uuid
-suffix or `QTemporaryFile` in the output directory as part of this change.
-(Today, with one process per CLI call and a serialized GUI, this is latent.)
-
 **Risks.**
 
 - Threading correctness: Qt object thread affinity, cross-thread signal/slot
   connections, worker lifecycle. These compile cleanly but fail at runtime, so
   the app must be run to verify.
 - Confirm `generate_brief_pdf` and the mark2haru render path are safe to call
-  off the main thread and have no shared mutable state; until #11 lands, keep
-  generations serialized (the existing busy flag).
+  off the main thread and have no shared mutable state. Publishing the output
+  file is already serialized per output target by an interprocess lock, and
+  each run stages into a uniquely named file.
 
 **Acceptance.**
 
