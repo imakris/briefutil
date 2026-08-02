@@ -14,6 +14,7 @@
 #include <QStandardPaths>
 
 #include <array>
+#include <cstddef>
 #include <cstring>
 
 namespace briefutil {
