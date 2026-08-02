@@ -3,8 +3,11 @@
 #include "briefutil/document_model.h"
 #include "briefutil/letter_layout_spec.h"
 #include "briefutil/localization.h"
+#include "briefutil/pdf_measurement.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/typography_config.h"
+
+#include <memory>
 #include <string>
 
 
@@ -24,6 +27,13 @@ struct Build_letter_result
 {
     Document       doc;
     std::string    error; // non-empty if generation failed
+
+    // The font metrics the document was laid out against. render_pdf takes it
+    // so the glyphs are drawn with the metrics that positioned them, and so a
+    // letter loads its font family once rather than once per phase. Null when
+    // error is set.
+    std::shared_ptr<const Pdf_measurement>
+                   measurement;
 };
 
 Build_letter_result build_letter(

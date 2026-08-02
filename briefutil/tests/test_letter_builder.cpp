@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
         }
         std::printf("[OK] Letter built: %zu page(s)\n", doc.pages.size());
 
-        auto rr = render_pdf(doc, output);
+        auto rr = render_pdf(doc, output, *br.measurement);
         if (!rr.ok) {
             std::fprintf(stderr, "FAIL: render_pdf: %s (%s)\n",
                 rr.message.c_str(), rr.detail.c_str());
@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
         }
 
         std::string mp_output = std::string(output) + ".multipage.pdf";
-        auto        rr        = render_pdf(doc, mp_output);
+        auto        rr        = render_pdf(doc, mp_output, *br.measurement);
         if (!rr.ok) {
             std::fprintf(stderr, "FAIL: render multi-page: %s\n", rr.detail.c_str());
             return 1;
@@ -241,14 +241,14 @@ int main(int argc, char* argv[])
         const float default_body_width_mm = default_layout.page_width_mm
             - default_layout.margin_left_mm
             - default_layout.margin_right_mm;
-        const auto first_footer_metrics = measure_text(
+        const auto first_footer_metrics = br.measurement->measure_text(
             fx.profile.footer_lines[0],
             Font_id::SANS,
             default_typo.footer_text_size_pt,
             default_typo.footer_text_size_pt,
             default_body_width_mm,
             true);
-        const auto second_footer_metrics = measure_text(
+        const auto second_footer_metrics = br.measurement->measure_text(
             fx.profile.footer_lines[1],
             Font_id::SANS,
             default_typo.footer_text_size_pt,
@@ -410,7 +410,7 @@ int main(int argc, char* argv[])
         }
 
         std::string commercial_output = std::string(output) + ".commercial.pdf";
-        auto        rr                = render_pdf(doc, commercial_output);
+        auto        rr                = render_pdf(doc, commercial_output, *br.measurement);
         if (!rr.ok) {
             std::fprintf(stderr, "FAIL: render commercial: %s\n", rr.detail.c_str());
             return 1;
@@ -611,7 +611,7 @@ int main(int argc, char* argv[])
         auto rr = render_pdf(
             br.doc,
             std::string(output) + ".image.pdf",
-            default_font_family(),
+            *br.measurement,
             default_localization());
         if (!rr.ok) {
             std::fprintf(
@@ -1225,7 +1225,7 @@ int main(int argc, char* argv[])
         }
 
         const auto typo = scaled_typography(theme.typo);
-        const auto subject_lines = wrap_text(
+        const auto subject_lines = br.measurement->wrap_text(
             input.subject,
             Font_id::SANS_BOLD,
             typo.body_size_pt,

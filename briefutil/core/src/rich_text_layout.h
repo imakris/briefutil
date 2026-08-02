@@ -2,6 +2,7 @@
 
 #include "briefutil/document_model.h"
 #include "briefutil/localization.h"
+#include "briefutil/pdf_measurement.h"
 #include "briefutil/typography_config.h"
 
 #include <mark2haru/markdown.h>
@@ -19,12 +20,16 @@
 
 struct Layout_params
 {
-    float                                  left_mm;
-    float                                  width_mm;
+    // Every measurement the body layout makes, tables included, goes through
+    // this one instance, so the whole document is placed against a single set
+    // of loaded font metrics. It must be ready(): the caller reports an
+    // unloadable font family before it lays anything out.
+    const Pdf_measurement&                 measurement;
+    float                                  left_mm           = 0;
+    float                                  width_mm          = 0;
     color_t                                body_color        = { 0, 0, 0 };
     std::string                            profile_dir;
     typography_config_t                    typo;
-    Font_family_config                     fonts             = default_font_family();
     Localization                           loc;
 };
 

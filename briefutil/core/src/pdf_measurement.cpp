@@ -10,67 +10,15 @@
 
 
 // ============================================================================
-// Measurement cache
+// Measurement context
 // ============================================================================
 
-struct Pdf_measure_context
+Pdf_measurement::Pdf_measurement(const Font_family_config& fonts)
 {
-    std::shared_ptr<const mark2haru::Measurement_context>
-                       m_metrics;
-    Font_family_config m_current_fc;
-    std::string        m_last_error;
-
-    bool init(const Font_family_config& fc)
-    {
-        m_last_error.clear();
-        m_metrics = make_mark2haru_measurement_context(fc, &m_last_error);
-        if (!m_metrics) {
-            return false;
-        }
-        m_current_fc = fc;
-        return true;
+    m_metrics = make_mark2haru_measurement_context(fonts, &m_error);
+    if (!m_metrics && m_error.empty()) {
+        m_error = "Failed to initialize the PDF measurement context.";
     }
-
-    bool ready() const
-    {
-        return m_metrics && m_metrics->loaded();
-    }
-};
-
-static Pdf_measure_context& get_measure_context(
-    const Font_family_config&  fc,
-    std::string*               detail = nullptr)
-{
-    static Pdf_measure_context ctx;
-
-    bool need_init = !ctx.ready();
-    if (!need_init && fc != ctx.m_current_fc) {
-        need_init = true;
-    }
-
-    if (need_init) {
-        ctx.init(fc);
-        if (!ctx.ready() && detail) {
-            *detail = ctx.m_last_error.empty()
-                ? "Failed to initialize the PDF measurement context."
-                : ctx.m_last_error;
-        }
-    }
-
-    return ctx;
-}
-
-
-// ============================================================================
-// Public readiness check
-// ============================================================================
-
-bool pdf_measurement_ready(
-    const Font_family_config&  fonts,
-    std::string*               detail)
-{
-    auto& ctx = get_measure_context(fonts, detail);
-    return ctx.ready();
 }
 
 
@@ -78,17 +26,15 @@ bool pdf_measurement_ready(
 // Text measurement
 // ============================================================================
 
-text_metrics_t measure_text(
+text_metrics_t Pdf_measurement::measure_text(
     const std::string&         text,
     Font_id                    font,
     float                      size_pt,
     float                      leading_pt,
     float                      max_width_mm,
-    bool                       wrap,
-    const Font_family_config&  fonts)
+    bool                       wrap) const
 {
-    auto& ctx = get_measure_context(fonts);
-    if (!ctx.ready()) {
+    if (!ready()) {
         return {};
     }
 
@@ -97,7 +43,7 @@ text_metrics_t measure_text(
 
     std::vector<std::string> lines;
     if (wrap) {
-        lines = wrap_mark2haru_text(*ctx.m_metrics, text, font, size_pt, max_width_mm);
+        lines = wrap_mark2haru_text(*m_metrics, text, font, size_pt, max_width_mm);
     }
     else {
         lines = split_lines(text);
@@ -107,7 +53,7 @@ text_metrics_t measure_text(
     for (const auto& line : lines) {
         max_w = std::max(
             max_w,
-            static_cast<float>(ctx.m_metrics->measure_text_width(pdf_font, line, size_pt)));
+            static_cast<float>(m_metrics->measure_text_width(pdf_font, line, size_pt)));
     }
 
     const int line_count = static_cast<int>(lines.size());
@@ -117,18 +63,16 @@ text_metrics_t measure_text(
     return { max_w, height, line_count };
 }
 
-std::vector<std::string> wrap_text(
+std::vector<std::string> Pdf_measurement::wrap_text(
     const std::string&         text,
     Font_id                    font,
     float                      size_pt,
-    float                      max_width_mm,
-    const Font_family_config&  fonts)
+    float                      max_width_mm) const
 {
-    auto& ctx = get_measure_context(fonts);
-    if (!ctx.ready()) {
+    if (!ready()) {
         return {};
     }
-    return wrap_mark2haru_text(*ctx.m_metrics, text, font, size_pt, max_width_mm);
+    return wrap_mark2haru_text(*m_metrics, text, font, size_pt, max_width_mm);
 }
 
 

@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
     auto rr = render_pdf(
         br.doc,
         output,
-        default_font_family(),
+        *br.measurement,
         default_localization());
     if (!rr.ok) {
         std::fprintf(

@@ -22,9 +22,15 @@ int main(int argc, char* argv[])
 {
     const char* output = argc > 1 ? argv[1] : "test_renderer_output.pdf";
 
+    const Pdf_measurement measurement(default_font_family());
+    if (!measurement.ready()) {
+        std::fprintf(stderr, "FAIL: %s\n", measurement.error().c_str());
+        return 1;
+    }
+
     // -- Test 1: text measurement --
     {
-        auto m = measure_text("Hello World", Font_id::SANS, 10, 12, 100, false);
+        auto m = measurement.measure_text("Hello World", Font_id::SANS, 10, 12, 100, false);
         std::printf(
             "measure_text: width=%.1fpt height=%.1fpt lines=%d\n",
             m.width_pt,
@@ -38,7 +44,7 @@ int main(int argc, char* argv[])
 
     // -- Test 2: text wrapping --
     {
-        auto lines = wrap_text(
+        auto lines = measurement.wrap_text(
             "This is a fairly long line of text that should wrap across "
             "multiple lines when constrained to a narrow column width.",
             Font_id::SANS, 10, 50);
@@ -51,7 +57,7 @@ int main(int argc, char* argv[])
 
     // -- Test 3: explicit newline handling --
     {
-        auto lines = wrap_text(
+        auto lines = measurement.wrap_text(
             "Line one\nLine two\n\nLine four",
             Font_id::SANS,
             10,
@@ -92,7 +98,7 @@ int main(int argc, char* argv[])
         });
 
         // Separator - length matched to return-address text
-        auto  ret_m      = measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
+        auto  ret_m      = measurement.measure_text(return_addr, Font_id::SANS, 8, 0, 200, false);
         float sep_end_mm = 25.4f + ret_m.width_pt / (72.0f / 25.4f);
         p.elements.push_back(line_segment_t{
             25.4f, 54.61f, sep_end_mm, 54.61f, 0.5f, k_black
@@ -201,7 +207,7 @@ int main(int argc, char* argv[])
     auto result = render_pdf(
         doc,
         output,
-        default_font_family(),
+        measurement,
         default_localization());
 
     if (!result.ok) {

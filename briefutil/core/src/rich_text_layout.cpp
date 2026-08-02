@@ -1,6 +1,5 @@
 #include "rich_text_layout.h"
 #include "briefutil/pdf_measurement.h"
-#include "pdf_mark2haru_support.h"
 
 #include <mark2haru/table_layout.h>
 
@@ -120,12 +119,12 @@ static bool is_inline_breakable_whitespace(char c)
 
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<mark2haru::Inline_run>&  runs,
+    const Pdf_measurement&                     measurement,
     float                                      left_mm,
     float                                      max_width_mm,
     float                                      size_pt,
     float                                      lead_pt,
-    color_t                                    color,
-    const Font_family_config&                  fonts = default_font_family())
+    color_t                                    color)
 {
     std::vector<Laid_out_line> lines;
     float line_h_mm = pt_to_mm(lead_pt);
@@ -136,7 +135,7 @@ static std::vector<Laid_out_line> layout_runs(
     auto space_width_mm_for = [&](Font_id fid) -> float {
         int idx = (int)fid;
         if (space_widths_mm[idx] < 0) {
-            auto sp_m = measure_text(" ", fid, size_pt, 0, 1000, false, fonts);
+            auto sp_m = measurement.measure_text(" ", fid, size_pt, 0, 1000, false);
             space_widths_mm[idx] = pt_to_mm(sp_m.width_pt);
         }
         return space_widths_mm[idx];
@@ -154,7 +153,7 @@ static std::vector<Laid_out_line> layout_runs(
         if (it != word_width_cache.end()) {
             return it->second;
         }
-        auto  m        = measure_text(word, fid, size_pt, 0, 1000, false, fonts);
+        auto  m        = measurement.measure_text(word, fid, size_pt, 0, 1000, false);
         float width_mm = pt_to_mm(m.width_pt);
         word_width_cache.emplace(std::move(key), width_mm);
         return width_mm;
@@ -471,12 +470,12 @@ Layout_result layout_body(
                 cursor.ensure_space(pt_to_mm(params.typo.body_lead_pt));
                 auto lines = layout_runs(
                     b.runs,
+                    params.measurement,
                     params.left_mm,
                     params.width_mm,
                     params.typo.body_size_pt,
                     params.typo.body_lead_pt,
-                    params.body_color,
-                    params.fonts);
+                    params.body_color);
                 cursor.emit_lines(lines);
                 cursor.m_y_mm += params.typo.paragraph_space_mm;
 
@@ -492,12 +491,12 @@ Layout_result layout_body(
 
                 auto lines = layout_runs(
                     b.runs,
+                    params.measurement,
                     params.left_mm,
                     params.width_mm,
                     hsize,
                     hlead,
-                    params.body_color,
-                    params.fonts);
+                    params.body_color);
 
                 // Make heading runs bold
                 for (auto& line : lines) {
@@ -543,12 +542,12 @@ Layout_result layout_body(
                     // Item content
                     auto lines = layout_runs(
                         b.items[idx].runs,
+                        params.measurement,
                         item_left,
                         item_width,
                         params.typo.body_size_pt,
                         params.typo.body_lead_pt,
-                        params.body_color,
-                        params.fonts);
+                        params.body_color);
                     cursor.emit_lines(lines);
                     cursor.m_y_mm += params.typo.list_item_space_mm;
                 }
@@ -608,14 +607,7 @@ Layout_result layout_body(
             }
             else
             if constexpr (std::is_same_v<Block_type, mark2haru::Table_block>) {
-                std::string detail;
-                const auto metrics = make_mark2haru_measurement_context(params.fonts, &detail);
-                if (!metrics) {
-                    result.error = detail.empty()
-                        ? "PDF measurement is unavailable."
-                        : detail;
-                    return;
-                }
+                const auto& metrics = params.measurement.context();
 
                 mark2haru::table_style_t table_style;
                 table_style.text_size_pt    = params.typo.body_size_pt;

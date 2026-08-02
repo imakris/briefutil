@@ -16,7 +16,7 @@ static float pt_y(float y_mm) { return mm_to_pt(y_mm); }
 
 struct Render_context
 {
-    const Font_family_config&  fonts;
+    const Pdf_measurement&     measurement;
     const Localization&        loc;
 };
 
@@ -27,12 +27,11 @@ static bool render(
 {
     std::vector<std::string> lines;
     if (tb.wrap) {
-        lines = wrap_text(
+        lines = ctx.measurement.wrap_text(
             tb.text,
             tb.font,
             tb.size_pt,
-            tb.width_mm,
-            ctx.fonts);
+            tb.width_mm);
     }
     else {
         lines = split_lines(tb.text);
@@ -137,27 +136,22 @@ static bool render(
 static Render_result render_pdf_mark2haru_impl(
     const Document&            doc,
     const std::string&         output_path,
-    const Font_family_config&  fonts,
+    const Pdf_measurement&     measurement,
     const Localization&        loc)
 {
-    std::string detail;
-    auto metrics = make_mark2haru_measurement_context(fonts, &detail);
-    if (!metrics) {
-        return { false, "", loc.error_pdf_create_failed,
-                 detail.empty()
-                     ? "Failed to initialize the mark2haru measurement context."
-                     : detail };
+    if (!measurement.ready()) {
+        return { false, "", loc.error_pdf_create_failed, measurement.error() };
     }
 
     mark2haru::Pdf_writer writer(
         mm_to_pt(doc.page_width_mm),
         mm_to_pt(doc.page_height_mm),
-        metrics);
+        measurement.context());
     if (!writer.fonts_loaded()) {
         return { false, "", loc.error_pdf_create_failed, writer.font_error() };
     }
 
-    const Render_context ctx{ fonts, loc };
+    const Render_context ctx{ measurement, loc };
 
     bool first_page = true;
     for (const auto& page_def : doc.pages) {
@@ -188,8 +182,8 @@ static Render_result render_pdf_mark2haru_impl(
 Render_result render_pdf(
     const Document&            doc,
     const std::string&         output_path,
-    const Font_family_config&  fonts,
+    const Pdf_measurement&     measurement,
     const Localization&        loc)
 {
-    return render_pdf_mark2haru_impl(doc, output_path, fonts, loc);
+    return render_pdf_mark2haru_impl(doc, output_path, measurement, loc);
 }
