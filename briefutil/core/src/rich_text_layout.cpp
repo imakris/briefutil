@@ -1,7 +1,9 @@
 #include "rich_text_layout.h"
 #include "briefutil/pdf_measurement.h"
 
+#include <mark2haru/font_context.h>
 #include <mark2haru/table_layout.h>
+#include <mark2haru/text_layout.h>
 
 #include <algorithm>
 #include <climits>
@@ -52,17 +54,18 @@ static int saturating_list_marker_number(int start_number, size_t item_index)
 
 
 // ============================================================================
-// Inline style to Font_id mapping
+// mark2haru font slot to Font_id mapping
 // ============================================================================
 
-static Font_id font_for_style(mark2haru::Inline_style style)
+static Font_id font_from_mark2haru(mark2haru::Pdf_font font)
 {
-    switch (style) {
-        case mark2haru::Inline_style::BOLD:        return Font_id::SANS_BOLD;
-        case mark2haru::Inline_style::ITALIC:      return Font_id::SANS_ITALIC;
-        case mark2haru::Inline_style::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
-        case mark2haru::Inline_style::CODE:        return Font_id::MONO;
-        default:                                   return Font_id::SANS;
+    switch (font) {
+        case mark2haru::Pdf_font::BOLD:        return Font_id::SANS_BOLD;
+        case mark2haru::Pdf_font::ITALIC:      return Font_id::SANS_ITALIC;
+        case mark2haru::Pdf_font::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
+        case mark2haru::Pdf_font::MONO:        return Font_id::MONO;
+        case mark2haru::Pdf_font::REGULAR:
+        default:                               return Font_id::SANS;
     }
 }
 
@@ -91,31 +94,11 @@ struct Laid_out_line
 // ============================================================================
 // Inline layout - break text runs into positioned lines
 //
-// Operates on a flat list of inline runs. Wraps greedily within max_width_mm.
-// Each run's text may contain newlines (hard line breaks).
+// The line breaking itself belongs to mark2haru, which also wraps the table
+// cells that share a page with this text, so both break in the same places.
+// What is local here is the adaptation: millimetre coordinates, the body
+// colour, and the font slot the briefutil renderer draws with.
 // ============================================================================
-
-// Advance past one UTF-8 code point starting at byte index i. Malformed or
-// truncated sequences advance by a single byte so progress is always made.
-static size_t utf8_advance(const std::string& s, size_t i)
-{
-    // Precondition: i < s.size(); callers iterate strictly within the string.
-    const unsigned char c = (unsigned char)s[i];
-    size_t len = 1;
-    if ((c & 0x80) == 0x00) { len = 1; } else
-    if ((c & 0xE0) == 0xC0) { len = 2; } else
-    if ((c & 0xF0) == 0xE0) { len = 3; } else
-    if ((c & 0xF8) == 0xF0) { len = 4; }
-    if (i + len > s.size()) {
-        len = s.size() - i;
-    }
-    return i + len;
-}
-
-static bool is_inline_breakable_whitespace(char c)
-{
-    return c == ' ' || c == '\t';
-}
 
 static std::vector<Laid_out_line> layout_runs(
     const std::vector<mark2haru::Inline_run>&  runs,
@@ -126,187 +109,49 @@ static std::vector<Laid_out_line> layout_runs(
     float                                      lead_pt,
     color_t                                    color)
 {
-    std::vector<Laid_out_line> lines;
-    float line_h_mm = pt_to_mm(lead_pt);
+    // The engine measures every token it places, and prose repeats tokens
+    // heavily, so the measurer memoises. One call wraps at one size, so the
+    // font and the text are the whole key.
+    std::unordered_map<std::string, double> width_cache;
 
-    // Cache space widths per Font_id so repeated words do not re-walk the
-    // PDF font metrics.
-    float space_widths_mm[5] = { -1, -1, -1, -1, -1 };
-    auto space_width_mm_for = [&](Font_id fid) -> float {
-        int idx = (int)fid;
-        if (space_widths_mm[idx] < 0) {
-            auto sp_m = measurement.measure_text(" ", fid, size_pt, 0, 1000, false);
-            space_widths_mm[idx] = pt_to_mm(sp_m.width_pt);
-        }
-        return space_widths_mm[idx];
-    };
-
-    // Cache repeated word measurements per (font, word) pair so dense prose
-    // and tables do not re-walk the font metrics for the same token.
-    std::unordered_map<std::string, float> word_width_cache;
-    auto word_width_mm = [&](Font_id fid, const std::string& word) -> float {
-        std::string key = std::to_string((int)fid);
+    auto measure = [&](mark2haru::Pdf_font font, const std::string& text, double pt) {
+        std::string key = std::to_string(static_cast<int>(font));
         key.push_back(':');
-        key.append(word);
+        key.append(text);
 
-        auto it = word_width_cache.find(key);
-        if (it != word_width_cache.end()) {
-            return it->second;
+        const auto cached = width_cache.find(key);
+        if (cached != width_cache.end()) {
+            return cached->second;
         }
-        auto  m        = measurement.measure_text(word, fid, size_pt, 0, 1000, false);
-        float width_mm = pt_to_mm(m.width_pt);
-        word_width_cache.emplace(std::move(key), width_mm);
-        return width_mm;
+        const double width = measurement.context()->measure_text_width(font, text, pt);
+        width_cache.emplace(std::move(key), width);
+        return width;
     };
 
-    // Current line being built.
-    // We accumulate consecutive words of the same style into one span
-    // so that spaces are real characters in the PDF, not positional gaps.
-    std::vector<Positioned_span> current_spans;
-    float cursor_x_mm = left_mm;
+    const auto wrapped = mark2haru::text_layout::wrap_runs(
+        runs,
+        mm_to_pt(max_width_mm),
+        size_pt,
+        lead_pt,
+        measure);
 
-    // The span currently being accumulated (same style, same line)
-    Positioned_span building_span     = { left_mm, "", Font_id::SANS, size_pt, color };
-    bool            has_building_span = false;
-
-    auto commit_building_span = [&]() {
-        if (has_building_span && !building_span.text.empty()) {
-            current_spans.push_back(building_span);
+    std::vector<Laid_out_line> lines;
+    lines.reserve(wrapped.size());
+    for (const auto& wrapped_line : wrapped) {
+        Laid_out_line line;
+        line.height_mm = pt_to_mm(wrapped_line.height_pt);
+        line.spans.reserve(wrapped_line.spans.size());
+        for (const auto& span : wrapped_line.spans) {
+            line.spans.push_back({
+                left_mm + pt_to_mm(span.x_offset_pt),
+                span.text,
+                font_from_mark2haru(mark2haru::text_layout::font_for(span.style)),
+                size_pt,
+                color
+            });
         }
-        has_building_span = false;
-        building_span.text.clear();
-    };
-
-    auto flush_line = [&]() {
-        commit_building_span();
-        if (!current_spans.empty()) {
-            lines.push_back({ std::move(current_spans), line_h_mm });
-            current_spans.clear();
-        }
-        else {
-            lines.push_back({ {}, line_h_mm });
-        }
-        cursor_x_mm = left_mm;
-    };
-
-    // Place a word that already fits on a line, preceded by a single space
-    // only when the source had whitespace before it and we are not at the
-    // start of a line. Spaces are never invented between styled runs that were
-    // adjacent in the source, so "foo**bar**" stays "foobar".
-    auto place_word = [&](Font_id fid, const std::string& word, bool space_before) {
-        const float word_w_mm  = word_width_mm(fid, word);
-        float       space_w_mm = (space_before && cursor_x_mm > left_mm)
-            ? space_width_mm_for(fid) : 0.0f;
-
-        // Line break if the word (plus any separating space) doesn't fit.
-        if (cursor_x_mm + space_w_mm + word_w_mm > left_mm + max_width_mm &&
-            cursor_x_mm                          > left_mm)
-        {
-            flush_line();
-            space_w_mm = 0.0f;
-        }
-
-        const bool with_space = space_w_mm > 0.0f;
-        if (!has_building_span || building_span.font != fid) {
-            commit_building_span();
-            building_span.x_mm    = cursor_x_mm;
-            building_span.font    = fid;
-            building_span.size_pt = size_pt;
-            building_span.color   = color;
-            building_span.text    = with_space ? " " + word : word;
-            has_building_span     = true;
-        }
-        else {
-            building_span.text += with_space ? " " + word : word;
-        }
-
-        cursor_x_mm += space_w_mm + word_w_mm;
-    };
-
-    // Split a token wider than the whole line into pieces that each fit,
-    // breaking at UTF-8 code-point boundaries so a long URL or path wraps
-    // instead of overrunning the right margin.
-    auto split_to_width = [&](Font_id fid, const std::string& word) -> std::vector<std::string> {
-        std::vector<std::string> pieces;
-        size_t start = 0;
-        while (start < word.size()) {
-            size_t fit_end = utf8_advance(word, start); // always take >= 1 code point
-            while (fit_end < word.size()) {
-                const size_t next = utf8_advance(word, fit_end);
-                if (word_width_mm(fid, word.substr(start, next - start)) > max_width_mm) {
-                    break;
-                }
-                fit_end = next;
-            }
-            pieces.push_back(word.substr(start, fit_end - start));
-            start = fit_end;
-        }
-        return pieces;
-    };
-
-    // Place a word, breaking it across lines when it is wider than the line.
-    auto emit_word = [&](Font_id fid, const std::string& word, bool space_before) {
-        if (word_width_mm(fid, word) <= max_width_mm) {
-            place_word(fid, word, space_before);
-            return;
-        }
-        const std::vector<std::string> pieces = split_to_width(fid, word);
-        for (size_t i = 0; i < pieces.size(); ++i) {
-            if (i > 0) {
-                flush_line();
-            }
-            place_word(fid, pieces[i], i == 0 ? space_before : false);
-        }
-    };
-
-    // Tracks whether source whitespace has been seen since the last placed
-    // word. It carries across run boundaries so the rendered spacing follows
-    // the original Markdown instead of being synthesized between every word.
-    bool pending_space = false;
-
-    for (const auto& run : runs) {
-        const Font_id fid = font_for_style(run.style);
-
-        // Split run text on explicit newlines; everything else is words
-        // separated by breakable whitespace, recorded as break points.
-        size_t pos = 0;
-        while (pos <= run.text.size()) {
-            const size_t nl      = run.text.find('\n', pos);
-            const size_t seg_end = (nl == std::string::npos) ? run.text.size() : nl;
-
-            size_t p = pos;
-            while (p < seg_end) {
-                if (is_inline_breakable_whitespace(run.text[p])) {
-                    pending_space = true;
-                    ++p;
-                    continue;
-                }
-                size_t word_end = p;
-                while (word_end < seg_end &&
-                       !is_inline_breakable_whitespace(run.text[word_end]))
-                {
-                    ++word_end;
-                }
-                emit_word(fid, run.text.substr(p, word_end - p), pending_space);
-                pending_space = false;
-                p = word_end;
-            }
-
-            if (nl == std::string::npos) {
-                break;
-            }
-            flush_line();
-            pending_space = false;
-            pos = nl + 1;
-        }
+        lines.push_back(std::move(line));
     }
-
-    // Flush remaining content
-    commit_building_span();
-    if (!current_spans.empty()) {
-        flush_line();
-    }
-
     return lines;
 }
 
@@ -370,18 +215,6 @@ struct Page_cursor
     }
 };
 
-
-static Font_id font_from_mark2haru(mark2haru::Pdf_font font)
-{
-    switch (font) {
-        case mark2haru::Pdf_font::BOLD:        return Font_id::SANS_BOLD;
-        case mark2haru::Pdf_font::ITALIC:      return Font_id::SANS_ITALIC;
-        case mark2haru::Pdf_font::BOLD_ITALIC: return Font_id::SANS_BOLD_ITALIC;
-        case mark2haru::Pdf_font::MONO:        return Font_id::MONO;
-        case mark2haru::Pdf_font::REGULAR:
-        default:                               return Font_id::SANS;
-    }
-}
 
 static color_t color_from_mark2haru(const mark2haru::color_t& color)
 {

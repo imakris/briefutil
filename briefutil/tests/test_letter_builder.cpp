@@ -1242,6 +1242,51 @@ int main(int argc, char* argv[])
         std::printf("[OK] Print layout wraps subjects, keeps leading, and deduplicates signer lines\n");
     }
 
+    // -- Test: an unbreakable subject token is broken, not run off the page --
+    {
+        Profile_fixture fx("briefutil_test_long_subject", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: long-subject profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+
+        const auto  layout         = din_5008_form_b();
+        const float body_width_mm  = layout.page_width_mm
+            - layout.margin_left_mm - layout.margin_right_mm;
+        const std::string long_token(400, 'W');
+
+        Letter_input input;
+        input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+        input.subject   = long_token;
+        input.body      = "Body.";
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: long-subject build: %s\n", br.error.c_str());
+            return 1;
+        }
+
+        const auto  typo    = scaled_typography(default_theme().typo);
+        const auto  lines   = br.measurement->wrap_text(
+            long_token, Font_id::SANS_BOLD, typo.body_size_pt, body_width_mm);
+        if (lines.size() < 2) {
+            std::fprintf(stderr,
+                "FAIL: a subject token wider than the column must be broken, got %zu line(s)\n",
+                lines.size());
+            return 1;
+        }
+        for (const auto& line : lines) {
+            const auto metrics = br.measurement->measure_text(
+                line, Font_id::SANS_BOLD, typo.body_size_pt, 0, body_width_mm, false);
+            if (pt_to_mm(metrics.width_pt) > body_width_mm) {
+                std::fprintf(stderr,
+                    "FAIL: subject line is %.1fmm wide in a %.1fmm column\n",
+                    pt_to_mm(metrics.width_pt), body_width_mm);
+                return 1;
+            }
+        }
+        std::printf("[OK] Over-long subject token is broken to fit the column\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

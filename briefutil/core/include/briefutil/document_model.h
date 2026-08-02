@@ -38,28 +38,6 @@ inline std::vector<std::string> split_lines(const std::string& text)
     return lines;
 }
 
-// Invoke fn(word) for each space-separated, non-empty token in s.
-template <typename F>
-inline void for_each_word(const std::string& s, F&& fn)
-{
-    size_t pos = 0;
-    while (pos < s.size()) {
-        while (pos < s.size() && s[pos] == ' ') {
-            pos++;
-        }
-        if (pos >= s.size()) {
-            break;
-        }
-
-        size_t end = s.find(' ', pos);
-        if (end == std::string::npos) {
-            end = s.size();
-        }
-        fn(s.substr(pos, end - pos));
-        pos = end;
-    }
-}
-
 
 struct color_t
 {

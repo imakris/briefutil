@@ -10,6 +10,7 @@
 #include <QString>
 
 #include <mark2haru/font_context.h>
+#include <mark2haru/text_layout.h>
 
 #include <filesystem>
 #include <memory>
@@ -74,16 +75,24 @@ static inline mark2haru::Font_source mark2haru_font_source(const std::string& va
         qstring_to_path(QString::fromUtf8(value.c_str())));
 }
 
-static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
+// briefutil's font slots and mark2haru's inline styles name the same five
+// faces, so text this library wraps without any markup of its own still goes
+// through the shared engine under the style whose face the caller asked for.
+static inline mark2haru::Inline_style mark2haru_style_for(Font_id id)
 {
     switch (id) {
-        case Font_id::SANS:             return mark2haru::Pdf_font::REGULAR;
-        case Font_id::SANS_BOLD:        return mark2haru::Pdf_font::BOLD;
-        case Font_id::SANS_ITALIC:      return mark2haru::Pdf_font::ITALIC;
-        case Font_id::SANS_BOLD_ITALIC: return mark2haru::Pdf_font::BOLD_ITALIC;
-        case Font_id::MONO:             return mark2haru::Pdf_font::MONO;
-        default:                        return mark2haru::Pdf_font::REGULAR;
+        case Font_id::SANS:             return mark2haru::Inline_style::NORMAL;
+        case Font_id::SANS_BOLD:        return mark2haru::Inline_style::BOLD;
+        case Font_id::SANS_ITALIC:      return mark2haru::Inline_style::ITALIC;
+        case Font_id::SANS_BOLD_ITALIC: return mark2haru::Inline_style::BOLD_ITALIC;
+        case Font_id::MONO:             return mark2haru::Inline_style::CODE;
+        default:                        return mark2haru::Inline_style::NORMAL;
     }
+}
+
+static inline mark2haru::Pdf_font mark2haru_font_for(Font_id id)
+{
+    return mark2haru::text_layout::font_for(mark2haru_style_for(id));
 }
 
 static inline mark2haru::Font_family_config mark2haru_font_family(const Font_family_config& fonts)
@@ -114,6 +123,11 @@ make_mark2haru_measurement_context(
     return ctx;
 }
 
+// Wraps text that carries no inline markup of its own, such as the subject
+// line or a footer line, through mark2haru's engine. Doing it here rather than
+// with a local greedy loop is what makes those lines break where a paragraph
+// or a table cell in the same document breaks, and is what gives them the
+// over-long-token splitting a private loop did not have.
 static inline std::vector<std::string> wrap_mark2haru_text(
     const mark2haru::Measurement_context&  metrics,
     const std::string&                     text,
@@ -121,32 +135,23 @@ static inline std::vector<std::string> wrap_mark2haru_text(
     float                                  size_pt,
     float                                  max_width_mm)
 {
-    std::vector<std::string> lines;
-    const auto  pdf_font     = mark2haru_font_for(font);
-    const float max_width_pt = mm_to_pt(max_width_mm);
-
-    for (const auto& para : split_lines(text)) {
-        if (para.empty()) {
-            lines.push_back("");
-            continue;
-        }
-
-        std::string current;
-        for_each_word(para, [&](const std::string& word) {
-            std::string candidate = current.empty() ? word : current + " " + word;
-            float       w         = static_cast<float>(metrics.measure_text_width(pdf_font, candidate, size_pt));
-            if (w > max_width_pt && !current.empty()) {
-                lines.push_back(current);
-                current = word;
-            }
-            else {
-                current = candidate;
-            }
+    const auto wrapped = mark2haru::text_layout::wrap_tokens(
+        mark2haru::text_layout::tokenize_text(text, mark2haru_style_for(font)),
+        mm_to_pt(max_width_mm),
+        size_pt,
+        size_pt,
+        [&metrics](mark2haru::Pdf_font pdf_font, const std::string& piece, double pt) {
+            return metrics.measure_text_width(pdf_font, piece, pt);
         });
-        if (!current.empty()) {
-            lines.push_back(current);
-        }
-    }
 
+    std::vector<std::string> lines;
+    lines.reserve(wrapped.size());
+    for (const auto& wrapped_line : wrapped) {
+        std::string line;
+        for (const auto& span : wrapped_line.spans) {
+            line += span.text;
+        }
+        lines.push_back(std::move(line));
+    }
     return lines;
 }
