@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QSaveFile>
 #include <QTemporaryDir>
 
 #include <cstdlib>
@@ -98,6 +99,44 @@ int main(int argc, char* argv[])
     require(
         QFile::exists(QDir(staged_dir).filePath("Max Mustermann.json")),
         "an abandoned staging file must not pass for user content");
+
+    // Recognizing that staging file must not depend on the suffix QSaveFile
+    // happens to pick today. A suffix of another length and alphabet has to be
+    // read as debris just the same, or a Qt that changes the shape reopens the
+    // permanent failure above without anything failing loudly.
+    const QString foreign_stage_dir = root.filePath("foreign-stage-templates");
+    require(QDir().mkpath(foreign_stage_dir), "could not create foreign staging dir");
+    QFile foreign_stage(QDir(foreign_stage_dir).filePath("Max Mustermann.json.tmp-1"));
+    require(foreign_stage.open(QIODevice::WriteOnly), "could not create foreign staging file");
+    foreign_stage.close();
+    require(
+        briefutil::ensure_template_dir_ready(foreign_stage_dir.toStdString(), &error),
+        "a staging file of an unrecognized shape should still initialize");
+    require(
+        QFile::exists(QDir(foreign_stage_dir).filePath("Max Mustermann.json")),
+        "seeding must not depend on the staging suffix shape QSaveFile uses today");
+
+    // Both staging fixtures above are names written by hand, so between them
+    // they pin only what this code believes QSaveFile does. This one stages a
+    // real QSaveFile and leaves it uncommitted, which is the state a seeder
+    // killed mid-write actually leaves behind. A Qt that stages under a name
+    // this recognition does not cover fails here instead of silently turning
+    // that directory into one that is never seeded. A Qt that stages nothing
+    // visible in the directory at all leaves no debris to misread, so this
+    // passing without a staging file present is the same answer.
+    const QString live_stage_dir = root.filePath("live-stage-templates");
+    require(QDir().mkpath(live_stage_dir), "could not create live staging dir");
+    {
+        QSaveFile live_stage(QDir(live_stage_dir).filePath("Max Mustermann.json"));
+        require(live_stage.open(QIODevice::WriteOnly), "could not stage a QSaveFile");
+        live_stage.write("{}");
+        require(
+            briefutil::ensure_template_dir_ready(live_stage_dir.toStdString(), &error),
+            "a directory holding a live staging file should still initialize");
+        require(
+            QFile::exists(QDir(live_stage_dir).filePath("Max Mustermann.json")),
+            "whatever QSaveFile stages must be recognized as briefutil's own");
+    }
 
     // The other side of that decision: a directory the user has already filled
     // in is left alone.

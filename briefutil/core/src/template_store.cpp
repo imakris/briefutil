@@ -145,35 +145,34 @@ static std::array<Seeded_template, 3> seeded_templates()
 }
 
 // QSaveFile stages inside the directory it is about to write into, under the
-// final name with a dot and six random characters appended, so a run killed
-// while seeding leaves one of those behind next to whatever it had committed.
-static bool is_staging_name_for(const QString& entry, const char* own_name)
+// final name with a dot and a random suffix appended, so a run killed while
+// seeding leaves one of those behind next to whatever it had committed.
+//
+// The suffix Qt picks is an implementation detail, not a contract, so nothing
+// here inspects its length or its alphabet. Any dot-suffixed sibling of a name
+// briefutil writes is treated as debris of its own. The asymmetry decides it:
+// seeding is idempotent and only ever adds files that are missing, so counting
+// something inert as briefutil's own costs at most three files appearing beside
+// it, while counting an abandoned staging file as content the user supplied
+// skips seeding for good and leaves the directory permanently without profiles.
+static bool is_own_name_or_staging_sibling(const QString& entry, const char* own_name)
 {
     const QLatin1StringView own(own_name);
-    if (entry.size() != own.size() + 7 ||
-        !entry.startsWith(own) ||
-        entry.at(own.size()) != QLatin1Char('.'))
-    {
+    if (!entry.startsWith(own)) {
         return false;
     }
-    for (qsizetype i = own.size() + 1; i < entry.size(); ++i) {
-        const QChar suffix_char = entry.at(i);
-        if (!suffix_char.isLetterOrNumber() && suffix_char != QLatin1Char('_')) {
-            return false;
-        }
-    }
-    return true;
+    return entry.size() == own.size() || entry.at(own.size()) == QLatin1Char('.');
 }
 
 static bool is_own_entry(const QString& entry)
 {
     for (const char* own_name : { k_template_init_marker, k_template_seed_lock }) {
-        if (entry == QLatin1StringView(own_name) || is_staging_name_for(entry, own_name)) {
+        if (is_own_name_or_staging_sibling(entry, own_name)) {
             return true;
         }
     }
     for (const auto& seeded : seeded_templates()) {
-        if (entry == QLatin1StringView(seeded.name) || is_staging_name_for(entry, seeded.name)) {
+        if (is_own_name_or_staging_sibling(entry, seeded.name)) {
             return true;
         }
     }
