@@ -103,9 +103,13 @@ briefutil::generate_brief_pdf(const briefutil::Generation_request& request);
   connections, worker lifecycle. These compile cleanly but fail at runtime, so
   the app must be run to verify.
 - Confirm `generate_brief_pdf` and the mark2haru render path are safe to call
-  off the main thread and have no shared mutable state. Publishing the output
-  file is already serialized per output target by an interprocess lock, and
-  each run stages into a uniquely named file.
+  off the main thread. Each letter now owns the `Pdf_measurement` it is laid
+  out and rendered with, so two concurrent generations share no font metrics;
+  what remains is that a single `Pdf_measurement` must not be used from two
+  threads at once, because the font faces memoise glyph lookups inside their
+  const measurement calls. Publishing the output file is already serialized per
+  output target by an interprocess lock, and each run stages into a uniquely
+  named file.
 
 **Acceptance.**
 
