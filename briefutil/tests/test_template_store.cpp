@@ -68,6 +68,52 @@ int main(int argc, char* argv[])
     require(
         !QFile::exists(simple_profile_path),
         "deleted default profile should not be restored after initialization");
+    // A run killed mid-seed leaves part of the seed behind. The next run has to
+    // finish it. If it mistakes the leftovers for a directory the user filled in
+    // himself it publishes the marker over a half-populated directory, and
+    // nothing ever repairs that.
+    const QString partial_dir = root.filePath("partial-templates");
+    require(QDir().mkpath(partial_dir), "could not create partially seeded dir");
+    QFile abandoned_image(QDir(partial_dir).filePath("mustermann_signature.png"));
+    require(abandoned_image.open(QIODevice::WriteOnly), "could not create abandoned image");
+    abandoned_image.close();
+    require(
+        briefutil::ensure_template_dir_ready(partial_dir.toStdString(), &error),
+        "an interrupted seed should still initialize");
+    require(
+        QFile::exists(QDir(partial_dir).filePath("Max Mustermann.json")),
+        "an interrupted seed must be completed rather than marked initialized");
+
+    // Same failure one step earlier: the seeder died while QSaveFile still had
+    // the profile staged beside its final name, so the only entry present is
+    // that staging file and not one byte of the seed has committed.
+    const QString staged_dir = root.filePath("staged-templates");
+    require(QDir().mkpath(staged_dir), "could not create abandoned staging dir");
+    QFile abandoned_stage(QDir(staged_dir).filePath("Max Mustermann.json.Ab3x9Z"));
+    require(abandoned_stage.open(QIODevice::WriteOnly), "could not create abandoned staging file");
+    abandoned_stage.close();
+    require(
+        briefutil::ensure_template_dir_ready(staged_dir.toStdString(), &error),
+        "an abandoned staging file should still initialize");
+    require(
+        QFile::exists(QDir(staged_dir).filePath("Max Mustermann.json")),
+        "an abandoned staging file must not pass for user content");
+
+    // The other side of that decision: a directory the user has already filled
+    // in is left alone.
+    const QString user_dir = root.filePath("user-templates");
+    require(QDir().mkpath(user_dir), "could not create user template dir");
+    QFile user_profile(QDir(user_dir).filePath("My Company.json"));
+    require(user_profile.open(QIODevice::WriteOnly), "could not create user profile");
+    user_profile.write("{}");
+    user_profile.close();
+    require(
+        briefutil::ensure_template_dir_ready(user_dir.toStdString(), &error),
+        "a user-populated template dir should initialize");
+    require(
+        !QFile::exists(QDir(user_dir).filePath("Max Mustermann.json")),
+        "a template dir the user populated must not be seeded with the defaults");
+
     QFile bad_profile(QDir(env_template_dir).filePath("bad.json"));
     require(bad_profile.open(QIODevice::WriteOnly), "could not create malformed profile");
     bad_profile.write("{");

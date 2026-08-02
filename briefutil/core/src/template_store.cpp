@@ -13,6 +13,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
+#include <array>
 #include <cstring>
 
 namespace briefutil {
@@ -116,52 +117,110 @@ static bool write_file_if_missing(
     return true;
 }
 
-static bool template_dir_has_entries(const QDir& templates_dir)
+struct Seeded_template
 {
-    const auto entries = templates_dir.entryList(
-        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
-    for (const auto& entry : entries) {
-        // briefutil's own bookkeeping is not user content. The seed lock in
-        // particular is present while this very check runs.
-        if (entry != QLatin1StringView(k_template_init_marker) &&
-            entry != QLatin1StringView(k_template_seed_lock))
-        {
+    const char*  name;
+    const char*  data;
+    std::size_t  size;
+};
+
+// The files a seed writes, in the order it writes them: the signature image
+// lands before the profiles that reference it, so a reader scanning the
+// directory mid-seed can never load a profile whose image is still missing.
+static std::array<Seeded_template, 3> seeded_templates()
+{
+    const auto signature = mustermann_signature_png::data();
+    return {{
+        { "mustermann_signature.png",
+          reinterpret_cast<const char*>(signature.first),
+          signature.second },
+        { "Max Mustermann.json",
+          k_default_profile_simple_json,
+          std::strlen(k_default_profile_simple_json) },
+        { "Max Mustermann, Mustermann AG.json",
+          k_default_profile_commercial_json,
+          std::strlen(k_default_profile_commercial_json) },
+    }};
+}
+
+// QSaveFile stages inside the directory it is about to write into, under the
+// final name with a dot and six random characters appended, so a run killed
+// while seeding leaves one of those behind next to whatever it had committed.
+static bool is_staging_name_for(const QString& entry, const char* own_name)
+{
+    const QLatin1StringView own(own_name);
+    if (entry.size() != own.size() + 7 ||
+        !entry.startsWith(own) ||
+        entry.at(own.size()) != QLatin1Char('.'))
+    {
+        return false;
+    }
+    for (qsizetype i = own.size() + 1; i < entry.size(); ++i) {
+        const QChar suffix_char = entry.at(i);
+        if (!suffix_char.isLetterOrNumber() && suffix_char != QLatin1Char('_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool is_own_entry(const QString& entry)
+{
+    for (const char* own_name : { k_template_init_marker, k_template_seed_lock }) {
+        if (entry == QLatin1StringView(own_name) || is_staging_name_for(entry, own_name)) {
+            return true;
+        }
+    }
+    for (const auto& seeded : seeded_templates()) {
+        if (entry == QLatin1StringView(seeded.name) || is_staging_name_for(entry, seeded.name)) {
             return true;
         }
     }
     return false;
 }
 
+// True when the directory holds anything briefutil did not put there, which is
+// what decides whether the defaults are seeded into it at all.
+//
+// Bare non-emptiness cannot decide that. A run killed mid-seed leaves some of
+// the seeded files, or a staging file with nothing committed at all, and
+// reading those as content the user supplied makes the next run skip seeding
+// and publish the initialization marker over a directory that is missing the
+// profiles. Seeding has exactly one caller and the marker is the only gate in
+// front of it, so that state is permanent.
+static bool template_dir_has_user_content(const QDir& templates_dir)
+{
+    const auto entries = templates_dir.entryList(
+        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+    for (const auto& entry : entries) {
+        if (!is_own_entry(entry)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Idempotent: each file is written only if it is missing, so this both seeds a
+// fresh directory and completes one an earlier run abandoned.
 static bool seed_default_templates(QDir& templates_dir, std::string* error)
 {
-    // The signature image lands before the profiles that reference it, so a
-    // reader scanning the directory mid-seed can never load a profile whose
-    // image is still missing.
-    return
-        write_file_if_missing(
-            templates_dir.filePath("mustermann_signature.png"),
-            reinterpret_cast<const char*>(mustermann_signature_png::data().first),
-            mustermann_signature_png::data().second,
-            error)
-        &&
-        write_file_if_missing(
-            templates_dir.filePath("Max Mustermann.json"),
-            k_default_profile_simple_json,
-            std::strlen(k_default_profile_simple_json),
-            error)
-        &&
-        write_file_if_missing(
-            templates_dir.filePath("Max Mustermann, Mustermann AG.json"),
-            k_default_profile_commercial_json,
-            std::strlen(k_default_profile_commercial_json),
-            error);
+    for (const auto& seeded : seeded_templates()) {
+        if (!write_file_if_missing(
+                templates_dir.filePath(QLatin1StringView(seeded.name)),
+                seeded.data,
+                seeded.size,
+                error))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
 {
     QDir templates_dir(QString::fromStdString(dir_path));
-    const bool dir_existed = templates_dir.exists();
-    if (!dir_existed && !templates_dir.mkpath(".")) {
+    if (!templates_dir.exists() && !templates_dir.mkpath(".")) {
         if (error) {
             *error = "Could not create template directory.";
         }
@@ -190,10 +249,13 @@ bool ensure_template_dir_ready(const std::string& dir_path, std::string* error)
         return true;
     }
 
-    if (!dir_existed || !template_dir_has_entries(templates_dir)) {
-        if (!seed_default_templates(templates_dir, error)) {
-            return false;
-        }
+    // The marker says the directory is ready, so it is published only once this
+    // run has established that: either it seeded the directory itself, or the
+    // directory already held content of the user's own that must be left alone.
+    if (!template_dir_has_user_content(templates_dir) &&
+        !seed_default_templates(templates_dir, error))
+    {
+        return false;
     }
 
     return write_file_if_missing(marker_path, "", 0, error);
