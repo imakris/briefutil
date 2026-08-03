@@ -40,6 +40,7 @@ jobs:
       - name: Configure CMake
         run: |
           cmake -B build -S briefutil \
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
             -DBRIEFUTIL_BUILD_GUI=ON
 
       - name: Build
