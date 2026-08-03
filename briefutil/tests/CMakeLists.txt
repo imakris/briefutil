@@ -5,7 +5,7 @@ include(CTest)
 function(briefutil_add_test_executable target source_file)
     add_executable(${target} ${source_file})
     target_link_libraries(${target} PRIVATE briefutil_core)
-    briefutil_copy_runtime_dlls(${target})
+    briefutil_stage_runtime_dlls(${target})
     mark2haru_stage_bundled_fonts(${target})
 endfunction()
 

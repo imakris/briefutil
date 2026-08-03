@@ -8,7 +8,7 @@ target_link_libraries(briefutil_cli
         Qt6::Core
 )
 
-briefutil_copy_runtime_dlls(briefutil_cli)
+briefutil_stage_runtime_dlls(briefutil_cli)
 mark2haru_stage_bundled_fonts(briefutil_cli)
 
 install(TARGETS briefutil_cli

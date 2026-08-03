@@ -53,7 +53,7 @@ add_dependencies(briefutil briefutil_build_info briefutil_cli_companion)
 if(WIN32)
     target_link_libraries(briefutil PRIVATE dwmapi)
     target_sources(briefutil PRIVATE resources/briefutil.rc)
-    briefutil_copy_runtime_dlls(briefutil)
+    briefutil_stage_runtime_dlls(briefutil)
     if(EXISTS "${BRIEFUTIL_WINDEPLOYQT}")
         add_custom_command(TARGET briefutil POST_BUILD
             COMMAND "${BRIEFUTIL_WINDEPLOYQT}"
