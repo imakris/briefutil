@@ -2,6 +2,7 @@
 #include "cli_output.h"
 #include "briefutil/brief_service.h"
 #include "briefutil/localization.h"
+#include "briefutil/owned_staging.h"
 #include "briefutil/path_utils.h"
 #include "briefutil/sender_profile.h"
 #include "briefutil/sender_profile_schema.h"
@@ -1309,18 +1310,23 @@ QString Proxy::import_template_image(const QUrl& source_url) const
     }
 
     // Never overwrite an existing asset; other profiles may reference it by
-    // name. Pick a fresh unique name and copy through a temporary file so a
-    // failed copy can neither destroy an existing asset nor leave a partial
-    // file under the final name.
+    // name. The copy is staged in briefutil's own directory and handed over
+    // with a non-replacing rename, so a failed copy can neither destroy an
+    // existing asset nor leave a partial file under the final name, and nothing
+    // in the user's template directory is removed to make room for it.
     const QString target_name = unique_image_file_name(dir, source_info.fileName());
     const QString target_path = dir.filePath(target_name);
-    const QString temp_path    = target_path + ".importing";
-    QFile::remove(temp_path);
-    if (!QFile::copy(source_info.absoluteFilePath(), temp_path)) {
+
+    briefutil::Owned_staging_slot staging;
+    if (!staging.open(dir, target_name, nullptr)) {
         return QString();
     }
-    if (!QFile::rename(temp_path, target_path)) {
-        QFile::remove(temp_path);
+    if (!QFile::copy(source_info.absoluteFilePath(), staging.staged_path())) {
+        return QString();
+    }
+    if (briefutil::publish_staged_file(staging.staged_path(), target_path, false, nullptr) !=
+        briefutil::Publish_outcome::PUBLISHED)
+    {
         return QString();
     }
     return target_name;

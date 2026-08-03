@@ -1,12 +1,15 @@
 #include "proxy.h"
 #include "briefutil/sender_profile.h"
 
+#include <QByteArray>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QUrl>
 #include <QVariantMap>
 
 #include <cstdio>
@@ -112,11 +115,70 @@ static void require_simple_save_drops_stale_invalid_logo()
         "commercial proxy save should reject an invalid logo image");
 }
 
+static void write_file(const QString& path, const QByteArray& bytes, const char* what)
+{
+    QFile file(path);
+    require(file.open(QIODevice::WriteOnly), what);
+    require(file.write(bytes) == bytes.size(), what);
+}
+
+static QByteArray read_file(const QString& path, const char* what)
+{
+    QFile file(path);
+    require(file.open(QIODevice::ReadOnly), what);
+    return file.readAll();
+}
+
+// Nothing in the user's template directory is briefutil's to delete, whatever
+// it is called. The file below wears the exact name the importer derives for
+// its own working copy, and it is the user's. The oracle is consent: briefutil
+// may delete only what it created, and a filename is not proof that it created
+// anything.
+static void require_import_leaves_a_matching_user_file_alone()
+{
+    QTemporaryDir root;
+    require(root.isValid(), "could not create temporary directory");
+
+    const QString template_dir = root.filePath("templates");
+    require(QDir().mkpath(template_dir), "could not create the template directory");
+
+    qputenv("BRIEFUTIL_TEMPLATE_DIR", template_dir.toLocal8Bit());
+    qputenv("BRIEFUTIL_OUTPUT_DIR", root.filePath("output").toLocal8Bit());
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root.path());
+
+    Proxy proxy;
+
+    const QByteArray sentinel  = "SENTINEL-USER-DATA-DO-NOT-DELETE";
+    const QString    user_path = QDir(template_dir).filePath("signature.png.importing");
+    write_file(user_path, sentinel, "could not create the user file");
+
+    const QByteArray image      = "PNG-PAYLOAD-BYTES";
+    const QString    source_dir = root.filePath("source");
+    require(QDir().mkpath(source_dir), "could not create the import source directory");
+    const QString source_path = QDir(source_dir).filePath("signature.png");
+    write_file(source_path, image, "could not create the import source");
+
+    const QString imported = proxy.import_template_image(QUrl::fromLocalFile(source_path));
+    require(imported == "signature.png", "importing should claim the free asset name");
+    require(
+        read_file(QDir(template_dir).filePath(imported), "the imported asset should exist") == image,
+        "the imported asset should hold the source bytes");
+
+    require(
+        read_file(user_path, "importing must not delete a user file") == sentinel,
+        "importing must leave a user file byte-identical");
+    require(
+        !QDir(template_dir).exists(".briefutil-staging"),
+        "importing must not leave its staging directory behind");
+}
+
 int main(int argc, char* argv[])
 {
     QCoreApplication app(argc, argv);
 
     require_simple_save_drops_stale_invalid_logo();
+    require_import_leaves_a_matching_user_file_alone();
 
     std::printf("All proxy sender profile tests passed.\n");
     return 0;
