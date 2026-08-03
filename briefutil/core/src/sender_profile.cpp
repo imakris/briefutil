@@ -1,14 +1,16 @@
 #include "briefutil/sender_profile.h"
+#include "briefutil/owned_staging.h"
 #include "briefutil/sender_profile_schema.h"
 #include "briefutil/path_utils.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 
 #include <cmath>
+#include <string>
 
 // Use Qt's JSON parser; it is already available through Qt6::Core.
 
@@ -169,8 +171,19 @@ bool save_sender_profile(
     obj.insert("style",          profile.style == Profile_style::COMMERCIAL ? "commercial" : "simple");
     obj.insert("top_rule_color", json_color_array(profile.top_rule_color));
 
-    QSaveFile file(QString::fromStdString(json_path));
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    // Staged in briefutil's own directory rather than beside the profile it
+    // replaces. A save killed halfway then leaves its debris where briefutil
+    // can account for it, and never an unrecognizable sibling in a directory
+    // whose other contents are the user's.
+    const QString                 target(QString::fromStdString(json_path));
+    const QFileInfo               target_info(target);
+    briefutil::Owned_staging_slot staging;
+    if (!staging.open(target_info.absoluteDir(), target_info.fileName(), error)) {
+        return false;
+    }
+
+    QFile file(staging.staged_path());
+    if (!file.open(QIODevice::WriteOnly)) {
         if (error) {
             *error = "Cannot open profile for writing: " + json_path;
         }
@@ -178,16 +191,23 @@ bool save_sender_profile(
     }
 
     auto payload = QJsonDocument(obj).toJson(QJsonDocument::Indented);
-    if (file.write(payload) != payload.size()) {
+    if (file.write(payload) != payload.size() || !file.flush()) {
         if (error) {
             *error = "Failed to write profile: " + json_path;
         }
         return false;
     }
+    file.close();
 
-    if (!file.commit()) {
+    std::string publish_detail;
+    if (briefutil::publish_staged_file(staging.staged_path(), target, true, &publish_detail) !=
+        briefutil::Publish_outcome::PUBLISHED)
+    {
         if (error) {
             *error = "Failed to finalize profile write: " + json_path;
+            if (!publish_detail.empty()) {
+                *error += ": " + publish_detail;
+            }
         }
         return false;
     }

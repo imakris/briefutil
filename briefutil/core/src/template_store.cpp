@@ -1,6 +1,7 @@
 #include "briefutil/template_store.h"
 
 #include "briefutil/default_profiles.h"
+#include "briefutil/owned_staging.h"
 #include "briefutil/path_utils.h"
 #include "mustermann_signature.png.h"
 
@@ -10,7 +11,6 @@
 #include <QFileInfo>
 #include <QLatin1StringView>
 #include <QLockFile>
-#include <QSaveFile>
 #include <QStandardPaths>
 
 #include <array>
@@ -87,6 +87,10 @@ std::string configured_output_dir(
     return default_output_dir();
 }
 
+// Staging happens in briefutil's own directory rather than beside the user's
+// templates. That is what lets the directory scan below decide what briefutil
+// owns by exact name: there is no unpredictable sibling of a template left in
+// the user's directory for it to have to recognize.
 static bool write_file_if_missing(
     const QString& path,
     const char*    data,
@@ -96,26 +100,44 @@ static bool write_file_if_missing(
     if (QFileInfo::exists(path)) {
         return true;
     }
-    QSaveFile file(path);
+
+    const QFileInfo    target(path);
+    Owned_staging_slot staging;
+    if (!staging.open(target.absoluteDir(), target.fileName(), error)) {
+        return false;
+    }
+
+    QFile file(staging.staged_path());
     if (!file.open(QIODevice::WriteOnly)) {
         if (error) {
             *error = file.errorString().toStdString();
         }
         return false;
     }
-    if (file.write(data, static_cast<qint64>(size)) != static_cast<qint64>(size)) {
+    if (file.write(data, static_cast<qint64>(size)) != static_cast<qint64>(size) ||
+        !file.flush())
+    {
         if (error) {
             *error = file.errorString().toStdString();
         }
         return false;
     }
-    if (!file.commit()) {
-        if (error) {
-            *error = file.errorString().toStdString();
-        }
-        return false;
+    file.close();
+
+    // TARGET_EXISTS is the same judgment as the exists() check above: what this
+    // owes the caller is that the file is there, and a non-replacing publish
+    // that lost to whoever created it in the meantime has still delivered that.
+    std::string publish_detail;
+    switch (publish_staged_file(staging.staged_path(), path, false, &publish_detail)) {
+        case Publish_outcome::PUBLISHED:
+        case Publish_outcome::TARGET_EXISTS: return true;
+        case Publish_outcome::FAILED:
+        default:                             break;
     }
-    return true;
+    if (error) {
+        *error = publish_detail;
+    }
+    return false;
 }
 
 struct Seeded_template
@@ -144,35 +166,24 @@ static std::array<Seeded_template, 3> seeded_templates()
     }};
 }
 
-// QSaveFile stages inside the directory it is about to write into, under the
-// final name with a dot and a random suffix appended, so a run killed while
-// seeding leaves one of those behind next to whatever it had committed.
-//
-// The suffix Qt picks is an implementation detail, not a contract, so nothing
-// here inspects its length or its alphabet. Any dot-suffixed sibling of a name
-// briefutil writes is treated as debris of its own. The asymmetry decides it:
-// seeding is idempotent and only ever adds files that are missing, so counting
-// something inert as briefutil's own costs at most three files appearing beside
-// it, while counting an abandoned staging file as content the user supplied
-// skips seeding for good and leaves the directory permanently without profiles.
-static bool is_own_name_or_staging_sibling(const QString& entry, const char* own_name)
-{
-    const QLatin1StringView own(own_name);
-    if (!entry.startsWith(own)) {
-        return false;
-    }
-    return entry.size() == own.size() || entry.at(own.size()) == QLatin1Char('.');
-}
-
+// Everything briefutil puts in a template directory has one fixed name, and its
+// working state lives in one directory it creates itself, so this list is
+// complete by construction. Every other entry is the user's, including one whose
+// name merely resembles something briefutil writes: a name is not evidence of
+// who wrote it, and an entry briefutil cannot account for belongs to the user.
 static bool is_own_entry(const QString& entry)
 {
-    for (const char* own_name : { k_template_init_marker, k_template_seed_lock }) {
-        if (is_own_name_or_staging_sibling(entry, own_name)) {
+    for (const char* own_name : {
+             k_template_init_marker,
+             k_template_seed_lock,
+             k_owned_staging_dir })
+    {
+        if (entry == QLatin1StringView(own_name)) {
             return true;
         }
     }
     for (const auto& seeded : seeded_templates()) {
-        if (is_own_name_or_staging_sibling(entry, seeded.name)) {
+        if (entry == QLatin1StringView(seeded.name)) {
             return true;
         }
     }
@@ -183,11 +194,10 @@ static bool is_own_entry(const QString& entry)
 // what decides whether the defaults are seeded into it at all.
 //
 // Bare non-emptiness cannot decide that. A run killed mid-seed leaves some of
-// the seeded files, or a staging file with nothing committed at all, and
-// reading those as content the user supplied makes the next run skip seeding
-// and publish the initialization marker over a directory that is missing the
-// profiles. Seeding has exactly one caller and the marker is the only gate in
-// front of it, so that state is permanent.
+// the seeded files behind, and reading those as content the user supplied makes
+// the next run skip seeding and publish the initialization marker over a
+// directory that is missing the profiles. Seeding has exactly one caller and the
+// marker is the only gate in front of it, so that state is permanent.
 static bool template_dir_has_user_content(const QDir& templates_dir)
 {
     const auto entries = templates_dir.entryList(
