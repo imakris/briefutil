@@ -1,31 +1,18 @@
 #include "briefutil/brief_service.h"
 
 #include "briefutil/letter_builder.h"
+#include "briefutil/owned_staging.h"
 #include "briefutil/path_utils.h"
 
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QLockFile>
-#include <QRandomGenerator>
 
 #include <algorithm>
-#include <cerrno>
 #include <cmath>
-#include <cstdio>
-#include <cstring>
-
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#endif
+#include <string>
 
 namespace briefutil {
 
@@ -136,67 +123,6 @@ static Generation_result failure(
 // useful than blocking the caller indefinitely.
 static constexpr int k_target_lock_timeout_ms = 30000;
 
-enum class Publish_outcome
-{
-    PUBLISHED,
-    TARGET_EXISTS,
-    FAILED,
-};
-
-// Hands the staged file over to its final name in one indivisible step.
-//
-// `replace_existing` selects the replacing OS primitive. Without it the
-// platform's non-replacing rename IS the exclusion test, so there is no window
-// between deciding that the target is absent and publishing into it. Neither
-// path moves the target out of the way first, so no crash between two
-// statements can leave the target missing.
-static Publish_outcome publish_staged_file(
-    const QString&  staged_path,
-    const QString&  target_path,
-    bool            replace_existing,
-    std::string*    detail)
-{
-    if (!replace_existing) {
-        QFile staged(staged_path);
-        if (staged.rename(target_path)) {
-            return Publish_outcome::PUBLISHED;
-        }
-        // QFile::rename never overwrites, so a target that is present after
-        // the attempt is the reason the attempt failed.
-        if (QFileInfo::exists(target_path)) {
-            return Publish_outcome::TARGET_EXISTS;
-        }
-        if (detail) {
-            *detail = staged.errorString().toStdString();
-        }
-        return Publish_outcome::FAILED;
-    }
-
-#if defined(_WIN32)
-    // MOVEFILE_COPY_ALLOWED is deliberately omitted: a copy is not atomic, and
-    // the staging file always lives in the target's own directory.
-    const std::wstring staged_native = staged_path.toStdWString();
-    const std::wstring target_native = target_path.toStdWString();
-    if (MoveFileExW(staged_native.c_str(), target_native.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-        return Publish_outcome::PUBLISHED;
-    }
-    if (detail) {
-        *detail = "Win32 error " + std::to_string(static_cast<unsigned long>(GetLastError()));
-    }
-#else
-    if (std::rename(
-            QFile::encodeName(staged_path).constData(),
-            QFile::encodeName(target_path).constData()) == 0)
-    {
-        return Publish_outcome::PUBLISHED;
-    }
-    if (detail) {
-        *detail = std::strerror(errno);
-    }
-#endif
-    return Publish_outcome::FAILED;
-}
-
 static std::string make_output_path(const Generation_request& request)
 {
     if (!request.output_path.empty()) {
@@ -270,13 +196,12 @@ Generation_result generate_brief_pdf(const Generation_request& request)
     }
 
     // Serialize every run that publishes this target, across processes. The
-    // lock is what makes the existence check and the staging sweep below exact
-    // instead of a guess: while it is held no other briefutil run can create,
-    // replace or stage this target. A stale lock time of zero means a lock is
-    // only ever reclaimed once its owning process is provably gone, so a long
-    // render is never robbed of its lock.
-    const QString staging_prefix = QStringLiteral(".") + output_info.fileName() + ".tmp.";
-    const QString lock_path      = output_dir.filePath(
+    // lock is what makes the existence check below exact instead of a guess:
+    // while it is held no other briefutil run can create, replace or stage this
+    // target. A stale lock time of zero means a lock is only ever reclaimed once
+    // its owning process is provably gone, so a long render is never robbed of
+    // its lock.
+    const QString lock_path = output_dir.filePath(
         QStringLiteral(".") + output_info.fileName() + ".lock");
 
     QLockFile target_lock(lock_path);
@@ -290,14 +215,8 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             );
     }
 
-    // Reclaim staging files left behind by runs that died before publishing.
-    // Holding the lock is what makes this safe: no live run owns any of them.
-    for (const auto& entry : output_dir.entryList(QDir::Files | QDir::Hidden)) {
-        if (entry.startsWith(staging_prefix)) {
-            QFile::remove(output_dir.filePath(entry));
-        }
-    }
-
+    // Refusing comes before anything is staged, so a request briefutil declines
+    // leaves the output directory exactly as it found it.
     if (!request.overwrite_output && QFileInfo::exists(q_output_path)) {
         return failure(
             Generation_result_code::OUTPUT_EXISTS,
@@ -305,11 +224,23 @@ Generation_result generate_brief_pdf(const Generation_request& request)
             output_path);
     }
 
-    // A unique staging name keeps two runs off each other's partial output even
-    // if the lock file itself lives on a filesystem that cannot honour it.
-    const QString q_temp_path = output_dir.filePath(
-        staging_prefix + QString::number(QRandomGenerator::global()->generate64(), 16));
-    const std::string temp_path = q_temp_path.toStdString();
+    // Staging happens inside briefutil's own directory, never beside the user's
+    // files. Opening the slot reclaims what a run that died mid-render left
+    // there, and it can do so without deciding whether any given name is
+    // briefutil's, because everything under the slot is briefutil's by
+    // construction. The slot is discarded when this scope ends.
+    Owned_staging_slot staging;
+    std::string        staging_error;
+    if (!staging.open(output_dir, output_info.fileName(), &staging_error)) {
+        return
+            failure(
+                Generation_result_code::OUTPUT_ERROR,
+                "Could not create the staging directory.",
+                staging_error
+            );
+    }
+    const QString&    q_temp_path = staging.staged_path();
+    const std::string temp_path   = q_temp_path.toStdString();
 
     Letter_input input;
     input.recipient = request.recipient;
@@ -332,7 +263,6 @@ Generation_result generate_brief_pdf(const Generation_request& request)
         loc);
 
     if (!render_result.ok) {
-        QFile::remove(q_temp_path);
         return
             failure(
                 Generation_result_code::RENDER_ERROR,
@@ -349,7 +279,6 @@ Generation_result generate_brief_pdf(const Generation_request& request)
         &publish_detail);
 
     if (published != Publish_outcome::PUBLISHED) {
-        QFile::remove(q_temp_path);
         if (published == Publish_outcome::TARGET_EXISTS) {
             return failure(
                 Generation_result_code::OUTPUT_EXISTS,

@@ -1,10 +1,13 @@
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QStringList>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstdio>
 
@@ -45,6 +48,76 @@ static int run_cli(
         *standard_output = QString::fromUtf8(process.readAllStandardOutput());
     }
     return process.exitCode();
+}
+
+// Two briefutil processes racing for one --output must serialize: exactly one
+// publishes and the loser is refused, the published PDF is whole, and neither
+// leaves working state behind. Staging inside a briefutil-owned directory is
+// what makes the run's own leftovers reclaimable without touching anything the
+// user owns, and it must not cost this property.
+static bool concurrent_publication_serializes(const QString& template_dir, const QDir& output_dir)
+{
+    const QString output_path = output_dir.filePath("race.pdf");
+    const QStringList args    = {
+        "--to",      "Ioannis Makris\\nAm Zirkus 3\\n10117 Berlin",
+        "--subject", "Concurrent Publication",
+        "--body",    "Two runs, one target.",
+        "--output",  output_path,
+    };
+
+    auto env = QProcessEnvironment::systemEnvironment();
+    env.insert("BRIEFUTIL_TEMPLATE_DIR", template_dir);
+    env.insert("BRIEFUTIL_OUTPUT_DIR", output_dir.absolutePath());
+
+    QProcess first;
+    QProcess second;
+    for (QProcess* process : { &first, &second }) {
+        process->setProcessEnvironment(env);
+        process->start(QString::fromUtf8(BRIEFUTIL_CLI_PATH), args);
+    }
+    for (QProcess* process : { &first, &second }) {
+        if (!process->waitForFinished(60000)) {
+            process->kill();
+            process->waitForFinished();
+            std::fprintf(stderr, "FAIL: a concurrent CLI run did not finish\n");
+            return false;
+        }
+    }
+
+    const int published = std::min(first.exitCode(), second.exitCode());
+    const int refused   = std::max(first.exitCode(), second.exitCode());
+    if (published != 0 || refused != 2) {
+        std::fprintf(
+            stderr,
+            "FAIL: concurrent runs on one --output gave exit codes %d and %d\n",
+            first.exitCode(),
+            second.exitCode());
+        return false;
+    }
+
+    QFile output(output_path);
+    if (!output.open(QIODevice::ReadOnly)) {
+        std::fprintf(stderr, "FAIL: concurrent runs published no PDF\n");
+        return false;
+    }
+    const QByteArray bytes = output.readAll();
+    if (!bytes.startsWith("%PDF") || !bytes.trimmed().endsWith("%%EOF")) {
+        std::fprintf(stderr, "FAIL: the concurrently published PDF is not complete\n");
+        return false;
+    }
+
+    const auto leftovers = output_dir.entryList(
+        QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot);
+    for (const auto& entry : leftovers) {
+        if (entry.startsWith('.')) {
+            std::fprintf(
+                stderr,
+                "FAIL: concurrent runs left working state behind: %s\n",
+                entry.toUtf8().constData());
+            return false;
+        }
+    }
+    return true;
 }
 
 int main(int argc, char* argv[])
@@ -331,6 +404,14 @@ int main(int argc, char* argv[])
         &error);
     require(exit_code == 0, "empty explicit recipient file should be accepted");
     require(QFile::exists(empty_recipient_output), "empty recipient output should exist");
+
+    const QDir race_dir(root.filePath("race-output"));
+    require(
+        QDir().mkpath(race_dir.absolutePath()),
+        "could not create the concurrent publication output dir");
+    require(
+        concurrent_publication_serializes(template_dir, race_dir),
+        "two runs on one --output must serialize and publish atomically");
 
     return 0;
 }

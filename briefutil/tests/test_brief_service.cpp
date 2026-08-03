@@ -1,4 +1,5 @@
 #include "briefutil/brief_service.h"
+#include "briefutil/owned_staging.h"
 #include "briefutil/path_utils.h"
 #include "briefutil/template_store.h"
 
@@ -19,12 +20,15 @@ static void fail(const char* message)
     std::exit(1);
 }
 
-// Every file briefutil creates beside the output PDF is a dot file, so this
-// covers staging files and the publish lock without naming either.
+// Every entry briefutil creates beside the output PDF is hidden, so this covers
+// the staging directory and the publish lock without naming either. Directories
+// count: a stranded staging directory is exactly the accumulation this is here
+// to catch.
 static QStringList hidden_leftovers(const QDir& dir)
 {
     QStringList leftovers;
-    for (const auto& entry : dir.entryList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot)) {
+    const auto  entries = dir.entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot);
+    for (const auto& entry : entries) {
         if (entry.startsWith('.')) {
             leftovers.push_back(entry);
         }
@@ -108,17 +112,6 @@ int main(int argc, char* argv[])
         fail("rejected generation left working files behind");
     }
 
-    // Staging files abandoned by a run that died before publishing must be
-    // reclaimed by the next run rather than accumulating in the user's
-    // output directory.
-    for (const char* abandoned : { ".letter.pdf.tmp.dead1", ".letter.pdf.tmp.dead2" }) {
-        QFile stale(dir.filePath(QString::fromLatin1(abandoned)));
-        if (!stale.open(QIODevice::WriteOnly)) {
-            fail("could not create an abandoned staging file");
-        }
-        stale.write("stale", 5);
-    }
-
     request.overwrite_output = true;
     auto overwritten = briefutil::generate_brief_pdf(request);
     if (!overwritten.ok || !QFileInfo::exists(output_path)) {
@@ -139,7 +132,177 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // A subject long enough to push the derived staging name past a directory
+    // Nothing in the user's output directory is briefutil's to delete, whatever
+    // it is called. One of these two files wears the exact shape briefutil once
+    // used for its own staging files; the other is ordinary content. The oracle
+    // is consent: briefutil may delete only what it created, and a filename is
+    // not proof that it created anything. That binds on the refusal path too -
+    // a request briefutil declines must not touch the directory on its way out.
+    {
+        const QDir user_dir(root.filePath("user-files"));
+        if (!QDir().mkpath(user_dir.absolutePath())) {
+            fail("could not create the user output directory");
+        }
+
+        const QByteArray  user_bytes = "SENTINEL-USER-DATA-DO-NOT-DELETE";
+        const QStringList user_files = {
+            user_dir.filePath(".letter.pdf.tmp.my-notes"),
+            user_dir.filePath("notes.txt"),
+        };
+        for (const auto& user_file : user_files) {
+            QFile file(user_file);
+            if (!file.open(QIODevice::WriteOnly) || file.write(user_bytes) != user_bytes.size()) {
+                fail("could not create a user file in the output directory");
+            }
+        }
+
+        auto user_files_intact = [&](const char* stage) {
+            for (const auto& user_file : user_files) {
+                QFile file(user_file);
+                if (!file.open(QIODevice::ReadOnly) || file.readAll() != user_bytes) {
+                    std::fprintf(
+                        stderr,
+                        "FAIL: %s did not leave a user file intact: %s\n",
+                        stage,
+                        user_file.toUtf8().constData());
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        auto user_request = request;
+        user_request.output_path      = user_dir.filePath("letter.pdf").toStdString();
+        user_request.overwrite_output = false;
+
+        auto user_published = briefutil::generate_brief_pdf(user_request);
+        if (!user_published.ok) {
+            std::fprintf(
+                stderr,
+                "FAIL: generation beside user files failed: %s (%s)\n",
+                user_published.message.c_str(),
+                user_published.detail.c_str());
+            return 1;
+        }
+        if (!user_files_intact("a successful generation")) {
+            return 1;
+        }
+
+        auto user_refused = briefutil::generate_brief_pdf(user_request);
+        if (user_refused.ok ||
+            user_refused.code != briefutil::Generation_result_code::OUTPUT_EXISTS)
+        {
+            fail("a second generation beside user files should be refused");
+        }
+        if (!user_files_intact("a refused generation")) {
+            return 1;
+        }
+
+        user_request.overwrite_output = true;
+        auto user_overwritten = briefutil::generate_brief_pdf(user_request);
+        if (!user_overwritten.ok) {
+            std::fprintf(
+                stderr,
+                "FAIL: overwriting generation beside user files failed: %s (%s)\n",
+                user_overwritten.message.c_str(),
+                user_overwritten.detail.c_str());
+            return 1;
+        }
+        if (!user_files_intact("an overwriting generation")) {
+            return 1;
+        }
+    }
+
+    // A run killed before publishing leaves its staged file behind. The next run
+    // for that target reclaims it, so debris cannot accumulate; and it reclaims
+    // only that, because another target's staging slot is not its to empty.
+    {
+        const QDir reclaim_dir(root.filePath("reclaim"));
+        if (!QDir().mkpath(reclaim_dir.absolutePath())) {
+            fail("could not create the reclamation output directory");
+        }
+
+        auto abandon_staged_file = [&](const QString& target_name) {
+            QString staged_path;
+            {
+                briefutil::Owned_staging_slot slot;
+                std::string                   slot_error;
+                if (!slot.open(reclaim_dir, target_name, &slot_error)) {
+                    fail("could not open an owned staging slot");
+                }
+                staged_path = slot.staged_path();
+            }
+            // The slot above discards itself, so put back exactly what a run
+            // killed between staging and publishing leaves: the slot directory
+            // and one staged file inside it.
+            if (!QDir().mkpath(QFileInfo(staged_path).absolutePath())) {
+                fail("could not recreate an abandoned staging slot");
+            }
+            QFile staged(staged_path);
+            if (!staged.open(QIODevice::WriteOnly) || staged.write("stale", 5) != 5) {
+                fail("could not recreate an abandoned staged file");
+            }
+            return staged_path;
+        };
+
+        const QString own_debris   = abandon_staged_file("letter.pdf");
+        const QString other_debris = abandon_staged_file("unrelated.pdf");
+
+        auto reclaim_request = request;
+        reclaim_request.output_path      = reclaim_dir.filePath("letter.pdf").toStdString();
+        reclaim_request.overwrite_output = false;
+
+        auto reclaimed = briefutil::generate_brief_pdf(reclaim_request);
+        if (!reclaimed.ok) {
+            std::fprintf(
+                stderr,
+                "FAIL: generation over abandoned staging debris failed: %s (%s)\n",
+                reclaimed.message.c_str(),
+                reclaimed.detail.c_str());
+            return 1;
+        }
+        if (QFileInfo::exists(own_debris)) {
+            fail("a dead run's staged file must be reclaimed by the next run for that target");
+        }
+        if (!QFileInfo::exists(other_debris)) {
+            fail("reclamation must stop at the staging slot of the target being published");
+        }
+    }
+
+    // Two runs cannot be in one slot at once. Emptying the slot on open is what
+    // reclaims a dead run's debris without reading any name as proof of who
+    // wrote it, so an open granted while another run still held the slot would
+    // delete that run's staged file out from under it. The second open is
+    // refused instead, and the file the holder staged is still there afterwards.
+    {
+        const QDir contended_dir(root.filePath("contended"));
+        if (!QDir().mkpath(contended_dir.absolutePath())) {
+            fail("could not create the contended staging directory");
+        }
+
+        briefutil::Owned_staging_slot held;
+        std::string                   held_error;
+        if (!held.open(contended_dir, "letter.pdf", &held_error)) {
+            fail("could not open the first staging slot");
+        }
+        QFile staged(held.staged_path());
+        if (!staged.open(QIODevice::WriteOnly) || staged.write("in progress", 11) != 11) {
+            fail("could not write into the first staging slot");
+        }
+        staged.close();
+
+        briefutil::Owned_staging_slot contender;
+        if (contender.open(contended_dir, "letter.pdf", nullptr)) {
+            fail("a slot another run is holding must not be granted a second time");
+        }
+
+        QFile still_staged(held.staged_path());
+        if (!still_staged.open(QIODevice::ReadOnly) || still_staged.readAll() != "in progress") {
+            fail("a refused slot open must leave the holder's staged file untouched");
+        }
+    }
+
+    // A subject long enough to push the derived output name past a directory
     // entry's byte limit must still produce a usable file.
     auto long_subject = request;
     long_subject.subject          = std::string(500, 'S');
