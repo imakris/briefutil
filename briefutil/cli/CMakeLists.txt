@@ -9,7 +9,7 @@ target_link_libraries(briefutil_cli
 )
 
 briefutil_copy_runtime_dlls(briefutil_cli)
-briefutil_copy_mark2haru_fonts(briefutil_cli)
+mark2haru_stage_bundled_fonts(briefutil_cli)
 
 install(TARGETS briefutil_cli
     RUNTIME DESTINATION bin

@@ -25,7 +25,7 @@ target_link_libraries(briefutil
         Qt6::QuickDialogs2
 )
 
-briefutil_copy_mark2haru_fonts(briefutil)
+mark2haru_stage_bundled_fonts(briefutil)
 
 find_package(Git QUIET)
 add_custom_target(briefutil_build_info

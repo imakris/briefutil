@@ -60,10 +60,6 @@ if(NOT TARGET mark2haru::mark2haru)
     message(FATAL_ERROR "mark2haru::mark2haru was not provided by the mark2haru dependency.")
 endif()
 
-function(briefutil_copy_mark2haru_fonts target)
-    mark2haru_copy_bundled_fonts(${target} "$<TARGET_FILE_DIR:${target}>/fonts")
-endfunction()
-
 # ============================================================================
 # Qt 6
 # ============================================================================
