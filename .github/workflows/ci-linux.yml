@@ -1,0 +1,58 @@
+name: CI Linux
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CMAKE_BUILD_TYPE: Release
+  LINUX_SYSTEM_DEPS: >-
+    libgl-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev
+    libxi-dev libxext-dev libwayland-dev libxkbcommon-dev libvulkan-dev
+
+jobs:
+  build-and-test:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${LINUX_SYSTEM_DEPS}
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.10.1'
+          arch: 'linux_gcc_64'
+          archives: 'icu qtbase qtdeclarative'
+          cache: 'true'
+
+      # mark2haru is left to the FetchContent fallback, so the job builds
+      # against its master and reports a provider break here rather than at
+      # the next release.
+      - name: Configure CMake
+        run: |
+          cmake -B build -S briefutil \
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+            -DBRIEFUTIL_BUILD_GUI=ON
+
+      - name: Build
+        run: cmake --build build --config ${CMAKE_BUILD_TYPE} --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
