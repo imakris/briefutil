@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "seller": {
+    "company_name": "Example Software Ltd",
+    "registered_address": "1 Example Street\n1000 Nicosia\nCyprus",
+    "vat_number": "CY12345678A",
+    "company_number": "HE123456",
+    "payment_instructions": "Example only. Replace with your verified beneficiary, bank and payment details."
+  },
+  "banner_color": "#EBEBEB",
+  "rule_color": "#666666"
+}

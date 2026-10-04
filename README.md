@@ -104,6 +104,27 @@ Common CLI options:
   (`50..200`)
 - `--force` to replace an existing `--output` file
 
+### Invoice PDFs
+
+The CLI also renders an exported sales order with a local invoice template:
+
+```powershell
+briefutil_cli --invoice-json order.json --invoice-template invoice-template.json `
+  --invoice-number "EXAMPLE-2026-001" --invoice-date "2026-10-04" `
+  --output invoice.pdf --receipt invoice.receipt.json
+```
+
+The template supplies your company details, payment instructions, logo and
+colors. The order supplies the customer, product, agreed amounts and terms.
+The number and issue date are explicit inputs. Review the PDF before issuing
+or sending it. Rendering does not send mail, issue a licence or mark a payment
+as received. Existing PDF and receipt files are never overwritten in invoice
+mode.
+
+See [the invoice workflow and JSON contract](docs/invoices.md). Synthetic
+examples are in `briefutil/examples/invoice/`; replace their illustrative
+seller, customer, payment and tax information before using them for a sale.
+
 On Windows, the CMake build also runs Qt deployment steps so the build output
 contains the required Qt DLLs, plugins, and QML modules.
 

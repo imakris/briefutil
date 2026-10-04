@@ -1,4 +1,5 @@
 #include "briefutil/brief_service.h"
+#include "briefutil/invoice_service.h"
 #include "briefutil/path_utils.h"
 #include "briefutil/template_store.h"
 
@@ -19,6 +20,8 @@ namespace {
 
 struct Cli_options
 {
+    briefutil::Invoice_request invoice;
+    bool               invoice_mode              = false;
     std::string        recipient;
     std::string        recipient_file;
     bool               recipient_source_provided = false;
@@ -47,6 +50,9 @@ void print_help()
 {
     std::cout
         << "Usage: briefutil_cli --to TEXT [options]\n"
+        << "Invoice: briefutil_cli --invoice-json PATH --invoice-template PATH\n"
+        << "         --invoice-number TEXT --invoice-date YYYY-MM-DD\n"
+        << "         --output PATH --receipt PATH\n"
         << "Options:\n"
         << "  --to TEXT              Recipient block; use \\n for line breaks\n"
         << "  --to-file PATH         Read recipient block from a UTF-8 text file\n"
@@ -211,6 +217,21 @@ std::optional<Cli_options> parse_args(const QStringList& args)
 
         if (arg == "--help" || arg == "-h") {
             options.help = true;
+        }
+        else
+        if (arg == "--invoice-json" || arg == "--invoice-template" ||
+            arg == "--invoice-number" || arg == "--invoice-date" || arg == "--receipt")
+        {
+            auto value = read_value(arg.c_str());
+            if (!value) {
+                return std::nullopt;
+            }
+            options.invoice_mode = true;
+            if (arg == "--invoice-json")     { options.invoice.input_path     = *value; }
+            if (arg == "--invoice-template") { options.invoice.template_path  = *value; }
+            if (arg == "--invoice-number")   { options.invoice.invoice_number = *value; }
+            if (arg == "--invoice-date")     { options.invoice.invoice_date   = *value; }
+            if (arg == "--receipt")          { options.invoice.receipt_path   = *value; }
         }
         else
         if (arg == "--to") {
@@ -407,6 +428,27 @@ int main(int argc, char** argv)
     auto options = *parsed;
     if (options.help) {
         print_help();
+        return 0;
+    }
+    if (options.invoice_mode) {
+        const QStringList allowed{
+            "--invoice-json", "--invoice-template", "--invoice-number",
+            "--invoice-date", "--output", "--receipt",
+        };
+        const auto arguments = app.arguments();
+        for (int index = 1; index < arguments.size(); index += 2) {
+            if (!allowed.contains(arguments[index])) {
+                std::cerr << "Invoice mode accepts only the invoice options shown in --help.\n";
+                return 2;
+            }
+        }
+        options.invoice.output_path = options.output_path;
+        const auto result = briefutil::generate_invoice_pdf(options.invoice);
+        if (!result.ok) {
+            std::cerr << result.message << "\n";
+            return 2;
+        }
+        std::cout << result.output_path << "\n";
         return 0;
     }
     if (!options.profile_path.empty() && !options.profile_id.empty()) {

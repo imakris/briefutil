@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "order_id": "52276c23-6e3b-4ad7-94dc-c471748ad84e",
+  "sku": "soter.standard",
+  "product_name": "Soter",
+  "recipient_email": "licences@example.org",
+  "company_name": "Example Studio GmbH",
+  "billing_address": "Musterstrasse 10\n10115 Berlin",
+  "country_code": "DE",
+  "vat_number": "DE123456789",
+  "unit_amount_minor": 2000,
+  "tax_amount_minor": 0,
+  "total_amount_minor": 2000,
+  "currency": "EUR",
+  "tax_note": "Example tax treatment only; supply the confirmed treatment for the actual sale.",
+  "payment_due_date": "2026-10-18",
+  "update_term_months": 12,
+  "desktop_slot_grant": 3
+}
