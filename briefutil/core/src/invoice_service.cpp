@@ -370,7 +370,7 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     if (!logo_path.empty()) {
         const auto dimensions = measure_png(logo_path);
         const float width = logo_height * dimensions.width_px / dimensions.height_px;
-        layout.elements().push_back(Image_block{ 185.0f - width, 34.0f, width, logo_path });
+        layout.elements().push_back(Image_block{ 185.0f - width, 51.0f - logo_height, width, logo_path });
     }
     else {
         layout.block(k_left_mm, 35.0f, k_width_mm, text(seller, "company_name"), 17.0f);
@@ -391,7 +391,7 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
 
     layout.y() = 59.0f;
     const Table_block seller_table{ { Table_row{ { cell(""), cell(seller_block) } } }, false };
-    if (!layout.table(seller_table, { 95.0f, 65.0f }, 8.5f)) {
+    if (!layout.table(seller_table, { 95.0f, 65.0f }, 8.5f, true)) {
         return failure(table_error);
     }
     layout.elements().push_back(Text_block{
