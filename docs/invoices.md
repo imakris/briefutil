@@ -43,20 +43,26 @@ contract; sender-profile JSON and the letter editor are unaffected.
 | `product_name` | Product description for the invoice's one licence line |
 | `recipient_email` | Named licence recipient |
 | `company_name`, `billing_address`, `country_code`, `vat_number` | Buyer details; address may contain newlines |
-| `unit_amount_minor` | Net price of the one licence, in integer minor units |
+| `unit_amount_minor` | Net price after discount, in integer minor units |
+| `list_amount_minor`, `discount_amount_minor` | Optional pair: original price and discount; their difference must equal `unit_amount_minor` |
 | `tax_amount_minor` | Explicit tax amount in integer minor units |
 | `total_amount_minor` | Net price plus tax |
 | `currency` | `EUR` |
 | `tax_note` | Operator-confirmed explanation of the tax treatment |
-| `payment_due_date` | `YYYY-MM-DD`, on or after the invoice date |
+| `payment_status` | Optional `unpaid` (default) or `no_payment_due` for a zero-total invoice |
+| `payment_due_date` | `YYYY-MM-DD`, on or after the invoice date when unpaid; ignored when no payment is due |
 | `update_term_months` | Agreed update entitlement for a permanent-use licence |
 | `desktop_slot_grant` | Agreed installation allowance |
 
 The parser accepts other order-service metadata, including `sku`, without
 interpreting it. The entire original input, including such metadata, is bound
 by the receipt's SHA-256. Monetary inputs must be nonnegative exact JSON
-integers no larger than `9007199254740991`; the net price must be positive and
-the supplied total must equal net plus tax. The renderer does not infer tax
+integers no larger than `9007199254740991`; the original price must be positive and
+the supplied total must equal net plus tax. A zero-total invoice requires the explicit
+`no_payment_due` status and zero net, tax and total. It prints **NO PAYMENT DUE**,
+without payment instructions or a payment deadline. It never asserts a payment
+was received. Discounts reduce the supplied net price; the order service owns
+the tax treatment and amount. The renderer does not infer tax
 treatment, allocate invoice numbers or perform VAT-number verification.
 
 ## Local template
@@ -131,7 +137,7 @@ The input has these fields:
 | `buyer` | `name`, `billing_address`, `country_code`, `tax_id`; consumer `tax_id` may be empty |
 | `lines` | Nonempty array of line objects described below |
 | `totals` | `net_minor`, `tax_minor`, `gross_minor`, equal to the sum of their lines |
-| `payment` | `status` (`unpaid`, `paid`, or `credited` for a credit note), `due_date` (ISO date required when unpaid, otherwise date or null), `reference` (possibly empty) |
+| `payment` | `status` (`unpaid`, `paid`, `no_payment_due`, or `credited` for a credit note), `due_date` (ISO date required when unpaid, otherwise date or null), `reference` (possibly empty) |
 | `original_document` | Null for an invoice; credit notes require the original `document_id`, `number` and `date` |
 | `correction_reason` | Empty for an invoice; required for a credit note |
 | `tax_reporting` | Optional supplied VAT conversion: `currency`, `currency_minor_digits`, `tax_minor`, `fx_reference` |
@@ -144,6 +150,10 @@ exact values across JSON consumers. The renderer checks `quantity × unit_net_mi
 = net_minor` and `net_minor + tax_minor = gross_minor`, including overflow.
 Descriptions include the agreed licence or service terms supplied by the
 order service; the renderer does not describe every SKU as a permanent licence.
+An invoice with zero net, tax and total requires `no_payment_due` and prints
+**NO PAYMENT DUE**. A positive-total document cannot use that status. Original
+unit prices and discounts remain visible; a zero-total invoice does not become
+a paid receipt. Credit notes retain positive reduction totals.
 
 Each line also has a nonempty `taxes` array. A component has `tax_name`,
 `jurisdiction`, `rate_ppm` (integer or null), `treatment`, `legal_basis`

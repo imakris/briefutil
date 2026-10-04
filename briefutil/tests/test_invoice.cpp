@@ -120,6 +120,53 @@ int main(int argc, char* argv[])
     cli.start(QString::fromUtf8(BRIEFUTIL_CLI_PATH), arguments + QStringList{ "--force" });
     require(cli.waitForFinished(30000) && cli.exitCode() == 2, "invoice CLI refuses letter-only overwrite flag");
 
+    int order_index = 0;
+    auto render_order = [&](const QJsonObject& value, bool expected) {
+        const QString stem = "discounted-order-" + QString::number(++order_index);
+        request.output_path = directory.filePath(stem + ".pdf").toStdString();
+        request.receipt_path = directory.filePath(stem + ".json").toStdString();
+        const QByteArray bytes = QJsonDocument(value).toJson();
+        write_file(input_path, bytes);
+        const auto result = briefutil::generate_invoice_pdf(request);
+        require(result.ok == expected, "manual discount and payment status must match exact sums");
+        if (expected) {
+            const auto returned = QJsonDocument::fromJson(
+                read_file(QString::fromStdString(request.receipt_path))).object();
+            require(returned.size() == 8 && returned.value("version") == 1, "manual receipt contract is unchanged");
+            require(returned.value("input_sha256") == hash(bytes), "manual receipt binds discount and status");
+            require(returned.value("pdf_sha256") == hash(read_file(QString::fromStdString(request.output_path))),
+                "manual receipt binds rendered discount document");
+        }
+        else {
+            require(!QFile::exists(QString::fromStdString(request.output_path)), "invalid manual discount creates no PDF");
+            require(!QFile::exists(QString::fromStdString(request.receipt_path)), "invalid manual discount creates no receipt");
+        }
+    };
+    auto discounted_order = QJsonDocument::fromJson(input_bytes).object();
+    discounted_order.insert("list_amount_minor", 2000);
+    discounted_order.insert("discount_amount_minor", 500);
+    discounted_order.insert("unit_amount_minor", 1500);
+    discounted_order.insert("tax_amount_minor", 285);
+    discounted_order.insert("total_amount_minor", 1785);
+    render_order(discounted_order, true);
+    auto zero_order = discounted_order;
+    zero_order.insert("discount_amount_minor", 2000);
+    zero_order.insert("unit_amount_minor", 0);
+    zero_order.insert("tax_amount_minor", 0);
+    zero_order.insert("total_amount_minor", 0);
+    zero_order.insert("payment_status", "no_payment_due");
+    zero_order.insert("payment_due_date", QJsonValue::Null);
+    render_order(zero_order, true);
+    zero_order.insert("payment_status", "paid");
+    render_order(zero_order, false);
+    discounted_order.insert("payment_status", "no_payment_due");
+    render_order(discounted_order, false);
+    discounted_order.insert("payment_status", "unpaid");
+    discounted_order.insert("discount_amount_minor", 501);
+    render_order(discounted_order, false);
+    discounted_order.remove("discount_amount_minor");
+    render_order(discounted_order, false);
+
     request.invoice_number.clear();
     request.invoice_date.clear();
     int document_index = 0;
@@ -154,6 +201,41 @@ int main(int argc, char* argv[])
     render_document(document, true);
     render_document(credit, true);
     render_document(mixed, true);
+
+    auto discounted_document = document;
+    auto discounted_lines = discounted_document.value("lines").toArray();
+    auto discounted_line = discounted_lines.first().toObject();
+    discounted_line.insert("discount_minor", 2000);
+    discounted_line.insert("net_minor", 0);
+    discounted_line.insert("tax_minor", 0);
+    discounted_line.insert("gross_minor", 0);
+    auto zero_taxes = discounted_line.value("taxes").toArray();
+    auto zero_tax = zero_taxes.first().toObject();
+    zero_tax.insert("taxable_base_minor", 0);
+    zero_tax.insert("amount_minor", 0);
+    zero_taxes[0] = zero_tax;
+    discounted_line.insert("taxes", zero_taxes);
+    discounted_lines[0] = discounted_line;
+    discounted_document.insert("lines", discounted_lines);
+    discounted_document.insert("totals", QJsonObject{
+        { "net_minor", 0 }, { "tax_minor", 0 }, { "gross_minor", 0 },
+    });
+    auto zero_payment = discounted_document.value("payment").toObject();
+    zero_payment.insert("status", "no_payment_due");
+    discounted_document.insert("payment", zero_payment);
+    render_document(discounted_document, true);
+    zero_payment.insert("status", "paid");
+    discounted_document.insert("payment", zero_payment);
+    render_document(discounted_document, false);
+    auto unpaid_zero = discounted_document;
+    zero_payment.insert("status", "unpaid");
+    zero_payment.insert("due_date", "2026-10-10");
+    unpaid_zero.insert("payment", zero_payment);
+    render_document(unpaid_zero, false);
+    auto positive_no_payment = document;
+    zero_payment.insert("status", "no_payment_due");
+    positive_no_payment.insert("payment", zero_payment);
+    render_document(positive_no_payment, false);
 
     request.invoice_number = "OVERRIDE";
     render_document(document, false);

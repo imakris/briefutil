@@ -113,7 +113,7 @@ bool read_v1(
     const Invoice_request& request, Invoice_document& doc)
 {
     for (const char* key : { "order_id", "product_name", "recipient_email", "company_name",
-        "billing_address", "country_code", "vat_number", "tax_note", "payment_due_date" })
+        "billing_address", "country_code", "vat_number", "tax_note" })
     {
         if (!valid_text(input, key)) {
             return false;
@@ -127,29 +127,53 @@ bool read_v1(
         !integer(input, "total_amount_minor", doc.gross_minor) ||
         !integer(input, "update_term_months", updates) ||
         !integer(input, "desktop_slot_grant", installations) ||
-        doc.net_minor == 0 || updates == 0 || installations == 0 ||
+        updates == 0 || installations == 0 ||
         text(input, "currency") != "EUR")
+    {
+        return false;
+    }
+    const QString status = input.contains("payment_status") ? text(input, "payment_status") : "unpaid";
+    qint64 list = doc.net_minor, discount = 0;
+    if ((input.contains("list_amount_minor") || input.contains("discount_amount_minor")) &&
+        (!integer(input, "list_amount_minor", list) ||
+            !integer(input, "discount_amount_minor", discount)))
+    {
+        return false;
+    }
+    if (list == 0 || discount > list || list - discount != doc.net_minor ||
+        (status != "unpaid" && status != "no_payment_due") ||
+        (doc.gross_minor == 0) != (status == "no_payment_due"))
     {
         return false;
     }
     qint64 sum = doc.net_minor;
     const QString due = text(input, "payment_due_date");
     if (!add(sum, doc.tax_minor) || sum != doc.gross_minor ||
-        !iso_date(due) || due < doc.date)
+        (status == "unpaid" && (!iso_date(due) || due < doc.date)))
     {
         return false;
     }
     doc.buyer = text(input, "company_name") + "\n" + text(input, "billing_address") +
         "\n" + text(input, "country_code") + "\nVAT: " + text(input, "vat_number");
-    doc.metadata = doc.number + "\n\nDATE\n" + doc.date + "\n\nPAYMENT DUE\n" + due;
-    doc.items.push_back({ text(input, "product_name") + "\n1 licence\nNamed user: " +
+    doc.metadata = doc.number + "\n\nDATE\n" + doc.date;
+    QString description = text(input, "product_name") + "\n1 licence\nNamed user: " +
         text(input, "recipient_email") + "\n" + QString::number(installations) +
-        " installations; permanent use; " + QString::number(updates) + " months of updates.",
-        doc.net_minor });
+        " installations; permanent use; " + QString::number(updates) + " months of updates.";
+    if (discount) {
+        description += "\nUnit price: " + invoice_money(list, doc.currency, doc.currency_minor_digits) +
+            "\nDiscount: " + invoice_money(discount, doc.currency, doc.currency_minor_digits);
+    }
+    doc.items.push_back({ description, doc.net_minor });
     doc.taxes.push_back({ "VAT", doc.tax_minor });
-    doc.payment_heading = "PAYMENT DETAILS";
-    doc.payment_details = text(seller, "payment_instructions") +
-        "\n\nPayment reference: " + doc.number;
+    if (status == "unpaid") {
+        doc.metadata += "\n\nPAYMENT DUE\n" + due;
+        doc.payment_heading = "PAYMENT DETAILS";
+        doc.payment_details = text(seller, "payment_instructions") +
+            "\n\nPayment reference: " + doc.number;
+    }
+    else {
+        doc.payment_heading = "NO PAYMENT DUE";
+    }
     doc.notes.push_back(text(input, "tax_note"));
     return true;
 }
@@ -208,7 +232,8 @@ bool read_v2(const QJsonObject& input, const QJsonObject& seller, Invoice_docume
     const auto payment = input.value("payment").toObject();
     const QString status = text(payment, "status");
     if (!valid_text(payment, "reference", true) ||
-        (doc.credit ? status != "credited" : status != "unpaid" && status != "paid"))
+        (doc.credit ? status != "credited" :
+            status != "unpaid" && status != "paid" && status != "no_payment_due"))
     {
         return false;
     }
@@ -224,6 +249,10 @@ bool read_v2(const QJsonObject& input, const QJsonObject& seller, Invoice_docume
         doc.metadata += "\n\nPAYMENT DUE\n" + text(payment, "due_date");
         doc.payment_heading = "PAYMENT DETAILS";
         doc.payment_details = text(seller, "payment_instructions");
+    }
+    else
+    if (status == "no_payment_due") {
+        doc.payment_heading = "NO PAYMENT DUE";
     }
     else {
         doc.payment_heading = doc.credit ? "CREDIT NOTE" : "PAID";
@@ -314,7 +343,8 @@ bool read_v2(const QJsonObject& input, const QJsonObject& seller, Invoice_docume
         doc.items.push_back({ description, net });
     }
     qint64 net = 0, tax = 0, gross = 0;
-    if (!totals(input.value("totals").toObject(), net, tax, gross) || gross == 0 ||
+    if (!totals(input.value("totals").toObject(), net, tax, gross) ||
+        (gross == 0) != (status == "no_payment_due") ||
         net != doc.net_minor || tax != doc.tax_minor || gross != doc.gross_minor)
     {
         return false;
