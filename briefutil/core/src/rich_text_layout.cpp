@@ -225,9 +225,10 @@ static color_t color_from_mark2haru(const mark2haru::color_t& color)
     };
 }
 
-static void append_mark2haru_table_elements(
+void append_mark2haru_table_elements(
     const mark2haru::Table_row_layout& row_layout,
-    std::vector<Page_element>&         elements)
+    std::vector<Page_element>&         elements,
+    bool                               include_borders)
 {
     for (const auto& element : row_layout.elements) {
         std::visit([&](const auto& value) {
@@ -244,6 +245,9 @@ static void append_mark2haru_table_elements(
             }
             else
             if constexpr (std::is_same_v<Element_type, mark2haru::table_line_t>) {
+                if (!include_borders) {
+                    return;
+                }
                 elements.push_back(line_segment_t{
                     pt_to_mm(value.x1_pt),
                     pt_to_mm(value.y1_pt),

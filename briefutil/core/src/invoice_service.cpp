@@ -5,6 +5,7 @@
 #include "briefutil/path_utils.h"
 #include "briefutil/pdf_measurement.h"
 #include "briefutil/pdf_renderer.h"
+#include "rich_text_layout.h"
 
 #include <QCryptographicHash>
 #include <QDate>
@@ -18,8 +19,11 @@
 #include <QRegularExpression>
 #include <QString>
 
+#include <mark2haru/table_layout.h>
+
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -174,24 +178,78 @@ public:
         m_y += 3.0f;
     }
 
-    float block_height(const QString& value, float width, float size) const
-    {
-        return pt_to_mm(m_measurement.measure_text(
-            value.toStdString(), Font_id::SANS, size, size + 3.0f, width, true).height_pt);
-    }
-
     void block(float x, float y, float width, const QString& value, float size = 10.0f)
     {
         elements().push_back(Text_block{
             x, y, width, value.toStdString(), Font_id::SANS, size, size + 3.0f, {}, true });
     }
 
-    void heading(const std::string& value)
+    bool table(
+        const mark2haru::Table_block& table,
+        const std::vector<float>&    widths_mm,
+        float                        size = 10.0f,
+        bool                         right_align_last = false)
     {
-        reserve(12.0f);
-        elements().push_back(filled_rect_t{ k_left_mm, m_y - 2.0f, k_width_mm, 8.0f, m_banner });
-        line(value, Font_id::SANS_BOLD);
-        m_y += 4.0f;
+        mark2haru::Table_columns columns;
+        columns.column_count = static_cast<int>(widths_mm.size());
+        columns.valid        = true;
+        for (float width : widths_mm) {
+            columns.widths_pt.push_back(mm_to_pt(width));
+        }
+        mark2haru::table_style_t style;
+        style.text_size_pt    = size;
+        style.text_leading_pt = size + 4.0;
+        style.cell_padding_pt = 4.0;
+        style.header_fill     = { m_banner.r, m_banner.g, m_banner.b };
+
+        for (int index = 0; index < static_cast<int>(table.rows.size()); ++index) {
+            const float height = pt_to_mm(mark2haru::measure_table_row_height(
+                table, index, columns, style, *m_measurement.context()));
+            if (height > k_page_bottom_mm - 25.0f) {
+                return false;
+            }
+            if (m_y + height > k_page_bottom_mm) {
+                new_page();
+                if (table.has_header && index > 0) {
+                    auto header = mark2haru::layout_table_row(
+                        table, 0, columns, mm_to_pt(k_left_mm), mm_to_pt(m_y),
+                        style, *m_measurement.context());
+                    append_mark2haru_table_elements(header, elements(), false);
+                    m_y += pt_to_mm(header.height_pt);
+                    if (m_y + height > k_page_bottom_mm) {
+                        return false;
+                    }
+                }
+            }
+            auto row = mark2haru::layout_table_row(
+                table, index, columns, mm_to_pt(k_left_mm), mm_to_pt(m_y),
+                style, *m_measurement.context());
+            if (right_align_last) {
+                const double right = mm_to_pt(k_left_mm + k_width_mm) - style.cell_padding_pt;
+                const double left  = right - columns.widths_pt.back() + style.cell_padding_pt;
+                // The amount cells contain plain numeric lines. Align the actual
+                // table spans at the amount column's right edge using the same
+                // font metrics that laid them out, including wrapped lines.
+                std::map<double, double> line_ends;
+                for (const auto& element : row.elements) {
+                    const auto* span = std::get_if<mark2haru::Table_text_span>(&element);
+                    if (span && span->x_pt >= left) {
+                        const double end = span->x_pt + m_measurement.context()->measure_text_width(
+                            span->font, span->text, span->size_pt);
+                        line_ends[span->y_pt] = std::max(line_ends[span->y_pt], end);
+                    }
+                }
+                for (auto& element : row.elements) {
+                    auto* span = std::get_if<mark2haru::Table_text_span>(&element);
+                    if (span && span->x_pt >= left) {
+                        span->x_pt += right - line_ends.at(span->y_pt);
+                    }
+                }
+            }
+            append_mark2haru_table_elements(row, elements(), false);
+            m_y += height;
+        }
+        return true;
     }
 
     void rule()
@@ -308,56 +366,89 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
         return failure(measurement.error());
     }
     Invoice_layout layout(measurement, banner, rule);
-    layout.elements().push_back(filled_rect_t{ 0, 0, 210.0f, 48.0f, banner });
+    layout.elements().push_back(filled_rect_t{ 0, 0, 210.0f, 54.0f, banner });
     if (!logo_path.empty()) {
         const auto dimensions = measure_png(logo_path);
         const float width = logo_height * dimensions.width_px / dimensions.height_px;
-        layout.elements().push_back(Image_block{ 185.0f - width, 25.0f, width, logo_path });
+        layout.elements().push_back(Image_block{ 185.0f - width, 34.0f, width, logo_path });
     }
     else {
-        layout.block(k_left_mm, 28.0f, k_width_mm, text(seller, "company_name"), 17.0f);
+        layout.block(k_left_mm, 35.0f, k_width_mm, text(seller, "company_name"), 17.0f);
     }
-    layout.y() = 58.0f;
-    layout.line("INVOICE", Font_id::SANS_BOLD, 20.0f);
-    layout.y() += 6.0f;
-
     const QString seller_block = text(seller, "company_name") + "\n" +
         text(seller, "registered_address") + "\nVAT: " + text(seller, "vat_number") +
         "\nCompany number: " + text(seller, "company_number");
     const QString buyer_block = text(input, "company_name") + "\n" + text(input, "billing_address") +
         "\n" + text(input, "country_code") + "\nVAT: " + text(input, "vat_number");
-    const float seller_height = layout.block_height(seller_block, 76.0f, 9.0f);
-    const float buyer_height  = layout.block_height(buyer_block, 76.0f, 9.0f);
-    // Ordinary addresses remain side by side. Oversized user-provided blocks
-    // flow across pages instead of being clipped by a fixed header rectangle.
-    if (std::max(seller_height, buyer_height) <= 75.0f) {
-        layout.block(k_left_mm, layout.y(), 76.0f, "BILL TO\n" + buyer_block, 9.0f);
-        layout.block(109.0f, layout.y(), 76.0f, seller_block, 9.0f);
-        layout.y() += std::max(seller_height, buyer_height) + 12.0f;
+    using mark2haru::Inline_style;
+    using mark2haru::Table_block;
+    using mark2haru::Table_cell;
+    using mark2haru::Table_row;
+    auto cell = [](const QString& value, Inline_style style = Inline_style::NORMAL) {
+        return Table_cell{ { { value.toStdString(), style } } };
+    };
+    const std::string table_error = "Invoice table row is too tall for an A4 page; shorten its text.";
+
+    layout.y() = 59.0f;
+    const Table_block seller_table{ { Table_row{ { cell(""), cell(seller_block) } } }, false };
+    if (!layout.table(seller_table, { 95.0f, 65.0f }, 8.5f)) {
+        return failure(table_error);
     }
-    else {
-        layout.heading("BILL TO");
-        layout.paragraph(buyer_block, 9.0f);
-        layout.heading("SELLER");
-        layout.paragraph(seller_block, 9.0f);
+    layout.elements().push_back(Text_block{
+        k_left_mm, 82.0f, 80.0f, "INVOICE", Font_id::SANS, 20.0f });
+
+    layout.y() = std::max(104.0f, layout.y() + 12.0f);
+    const Table_block metadata{
+        {
+            Table_row{ { cell("BILL TO", Inline_style::BOLD), cell(""), cell("INVOICE NUMBER", Inline_style::BOLD) } },
+            Table_row{ {
+                cell(buyer_block), cell(""),
+                cell(number + "\n\nDATE\n" + date + "\n\nPAYMENT DUE\n" + due),
+            } },
+        },
+        false,
+    };
+    if (!layout.table(metadata, { 85.0f, 20.0f, 55.0f }, 9.0f)) {
+        return failure(table_error);
     }
-    layout.paragraph("Invoice number: " + number + "\nInvoice date: " + date + "\nPayment due: " + due);
-    layout.heading("DESCRIPTION");
-    layout.paragraph(text(input, "product_name"));
-    layout.paragraph("Named user: " + text(input, "recipient_email") + "\n" +
-        QString::number(installations) + " installations; permanent use; " +
-        QString::number(updates) + " months of updates.", 9.0f);
-    layout.reserve(38.0f);
+    layout.y() += 12.0f;
+    const Table_cell description{ {
+        { text(input, "product_name").toStdString(), Inline_style::BOLD },
+        { ("\n1 licence\nNamed user: " + text(input, "recipient_email") + "\n" +
+            QString::number(installations) + " installations; permanent use; " +
+            QString::number(updates) + " months of updates.").toStdString(), Inline_style::NORMAL },
+    } };
+    const Table_block items{
+        {
+            Table_row{ { cell("DESCRIPTION"), cell("AMOUNT") } },
+            Table_row{ { description, cell(money(net)) } },
+        },
+        true,
+    };
+    if (!layout.table(items, { 125.0f, 35.0f }, 9.0f, true)) {
+        return failure(table_error);
+    }
+    layout.y() += 15.0f;
     layout.rule();
-    layout.line("Quantity: 1");
-    layout.line(("Net amount: " + money(net)).toStdString());
-    layout.line(("VAT: " + money(tax)).toStdString());
-    layout.line(("TOTAL: " + money(total)).toStdString(), Font_id::SANS_BOLD, 12.0f);
-    layout.rule();
-    layout.paragraph(text(input, "tax_note"), 9.0f);
-    layout.heading("PAYMENT DETAILS");
-    layout.paragraph(text(seller, "payment_instructions"), 9.0f);
-    layout.paragraph("Payment reference: " + number, 9.0f);
+    layout.y() += 3.0f;
+    const Table_cell payment{ {
+        { "PAYMENT DETAILS\n\n", Inline_style::BOLD },
+        { (text(seller, "payment_instructions") + "\n\nPayment reference: " + number).toStdString(), Inline_style::NORMAL },
+    } };
+    const Table_cell total_labels{ {
+        { "Subtotal\n\nVAT\n\n", Inline_style::NORMAL },
+        { "TOTAL", Inline_style::BOLD },
+    } };
+    const Table_cell total_amounts{ {
+        { (money(net) + "\n\n" + money(tax) + "\n\n").toStdString(), Inline_style::NORMAL },
+        { money(total).toStdString(), Inline_style::BOLD },
+    } };
+    const Table_block payment_and_totals{ { Table_row{ { payment, total_labels, total_amounts } } }, false };
+    if (!layout.table(payment_and_totals, { 90.0f, 35.0f, 35.0f }, 9.0f, true)) {
+        return failure(table_error);
+    }
+    layout.y() += 5.0f;
+    layout.paragraph(text(input, "tax_note"), 8.0f);
     layout.paragraph("Order reference: " + text(input, "order_id"), 8.0f);
     const Document document = layout.finish();
 

@@ -73,10 +73,13 @@ Each seller field is required. Keep actual company banking instructions in
 your local template, outside source control. Optional `logo_image` names a
 PNG asset relative to the template directory; absolute paths and `..` are not
 accepted. Optional `banner_color` and `rule_color` use `#RRGGBB` notation. The
-layout uses an A4 page, a logo banner, seller and buyer blocks, invoice
-references, licence description, amounts and payment details. Long text flows
-onto additional pages. Neither a signer's personal name nor a letter closing
-is added.
+layout uses an A4 page and a logo banner. Native mark2haru tables position the
+seller, buyer and invoice references, licence description and amount, and
+payment details beside the totals. These tables have no gridlines; a subtle
+rule separates the item from the payment and totals area. Amount columns align
+at the right edge. Rows move to additional pages when necessary; a row taller
+than a full page is rejected rather than clipped. Neither a signer's personal
+name nor a letter closing is added.
 
 The template file and order input are limited to 1 MiB each. Both are read as
 JSON; buyer and order text is rendered as text rather than Markdown, so a

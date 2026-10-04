@@ -6,6 +6,7 @@
 #include "briefutil/typography_config.h"
 
 #include <mark2haru/markdown.h>
+#include <mark2haru/table_layout.h>
 
 #include <string>
 #include <vector>
@@ -55,3 +56,10 @@ Layout_result layout_body(
     float                                  first_page_bottom_mm,
     float                                  cont_page_top_mm,
     float                                  cont_page_bottom_mm);
+
+// Shared bridge from mark2haru's table layout to the native document renderer.
+// Invoices use borderless tables; letter Markdown retains its table borders.
+void append_mark2haru_table_elements(
+    const mark2haru::Table_row_layout& row_layout,
+    std::vector<Page_element>&         elements,
+    bool                               include_borders = true);
