@@ -33,9 +33,14 @@ namespace {
 
 constexpr qint64 k_max_json_integer = 9007199254740991LL;
 constexpr qint64 k_max_json_bytes   = 1024 * 1024;
+
 constexpr float  k_left_mm          = 25.0f;
 constexpr float  k_width_mm         = 160.0f;
 constexpr float  k_page_bottom_mm   = 270.0f;
+constexpr float  k_cell_padding_pt  = 4.0f;
+
+constexpr float  k_content_left_mm  = k_left_mm + k_cell_padding_pt / k_pts_per_mm;
+constexpr float  k_content_width_mm = k_width_mm - 2.0f * k_cell_padding_pt / k_pts_per_mm;
 
 Generation_result failure(const std::string& message)
 {
@@ -164,14 +169,14 @@ public:
     {
         const float height = pt_to_mm(size + 4.0f);
         reserve(height);
-        elements().push_back(Text_block{ k_left_mm, m_y, k_width_mm, value, font, size });
+        elements().push_back(Text_block{ k_content_left_mm, m_y, k_content_width_mm, value, font, size });
         m_y += height;
     }
 
     void paragraph(const QString& value, float size = 10.0f)
     {
         for (const auto& line_text : m_measurement.wrap_text(
-            value.toStdString(), Font_id::SANS, size, k_width_mm))
+            value.toStdString(), Font_id::SANS, size, k_content_width_mm))
         {
             line(line_text, Font_id::SANS, size);
         }
@@ -199,7 +204,7 @@ public:
         mark2haru::table_style_t style;
         style.text_size_pt    = size;
         style.text_leading_pt = size + 4.0;
-        style.cell_padding_pt = 4.0;
+        style.cell_padding_pt = k_cell_padding_pt;
         style.header_fill     = { m_banner.r, m_banner.g, m_banner.b };
 
         for (int index = 0; index < static_cast<int>(table.rows.size()); ++index) {
@@ -370,7 +375,8 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     if (!logo_path.empty()) {
         const auto dimensions = measure_png(logo_path);
         const float width = logo_height * dimensions.width_px / dimensions.height_px;
-        layout.elements().push_back(Image_block{ 185.0f - width, 51.0f - logo_height, width, logo_path });
+        layout.elements().push_back(Image_block{
+            k_content_left_mm + k_content_width_mm - width, 51.0f - logo_height, width, logo_path });
     }
     else {
         layout.block(k_left_mm, 35.0f, k_width_mm, text(seller, "company_name"), 17.0f);
