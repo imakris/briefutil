@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "document_id": "9fd262dd-3947-4fe9-9cd2-e0a86a2f0381",
+  "order_id": "52276c23-6e3b-4ad7-94dc-c471748ad84e",
+  "kind": "invoice",
+  "number": "SAMPLE-D-2026-000001",
+  "date": "2026-10-04",
+  "supply_date": "2026-10-04",
+  "currency": "EUR",
+  "currency_minor_digits": 2,
+  "seller": {
+    "company_name": "Example Software Ltd",
+    "registered_address": "1 Example Street\n1000 Nicosia\nCyprus",
+    "vat_number": "CY12345678A",
+    "company_number": "HE123456",
+    "payment_instructions": "Example only. Replace with your verified beneficiary, bank and payment details."
+  },
+  "buyer": {
+    "name": "Example Studio Ltd",
+    "billing_address": "2 Example Avenue\n1000 Nicosia",
+    "country_code": "CY",
+    "tax_id": "CY87654321B"
+  },
+  "lines": [
+    {
+      "line_id": "line-1",
+      "original_line_id": null,
+      "sku": "varinomics.soter",
+      "description": "Soter\n1 named-user licence: licences@example.org\n3 installations; permanent use; 12 months of updates.",
+      "quantity": 1,
+      "unit_net_minor": 2000,
+      "discount_minor": 0,
+      "net_minor": 2000,
+      "tax_minor": 380,
+      "gross_minor": 2380,
+      "taxes": [
+        {
+          "tax_name": "VAT",
+          "jurisdiction": "CY",
+          "rate_ppm": 190000,
+          "treatment": "Standard rate",
+          "legal_basis": "Synthetic example; not a tax determination.",
+          "taxable_base_minor": 2000,
+          "amount_minor": 380
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "net_minor": 2000,
+    "tax_minor": 380,
+    "gross_minor": 2380
+  },
+  "payment": {
+    "status": "paid",
+    "due_date": null,
+    "reference": "SAMPLE-PAYMENT-001"
+  },
+  "original_document": null,
+  "correction_reason": ""
+}

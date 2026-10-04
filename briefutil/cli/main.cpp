@@ -51,7 +51,8 @@ void print_help()
     std::cout
         << "Usage: briefutil_cli --to TEXT [options]\n"
         << "Invoice: briefutil_cli --invoice-json PATH --invoice-template PATH\n"
-        << "         --invoice-number TEXT --invoice-date YYYY-MM-DD\n"
+        << "         [--invoice-number TEXT --invoice-date YYYY-MM-DD]\n"
+        << "         (required for version 1; version 2 uses reserved document values)\n"
         << "         --output PATH --receipt PATH\n"
         << "Options:\n"
         << "  --to TEXT              Recipient block; use \\n for line breaks\n"

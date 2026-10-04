@@ -1,6 +1,6 @@
 # Invoice generation
 
-`briefutil_cli` renders an invoice PDF and a JSON receipt from a sales-order
+`briefutil_cli` renders an invoice or credit-note PDF and a JSON receipt from a sales-order
 export and a local template. It runs without the Qt Quick desktop app or a
 display server, using the same native PDF renderer and bundled fonts as letters.
 
@@ -99,3 +99,75 @@ local PDF together with the receipt lets the operator UI check the PDF digest
 without storing or publishing the document in a cloud service.
 
 Synthetic input and template examples are in `briefutil/examples/invoice/`.
+
+## Reserved documents (version 2)
+
+Version 2 renders the order service's frozen invoice or credit-note snapshot.
+The service reserves its number and date; the renderer does not allocate a
+series, issue an accounting document, calculate tax, decide refund rights or
+confirm a payment. The version-1 manual workflow above remains supported.
+
+```powershell
+briefutil_cli --invoice-json document.json --invoice-template template.json `
+  --output document.pdf --receipt document.receipt.json
+```
+
+Optional `--invoice-number` and `--invoice-date` values must match the reserved
+values exactly. A conflicting override fails. The version-1 template remains
+unchanged, and its complete `seller` object must equal the document's seller
+snapshot. Changing a company detail requires a new service-approved snapshot;
+changing the local template alone cannot silently alter an issued document.
+
+The input has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | `2` |
+| `document_id`, `order_id` | Frozen document and commercial order identifiers |
+| `kind` | `invoice` or `credit_note` |
+| `number`, `date`, `supply_date` | Reserved reference and ISO issue/supply dates |
+| `currency`, `currency_minor_digits` | Currency code and decimal places, from 0 to 3; initial account orders use EUR and 2 |
+| `seller` | The same five seller fields required by the local template |
+| `buyer` | `name`, `billing_address`, `country_code`, `tax_id`; consumer `tax_id` may be empty |
+| `lines` | Nonempty array of line objects described below |
+| `totals` | `net_minor`, `tax_minor`, `gross_minor`, equal to the sum of their lines |
+| `payment` | `status` (`unpaid`, `paid`, or `credited` for a credit note), `due_date` (ISO date required when unpaid, otherwise date or null), `reference` (possibly empty) |
+| `original_document` | Null for an invoice; credit notes require the original `document_id`, `number` and `date` |
+| `correction_reason` | Empty for an invoice; required for a credit note |
+| `tax_reporting` | Optional supplied VAT conversion: `currency`, `currency_minor_digits`, `tax_minor`, `fx_reference` |
+
+Each line contains `line_id`, `original_line_id` (null for an invoice, required
+for a credit), `sku`, `description`, positive integer `quantity`, and exact
+nonnegative `unit_net_minor`, `discount_minor`, `net_minor`, `tax_minor` and
+`gross_minor`. Monetary integers cannot exceed `9007199254740991`, preserving
+exact values across JSON consumers. The renderer checks `quantity × unit_net_minor − discount_minor
+= net_minor` and `net_minor + tax_minor = gross_minor`, including overflow.
+Descriptions include the agreed licence or service terms supplied by the
+order service; the renderer does not describe every SKU as a permanent licence.
+
+Each line also has a nonempty `taxes` array. A component has `tax_name`,
+`jurisdiction`, `rate_ppm` (integer or null), `treatment`, `legal_basis`
+(possibly empty), `taxable_base_minor` and `amount_minor`. A rate of 19% is
+`190000` parts per million. Component amounts must sum to the line's tax.
+The supplied taxable bases, rates, amounts and treatment are printed; the
+renderer never recalculates tax or guesses that a zero amount is zero-rated.
+Any FX amount is supplied with its conversion reference, not calculated from
+today's rate or a bank settlement.
+
+Credit notes use positive reduction amounts and print **TOTAL CREDIT**. They
+identify the original invoice and reason. Their issue date cannot precede the
+original invoice date. The account service must enforce remaining credit
+balances, original line/tax/FX references and the original reporting period;
+the local renderer cannot inspect that history. A credit note alone makes no
+claim that a cash refund completed or a licence was cancelled.
+
+The version-2 receipt contains exactly `version`, `document_id`, `order_id`,
+`kind`, `number`, `date`, `input_sha256`, `pdf_sha256`, `template_sha256` and
+`seller`. Existing digest, publication and authority boundaries are unchanged.
+The account service must reject documents that do not match its reserved
+snapshot and must not issue a duplicate direct customer invoice for a sale
+whose seller is a merchant of record.
+
+`document.json`, `credit-note.json` and `mixed-tax-document.json` are synthetic
+format examples. Their illustrative taxes are not route-qualification advice
+or authority to issue a real invoice.

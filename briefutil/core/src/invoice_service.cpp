@@ -6,9 +6,9 @@
 #include "briefutil/pdf_measurement.h"
 #include "briefutil/pdf_renderer.h"
 #include "rich_text_layout.h"
+#include "invoice_document.h"
 
 #include <QCryptographicHash>
-#include <QDate>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -22,7 +22,6 @@
 #include <mark2haru/table_layout.h>
 
 #include <algorithm>
-#include <cmath>
 #include <map>
 #include <memory>
 #include <string>
@@ -31,7 +30,6 @@
 namespace briefutil {
 namespace {
 
-constexpr qint64 k_max_json_integer = 9007199254740991LL;
 constexpr qint64 k_max_json_bytes   = 1024 * 1024;
 
 constexpr float  k_left_mm          = 25.0f;
@@ -65,44 +63,6 @@ bool read_json(
         return false;
     }
     object = document.object();
-    if (object.value("version") != QJsonValue(1)) {
-        error = "Unsupported invoice JSON version.";
-        return false;
-    }
-    return true;
-}
-
-bool required_text(const QJsonObject& object, const char* name, std::string& error)
-{
-    const auto value = object.value(name);
-    if (!value.isString() || value.toString().trimmed().isEmpty()) {
-        error = std::string("Missing or empty invoice field: ") + name;
-        return false;
-    }
-    for (const QChar character : value.toString()) {
-        if (character.isNull() || (character.category() == QChar::Other_Control &&
-            character != '\n' && character != '\r' && character != '\t'))
-        {
-            error = std::string("Invalid control character in invoice field: ") + name;
-            return false;
-        }
-    }
-    return true;
-}
-
-bool integer_value(const QJsonObject& object, const char* name, qint64& out)
-{
-    const auto value = object.value(name);
-    if (!value.isDouble()) {
-        return false;
-    }
-    const double number = value.toDouble();
-    if (!std::isfinite(number) || number < 0 || number > k_max_json_integer ||
-        number != std::floor(number))
-    {
-        return false;
-    }
-    out = static_cast<qint64>(number);
     return true;
 }
 
@@ -114,12 +74,6 @@ QString text(const QJsonObject& object, const char* name)
 QString digest(const QByteArray& bytes)
 {
     return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
-}
-
-QString money(qint64 minor)
-{
-    return QString::number(minor / 100) + "." +
-        QString::number(minor % 100).rightJustified(2, '0') + " EUR";
 }
 
 bool color(const QJsonObject& object, const char* key, color_t& result)
@@ -295,16 +249,6 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     {
         return failure("Invoice generation requires input, template, PDF and receipt paths.");
     }
-    const QString number = QString::fromStdString(request.invoice_number);
-    const QString date   = QString::fromStdString(request.invoice_date);
-    const QDate invoice_date = QDate::fromString(date, Qt::ISODate);
-    if (number.trimmed().isEmpty() || number.size() > 120 ||
-        number.contains('\n') || number.contains('\r') ||
-        !invoice_date.isValid() || invoice_date.toString(Qt::ISODate) != date)
-    {
-        return failure("Provide an invoice number and an ISO invoice date (YYYY-MM-DD).");
-    }
-
     QByteArray input_bytes;
     QByteArray template_bytes;
     QJsonObject input;
@@ -315,37 +259,17 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     {
         return failure(error);
     }
-    for (const char* field : { "order_id", "product_name", "recipient_email", "company_name",
-        "billing_address", "country_code", "vat_number", "tax_note", "payment_due_date" })
-    {
-        if (!required_text(input, field, error)) {
-            return failure(error);
-        }
+    if (invoice_template.value("version") != QJsonValue(1)) {
+        return failure("Unsupported invoice template version.");
     }
     const QJsonObject seller = invoice_template.value("seller").toObject();
-    for (const char* field : { "company_name", "registered_address", "vat_number",
-        "company_number", "payment_instructions" })
-    {
-        if (!required_text(seller, field, error)) {
-            return failure(error);
-        }
+    Invoice_document content;
+    if (!read_invoice_document(input, seller, request, content, error)) {
+        return failure(error);
     }
-    qint64 net = 0, tax = 0, total = 0, updates = 0, installations = 0;
-    if (!integer_value(input, "unit_amount_minor", net) ||
-        !integer_value(input, "tax_amount_minor", tax) ||
-        !integer_value(input, "total_amount_minor", total) ||
-        !integer_value(input, "update_term_months", updates) ||
-        !integer_value(input, "desktop_slot_grant", installations) ||
-        net + tax != total || net == 0 || updates == 0 || installations == 0 ||
-        text(input, "currency") != "EUR")
-    {
-        return failure("Invoice amounts must be exact EUR minor units with net + tax = total; terms must be positive integers.");
-    }
-    const QString due = text(input, "payment_due_date");
-    const QDate due_date = QDate::fromString(due, Qt::ISODate);
-    if (!due_date.isValid() || due_date.toString(Qt::ISODate) != due || due_date < invoice_date) {
-        return failure("Payment due date must be an ISO date on or after the invoice date.");
-    }
+    auto money = [&](qint64 amount) {
+        return invoice_money(amount, content.currency, content.currency_minor_digits);
+    };
     color_t banner = { 0.92f, 0.92f, 0.92f };
     color_t rule   = { 0.35f, 0.35f, 0.35f };
     if (!color(invoice_template, "banner_color", banner) || !color(invoice_template, "rule_color", rule)) {
@@ -384,8 +308,6 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     const QString seller_block = text(seller, "company_name") + "\n" +
         text(seller, "registered_address") + "\nVAT: " + text(seller, "vat_number") +
         "\nCompany number: " + text(seller, "company_number");
-    const QString buyer_block = text(input, "company_name") + "\n" + text(input, "billing_address") +
-        "\n" + text(input, "country_code") + "\nVAT: " + text(input, "vat_number");
     using mark2haru::Inline_style;
     using mark2haru::Table_block;
     using mark2haru::Table_cell;
@@ -401,15 +323,14 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
         return failure(table_error);
     }
     layout.elements().push_back(Text_block{
-        k_left_mm, 82.0f, 80.0f, "INVOICE", Font_id::SANS, 20.0f });
+        k_left_mm, 82.0f, 100.0f, content.credit ? "CREDIT NOTE" : "INVOICE", Font_id::SANS, 20.0f });
 
     layout.y() = std::max(104.0f, layout.y() + 12.0f);
     const Table_block metadata{
         {
-            Table_row{ { cell("BILL TO", Inline_style::BOLD), cell(""), cell("INVOICE NUMBER", Inline_style::BOLD) } },
+            Table_row{ { cell("BILL TO", Inline_style::BOLD), cell(""), cell(content.credit ? "CREDIT NOTE NUMBER" : "INVOICE NUMBER", Inline_style::BOLD) } },
             Table_row{ {
-                cell(buyer_block), cell(""),
-                cell(number + "\n\nDATE\n" + date + "\n\nPAYMENT DUE\n" + due),
+                cell(content.buyer), cell(""), cell(content.metadata),
             } },
         },
         false,
@@ -418,19 +339,17 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
         return failure(table_error);
     }
     layout.y() += 12.0f;
-    const Table_cell description{ {
-        { text(input, "product_name").toStdString(), Inline_style::BOLD },
-        { ("\n1 licence\nNamed user: " + text(input, "recipient_email") + "\n" +
-            QString::number(installations) + " installations; permanent use; " +
-            QString::number(updates) + " months of updates.").toStdString(), Inline_style::NORMAL },
-    } };
-    const Table_block items{
-        {
-            Table_row{ { cell("DESCRIPTION"), cell("AMOUNT") } },
-            Table_row{ { description, cell(money(net)) } },
-        },
-        true,
-    };
+    Table_block items{ { Table_row{ { cell("DESCRIPTION"), cell("AMOUNT") } } }, true };
+    for (const auto& item : content.items) {
+        const auto first_newline = item.description.indexOf('\n');
+        const QString title = first_newline < 0 ? item.description : item.description.left(first_newline);
+        const QString detail = first_newline < 0 ? QString{} : item.description.mid(first_newline);
+        const Table_cell description{ {
+            { title.toStdString(), Inline_style::BOLD },
+            { detail.toStdString(), Inline_style::NORMAL },
+        } };
+        items.rows.push_back(Table_row{ { description, cell(money(item.net_minor)) } });
+    }
     if (!layout.table(items, { 125.0f, 35.0f }, 9.0f, true)) {
         return failure(table_error);
     }
@@ -438,23 +357,34 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
     layout.rule();
     layout.y() += 3.0f;
     const Table_cell payment{ {
-        { "PAYMENT DETAILS\n\n", Inline_style::BOLD },
-        { (text(seller, "payment_instructions") + "\n\nPayment reference: " + number).toStdString(), Inline_style::NORMAL },
+        { (content.payment_heading + "\n\n").toStdString(), Inline_style::BOLD },
+        { content.payment_details.toStdString(), Inline_style::NORMAL },
     } };
+    QString labels = "Subtotal\n\n";
+    QString amounts = money(content.net_minor) + "\n\n";
+    for (const auto& tax : content.taxes) {
+        const auto wrapped = measurement.wrap_text(
+            tax.label.toStdString(), Font_id::SANS, 9.0f,
+            35.0f - 2.0f * k_cell_padding_pt / k_pts_per_mm);
+        labels += tax.label + "\n\n";
+        amounts += money(tax.amount_minor) + QString(static_cast<qsizetype>(wrapped.size()) + 1, '\n');
+    }
     const Table_cell total_labels{ {
-        { "Subtotal\n\nVAT\n\n", Inline_style::NORMAL },
-        { "TOTAL", Inline_style::BOLD },
+        { labels.toStdString(), Inline_style::NORMAL },
+        { content.credit ? "TOTAL CREDIT" : "TOTAL", Inline_style::BOLD },
     } };
     const Table_cell total_amounts{ {
-        { (money(net) + "\n\n" + money(tax) + "\n\n").toStdString(), Inline_style::NORMAL },
-        { money(total).toStdString(), Inline_style::BOLD },
+        { amounts.toStdString(), Inline_style::NORMAL },
+        { money(content.gross_minor).toStdString(), Inline_style::BOLD },
     } };
     const Table_block payment_and_totals{ { Table_row{ { payment, total_labels, total_amounts } } }, false };
     if (!layout.table(payment_and_totals, { 90.0f, 35.0f, 35.0f }, 9.0f, true)) {
         return failure(table_error);
     }
     layout.y() += 5.0f;
-    layout.paragraph(text(input, "tax_note"), 8.0f);
+    for (const auto& note : content.notes) {
+        layout.paragraph(note, 8.0f);
+    }
     layout.paragraph("Order reference: " + text(input, "order_id"), 8.0f);
     const Document document = layout.finish();
 
@@ -506,16 +436,24 @@ Generation_result generate_invoice_pdf(const Invoice_request& request)
         return failure("Cannot hash rendered invoice PDF.");
     }
     pdf.close();
-    const QJsonObject receipt{
+    QJsonObject receipt{
         { "version",         1 },
         { "order_id",        input.value("order_id") },
         { "input_sha256",    digest(input_bytes) },
-        { "invoice_number",  number },
-        { "invoice_date",    date },
+        { "invoice_number",  content.number },
+        { "invoice_date",    content.date },
         { "pdf_sha256",      QString::fromLatin1(pdf_hash.result().toHex()) },
         { "template_sha256", digest(template_bytes) },
         { "seller",          seller },
     };
+    if (content.version == 2) {
+        receipt.remove("invoice_number");
+        receipt.remove("invoice_date");
+        receipt.insert("version", 2);
+        for (const char* field : { "document_id", "kind", "number", "date" }) {
+            receipt.insert(field, input.value(field));
+        }
+    }
     QFile receipt_file(receipt_staging.staged_path());
     const QByteArray receipt_bytes = QJsonDocument(receipt).toJson(QJsonDocument::Indented);
     if (!receipt_file.open(QIODevice::WriteOnly) || receipt_file.write(receipt_bytes) != receipt_bytes.size()) {

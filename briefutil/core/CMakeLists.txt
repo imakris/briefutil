@@ -1,5 +1,6 @@
 add_library(briefutil_core STATIC
     src/brief_service.cpp
+    src/invoice_document.cpp
     src/invoice_service.cpp
     src/letter_builder.cpp
     src/owned_staging.cpp

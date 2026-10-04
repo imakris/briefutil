@@ -116,8 +116,11 @@ briefutil_cli --invoice-json order.json --invoice-template invoice-template.json
 
 The template supplies your company details, payment instructions, logo and
 colors. The order supplies the customer, product, agreed amounts and terms.
-The number and issue date are explicit inputs. Review the PDF before issuing
-or sending it. Rendering does not send mail, issue a licence or mark a payment
+For a version-1 order, the number and issue date are explicit inputs.
+Version-2 exports also support credit notes and multiple tax components; their
+number and date are reserved by the order service and need no CLI overrides.
+Review the PDF before issuing or sending it. Rendering does not send mail,
+issue a licence or mark a payment
 as received. Existing PDF and receipt files are never overwritten in invoice
 mode.
 

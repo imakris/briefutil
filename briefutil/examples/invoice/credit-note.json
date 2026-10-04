@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "document_id": "c190bc7a-875a-41ea-99d8-95b5ac58127f",
+  "order_id": "52276c23-6e3b-4ad7-94dc-c471748ad84e",
+  "kind": "credit_note",
+  "number": "SAMPLE-CN-2026-000001",
+  "date": "2026-10-05",
+  "supply_date": "2026-10-04",
+  "currency": "EUR",
+  "currency_minor_digits": 2,
+  "seller": {
+    "company_name": "Example Software Ltd",
+    "registered_address": "1 Example Street\n1000 Nicosia\nCyprus",
+    "vat_number": "CY12345678A",
+    "company_number": "HE123456",
+    "payment_instructions": "Example only. Replace with your verified beneficiary, bank and payment details."
+  },
+  "buyer": {
+    "name": "Example Studio Ltd",
+    "billing_address": "2 Example Avenue\n1000 Nicosia",
+    "country_code": "CY",
+    "tax_id": "CY87654321B"
+  },
+  "lines": [
+    {
+      "line_id": "credit-line-1",
+      "original_line_id": "line-1",
+      "sku": "varinomics.soter",
+      "description": "Soter: partial price reduction",
+      "quantity": 1,
+      "unit_net_minor": 500,
+      "discount_minor": 0,
+      "net_minor": 500,
+      "tax_minor": 95,
+      "gross_minor": 595,
+      "taxes": [
+        {
+          "tax_name": "VAT",
+          "jurisdiction": "CY",
+          "rate_ppm": 190000,
+          "treatment": "Standard rate",
+          "legal_basis": "Synthetic example; not a tax determination.",
+          "taxable_base_minor": 500,
+          "amount_minor": 95
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "net_minor": 500,
+    "tax_minor": 95,
+    "gross_minor": 595
+  },
+  "payment": {
+    "status": "credited",
+    "due_date": null,
+    "reference": "SAMPLE-ADJUSTMENT-001"
+  },
+  "original_document": {
+    "document_id": "9fd262dd-3947-4fe9-9cd2-e0a86a2f0381",
+    "number": "SAMPLE-D-2026-000001",
+    "date": "2026-10-04"
+  },
+  "correction_reason": "Partial price reduction; perpetual licence retained."
+}
