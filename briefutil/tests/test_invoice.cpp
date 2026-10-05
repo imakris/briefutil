@@ -122,26 +122,52 @@ int main(int argc, char* argv[])
 
     int order_index = 0;
     auto render_order = [&](const QJsonObject& value, bool expected) {
-        const QString stem = "discounted-order-" + QString::number(++order_index);
+        const QString stem = "manual-order-" + QString::number(++order_index);
         request.output_path = directory.filePath(stem + ".pdf").toStdString();
         request.receipt_path = directory.filePath(stem + ".json").toStdString();
         const QByteArray bytes = QJsonDocument(value).toJson();
         write_file(input_path, bytes);
         const auto result = briefutil::generate_invoice_pdf(request);
-        require(result.ok == expected, "manual discount and payment status must match exact sums");
+        require(result.ok == expected, "manual order terms, payment status and exact sums must be valid");
         if (expected) {
             const auto returned = QJsonDocument::fromJson(
                 read_file(QString::fromStdString(request.receipt_path))).object();
             require(returned.size() == 8 && returned.value("version") == 1, "manual receipt contract is unchanged");
-            require(returned.value("input_sha256") == hash(bytes), "manual receipt binds discount and status");
+            require(returned.value("input_sha256") == hash(bytes), "manual receipt binds exact order terms");
             require(returned.value("pdf_sha256") == hash(read_file(QString::fromStdString(request.output_path))),
-                "manual receipt binds rendered discount document");
+                "manual receipt binds rendered document");
         }
         else {
-            require(!QFile::exists(QString::fromStdString(request.output_path)), "invalid manual discount creates no PDF");
-            require(!QFile::exists(QString::fromStdString(request.receipt_path)), "invalid manual discount creates no receipt");
+            require(!QFile::exists(QString::fromStdString(request.output_path)), "invalid manual order creates no PDF");
+            require(!QFile::exists(QString::fromStdString(request.receipt_path)), "invalid manual order creates no receipt");
         }
     };
+    auto service_order = QJsonDocument::fromJson(input_bytes).object();
+    service_order.insert("product_name", "Logonomic Companion relay");
+    service_order.insert("sku", "varinomics.companion_relay");
+    service_order.insert("access_term_months", 12);
+    service_order.insert("update_term_months", QJsonValue::Null);
+    service_order.insert("desktop_slot_grant", 0);
+    render_order(service_order, true);
+    auto free_service_order = service_order;
+    free_service_order.insert("list_amount_minor", 2000);
+    free_service_order.insert("discount_amount_minor", 2000);
+    free_service_order.insert("unit_amount_minor", 0);
+    free_service_order.insert("total_amount_minor", 0);
+    free_service_order.insert("payment_status", "no_payment_due");
+    free_service_order.insert("payment_due_date", QJsonValue::Null);
+    render_order(free_service_order, true);
+    service_order.insert("desktop_slot_grant", 3);
+    render_order(service_order, false);
+    service_order.insert("desktop_slot_grant", 0);
+    service_order.insert("update_term_months", 12);
+    render_order(service_order, false);
+    service_order.insert("update_term_months", QJsonValue::Null);
+    service_order.insert("access_term_months", 0);
+    render_order(service_order, false);
+    service_order.insert("access_term_months", QJsonValue::Null);
+    render_order(service_order, false);
+
     auto discounted_order = QJsonDocument::fromJson(input_bytes).object();
     discounted_order.insert("list_amount_minor", 2000);
     discounted_order.insert("discount_amount_minor", 500);

@@ -121,15 +121,25 @@ bool read_v1(
     }
     doc.number = QString::fromStdString(request.invoice_number);
     doc.date = QString::fromStdString(request.invoice_date);
-    qint64 updates = 0, installations = 0;
+    qint64 updates = 0, installations = 0, access = 0;
     if (!integer(input, "unit_amount_minor", doc.net_minor) ||
         !integer(input, "tax_amount_minor", doc.tax_minor) ||
         !integer(input, "total_amount_minor", doc.gross_minor) ||
-        !integer(input, "update_term_months", updates) ||
         !integer(input, "desktop_slot_grant", installations) ||
-        updates == 0 || installations == 0 ||
         text(input, "currency") != "EUR")
     {
+        return false;
+    }
+    const bool service = input.contains("access_term_months");
+    if (service) {
+        if (!integer(input, "access_term_months", access) || access == 0 ||
+            !input.value("update_term_months").isNull() || installations != 0)
+        {
+            return false;
+        }
+    }
+    else
+    if (!integer(input, "update_term_months", updates) || updates == 0 || installations == 0) {
         return false;
     }
     const QString status = input.contains("payment_status") ? text(input, "payment_status") : "unpaid";
@@ -156,9 +166,20 @@ bool read_v1(
     doc.buyer = text(input, "company_name") + "\n" + text(input, "billing_address") +
         "\n" + text(input, "country_code") + "\nVAT: " + text(input, "vat_number");
     doc.metadata = doc.number + "\n\nDATE\n" + doc.date;
-    QString description = text(input, "product_name") + "\n1 licence\nNamed user: " +
-        text(input, "recipient_email") + "\n" + QString::number(installations) +
-        " installations; permanent use; " + QString::number(updates) + " months of updates.";
+    QString description = text(input, "product_name") +
+        (service ? "\n1 service\nNamed user: " : "\n1 licence\nNamed user: ") +
+        text(input, "recipient_email") + "\n";
+    if (service) {
+        const QString months = QString::number(access);
+        const QString start = status == "no_payment_due" ? "order confirmation" : "payment confirmation";
+        description += months + " months of relay service. Each purchase adds " + months +
+            " months from current active expiry or " + start + ", whichever is later. "
+            "No automatic renewal.";
+    }
+    else {
+        description += QString::number(installations) + " installations; permanent use; " +
+            QString::number(updates) + " months of updates.";
+    }
     if (discount) {
         description += "\nUnit price: " + invoice_money(list, doc.currency, doc.currency_minor_digits) +
             "\nDiscount: " + invoice_money(discount, doc.currency, doc.currency_minor_digits);

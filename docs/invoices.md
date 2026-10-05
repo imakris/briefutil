@@ -40,8 +40,8 @@ contract; sender-profile JSON and the letter editor are unaffected.
 | Field | Meaning |
 | --- | --- |
 | `order_id` | Order identifier, retained in PDF and receipt |
-| `product_name` | Product description for the invoice's one licence line |
-| `recipient_email` | Named licence recipient |
+| `product_name` | Product description for the invoice's one licence or service line |
+| `recipient_email` | Named licence or service recipient |
 | `company_name`, `billing_address`, `country_code`, `vat_number` | Buyer details; address may contain newlines |
 | `unit_amount_minor` | Net price after discount, in integer minor units |
 | `list_amount_minor`, `discount_amount_minor` | Optional pair: original price and discount; their difference must equal `unit_amount_minor` |
@@ -51,8 +51,17 @@ contract; sender-profile JSON and the letter editor are unaffected.
 | `tax_note` | Operator-confirmed explanation of the tax treatment |
 | `payment_status` | Optional `unpaid` (default) or `no_payment_due` for a zero-total invoice |
 | `payment_due_date` | `YYYY-MM-DD`, on or after the invoice date when unpaid; ignored when no payment is due |
-| `update_term_months` | Agreed update entitlement for a permanent-use licence |
-| `desktop_slot_grant` | Agreed installation allowance |
+| `update_term_months` | Positive update entitlement for a permanent-use licence; null for relay service |
+| `desktop_slot_grant` | Positive installation allowance for a licence; zero for relay service |
+| `access_term_months` | Present only for relay service: positive integer access term in calendar months |
+
+Relay orders include `access_term_months` (12 for the Companion relay),
+`update_term_months: null` and `desktop_slot_grant: 0`. Their line describes
+prepaid relay service, with each purchase adding the supplied term from the
+current active expiry or payment confirmation, whichever is later, and no
+automatic renewal. When no payment is due, the description instead refers to
+order confirmation. The account service owns the actual access dates. Desktop
+orders omit `access_term_months` and retain their permanent-use licence terms.
 
 The parser accepts other order-service metadata, including `sku`, without
 interpreting it. The entire original input, including such metadata, is bound
