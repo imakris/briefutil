@@ -189,12 +189,8 @@ $env:BRIEFUTIL_TEMPLATE_DIR = "C:/work/briefutil/templates"
 $env:BRIEFUTIL_OUTPUT_DIR = "C:/work/briefutil/output"
 ```
 
-The app also stores UI and typography settings with `QSettings`, including:
-
-- dark mode
-- selected template directory
-- font configuration
-- body size and leading
+The app remembers dark mode, the selected template directory, and typography
+settings.
 
 An optional `output_dir.conf` file can override the default output directory.
 For the portable package, place it next to the visible top-level `briefutil.exe`.
@@ -241,9 +237,9 @@ Plain text without Markdown syntax also works.
 
 The settings window allows changing the fonts used for PDF generation.
 
-Leave fields empty to use the bundled default fonts. Non-empty fields must be
-installed TrueType font names resolved by the desktop app, or explicit `.ttf`
-file paths. The CLI accepts explicit `.ttf` paths.
+Leave fields empty to use the bundled default fonts. The desktop app accepts
+explicit `.ttf` file paths on all platforms, and installed TrueType font family
+names on Windows. The CLI accepts explicit `.ttf` paths.
 
 The font configuration covers:
 
