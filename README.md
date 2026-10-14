@@ -69,6 +69,38 @@ cmake -S briefutil -B briefutil/build-cli -DCMAKE_PREFIX_PATH="C:/Qt/6.x/<toolch
 cmake --build briefutil/build-cli --config Release --target briefutil_cli
 ```
 
+## Install / package
+
+On Windows, the CMake build also runs Qt deployment steps so the build output
+contains the required Qt DLLs, plugins, and QML modules.
+
+Install:
+
+```powershell
+cmake --install briefutil/build --config Release --prefix C:/apps/briefutil
+```
+
+Package:
+
+```powershell
+cpack -C Release --config briefutil/build/CPackConfig.cmake
+```
+
+The Windows packaging path is NSIS-based.
+
+`build_portable.bat` assembles a cleaner distributable layout under `dist/portable/`:
+
+```text
+dist/portable/
+  briefutil.exe
+  briefutil_cli.bat
+  briefutil_runtime/
+```
+
+The visible top-level `briefutil.exe` is a launcher. The real Qt application
+binary plus all DLLs, plugins, and QML files live in `briefutil_runtime/`.
+`briefutil_cli.bat` starts the CLI from the same runtime directory.
+
 ## Run
 
 After building:
@@ -127,22 +159,6 @@ mode.
 See [the invoice workflow and JSON contract](docs/invoices.md). Synthetic
 examples are in `briefutil/examples/invoice/`; replace their illustrative
 seller, customer, payment and tax information before using them for a sale.
-
-On Windows, the CMake build also runs Qt deployment steps so the build output
-contains the required Qt DLLs, plugins, and QML modules.
-
-`build_portable.bat` assembles a cleaner distributable layout under `dist/portable/`:
-
-```text
-dist/portable/
-  briefutil.exe
-  briefutil_cli.bat
-  briefutil_runtime/
-```
-
-The visible top-level `briefutil.exe` is a launcher. The real Qt application
-binary plus all DLLs, plugins, and QML files live in `briefutil_runtime/`.
-`briefutil_cli.bat` starts the CLI from the same runtime directory.
 
 ## Runtime data
 
@@ -237,25 +253,6 @@ The font configuration covers:
 - sans bold italic
 - monospace
 
-## Development targets
-
-The CMake project also defines a few development-only test executables:
-
-- `test_renderer`
-- `test_letter_builder`
-- `test_brief_service`
-- `test_cli`
-- `test_md_to_pdf`
-- `test_path_utils`
-- `test_template_store`
-
-Typical examples:
-
-```powershell
-briefutil/build/tests/Release/test_letter_builder.exe briefutil/build/tests/Release/sample.pdf
-briefutil/build/tests/Release/test_md_to_pdf.exe briefutil/tests/data/test_sample.md briefutil/build/tests/Release/md.pdf
-```
-
 ## Contributing
 
 This project follows the Varinomics coding style guideline. The canonical
@@ -264,21 +261,11 @@ guideline is maintained in the
 repository. More information about Varinomics is available at
 [varinomics.com](https://varinomics.com/).
 
-## Install / package
-
-Install:
+Run the tests after building:
 
 ```powershell
-cmake --install briefutil/build --config Release --prefix C:/apps/briefutil
+ctest --test-dir briefutil/build -C Release --output-on-failure
 ```
-
-Package:
-
-```powershell
-cpack -C Release --config briefutil/build/CPackConfig.cmake
-```
-
-The Windows packaging path is NSIS-based.
 
 ## License
 
