@@ -1287,6 +1287,68 @@ int main(int argc, char* argv[])
         std::printf("[OK] Over-long subject token is broken to fit the column\n");
     }
 
+    // Headings must be positioned using the same bold faces that are drawn.
+    // Mixed runs expose stale x offsets; the long heading also checks wrapping.
+    {
+        Profile_fixture fx("briefutil_test_heading_metrics", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: heading profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+        Letter_input input;
+        input.recipient = "Example\nStreet 1\n12345 City";
+        input.body = "# minimum minimum *minimum* minimum **minimum** `code`\n\n# ";
+        for (int i = 0; i < 14; ++i) {
+            input.body += "minimum ";
+        }
+        auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+        if (!br.error.empty()) {
+            std::fprintf(stderr, "FAIL: heading layout: %s\n", br.error.c_str());
+            return 1;
+        }
+        const auto page_layout = din_5008_form_b();
+        const float right_mm = page_layout.page_width_mm - page_layout.margin_right_mm;
+        int heading_lines = 0;
+        bool saw_bold = false, saw_bold_italic = false, saw_code = false;
+        for (const auto& page : br.doc.pages) {
+            const Text_span* previous = nullptr;
+            float previous_right = 0;
+            for (const auto& element : page.elements) {
+                const auto* span = std::get_if<Text_span>(&element);
+                if (!span || span->size_pt <= default_theme().typo.body_size_pt) {
+                    continue;
+                }
+                const float width_mm = pt_to_mm(br.measurement->measure_text(
+                    span->text, span->font, span->size_pt, 0, 0, false).width_pt);
+                if (previous && nearly_equal(previous->y_mm, span->y_mm)) {
+                    if (span->x_mm + 0.01f < previous_right) {
+                        std::fprintf(stderr, "FAIL: adjacent heading spans overlap by %.3fmm\n",
+                            previous_right - span->x_mm);
+                        return 1;
+                    }
+                }
+                else {
+                    ++heading_lines;
+                }
+                if (span->x_mm + width_mm > right_mm + 0.01f) {
+                    std::fprintf(stderr, "FAIL: heading extends beyond its column\n");
+                    return 1;
+                }
+                saw_bold |= span->font == Font_id::SANS_BOLD;
+                saw_bold_italic |= span->font == Font_id::SANS_BOLD_ITALIC;
+                saw_code |= span->font == Font_id::MONO;
+                previous = span;
+                previous_right = span->x_mm + width_mm;
+            }
+        }
+        if (!saw_bold || !saw_bold_italic || !saw_code || heading_lines < 3) {
+            std::fprintf(stderr, "FAIL: heading test did not exercise all styles and wrapping\n");
+            return 1;
+        }
+        std::printf("[OK] Mixed-format headings use final font metrics before wrapping\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }

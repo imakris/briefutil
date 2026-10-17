@@ -326,27 +326,27 @@ Layout_result layout_body(
                 cursor.ensure_space(space_before + pt_to_mm(hlead));
                 cursor.m_y_mm += space_before;
 
+                // Heading weight affects glyph widths, so select the final
+                // fonts before wrapping and positioning mixed-style spans.
+                auto heading_runs = b.runs;
+                for (auto& run : heading_runs) {
+                    if (run.style == mark2haru::Inline_style::NORMAL) {
+                        run.style = mark2haru::Inline_style::BOLD;
+                    }
+                    else
+                    if (run.style == mark2haru::Inline_style::ITALIC) {
+                        run.style = mark2haru::Inline_style::BOLD_ITALIC;
+                    }
+                }
+
                 auto lines = layout_runs(
-                    b.runs,
+                    heading_runs,
                     params.measurement,
                     params.left_mm,
                     params.width_mm,
                     hsize,
                     hlead,
                     params.body_color);
-
-                // Make heading runs bold
-                for (auto& line : lines) {
-                    for (auto& span : line.spans) {
-                        if (span.font == Font_id::SANS) {
-                            span.font = Font_id::SANS_BOLD;
-                        }
-                        else
-                        if (span.font == Font_id::SANS_ITALIC) {
-                            span.font = Font_id::SANS_BOLD_ITALIC;
-                        }
-                    }
-                }
 
                 cursor.emit_lines(lines);
                 cursor.m_y_mm += params.typo.heading_space_after_mm;
