@@ -9,6 +9,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <system_error>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -51,6 +53,21 @@ static QString slot_name(const QString& target_name)
     return QString::fromLatin1(digest.left(8).toHex());
 }
 
+static bool is_directory_link(const QString& path)
+{
+    const QFileInfo info(path);
+    return info.isSymbolicLink() || info.isJunction();
+}
+
+static bool remove_staging_slot(const QString& path)
+{
+    // remove_all removes directory links themselves, including the starting
+    // entry. QDir::removeRecursively follows a link passed as its starting path.
+    std::error_code error;
+    std::filesystem::remove_all(QFileInfo(path).filesystemFilePath(), error);
+    return !error;
+}
+
 Owned_staging_slot::Owned_staging_slot()  = default;
 Owned_staging_slot::~Owned_staging_slot()
 {
@@ -74,7 +91,9 @@ bool Owned_staging_slot::open(
     // root has finished, and once this run's own lock file is in the root the
     // root is no longer empty, so nothing can remove it out from under the slot.
     for (int attempt = 0; attempt < 2 && !m_lock; ++attempt) {
-        if (!QDir(root_path).mkpath(".")) {
+        // A link here would redirect even a non-following slot removal through
+        // an ancestor outside the publication directory's staging area.
+        if (is_directory_link(root_path) || !QDir(root_path).mkpath(".")) {
             continue;
         }
         auto lock = std::make_unique<QLockFile>(lock_path);
@@ -104,7 +123,7 @@ bool Owned_staging_slot::open(
     m_slot_path   = root_path + QStringLiteral("/") + slot;
 
     QDir slot_dir(m_slot_path);
-    if (slot_dir.exists() && !slot_dir.removeRecursively()) {
+    if (!remove_staging_slot(m_slot_path)) {
         if (error) {
             *error = "Could not reclaim the staging directory: " + m_slot_path.toStdString();
         }
@@ -130,7 +149,10 @@ void Owned_staging_slot::discard()
     // run for this target reclaims, and leaves nothing of the user's touched
     // either way.
     if (!m_slot_path.isEmpty()) {
-        QDir(m_slot_path).removeRecursively();
+        const QString root_path = m_publish_dir.filePath(QString::fromLatin1(k_owned_staging_dir));
+        if (!is_directory_link(root_path)) {
+            remove_staging_slot(m_slot_path);
+        }
         m_slot_path.clear();
         m_staged_path.clear();
     }

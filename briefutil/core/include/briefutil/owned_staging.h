@@ -10,9 +10,9 @@ class QLockFile;
 
 namespace briefutil {
 
-// The one directory briefutil stages into, created inside whatever directory it
-// is about to publish into. Nothing but briefutil ever writes below it, so what
-// briefutil owns is settled by where an entry lives. No predicate anywhere
+// The directory reserved for briefutil's staging data, created inside whatever
+// directory it is about to publish into. Reclamation removes entries inside
+// this area; directory links confer no ownership of their targets. No predicate
 // reads a filename as proof of ownership: a name the user, a sync tool, or an
 // unrelated crash can produce just as easily proves nothing about who wrote it.
 inline constexpr const char* k_owned_staging_dir = ".briefutil-staging";
@@ -21,10 +21,11 @@ inline constexpr const char* k_owned_staging_dir = ".briefutil-staging";
 //
 // Opening a slot empties it, which reclaims whatever a run that died before
 // publishing left behind. That reclamation matches no names at all - everything
-// inside the slot is there because briefutil put it there - and it is exact
-// because opening also takes a cross-process lock on the slot, so no live run
-// owns the contents either. The lock is never taken from a process that is
-// merely slow: it changes hands only once its previous owner is provably gone.
+// inside the slot belongs to the staging area. Directory links are removed
+// without following them, and a linked staging root is refused. Opening also
+// takes a cross-process lock on the slot, so no live run owns its contents.
+// The lock is never taken from a process that is merely slow: it changes hands
+// only once its previous owner is provably gone.
 //
 // The slot owns that exclusion rather than requiring it of the caller, because
 // the callers do not all have a lock to lend. Two of them run under a lock of
