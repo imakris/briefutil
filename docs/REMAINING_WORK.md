@@ -31,6 +31,7 @@ briefutil commits. mark2haru carries one commit on `expose-layout-headers`.
 | Hygiene | Launcher buffer hardening; `validate_directory` rename; doc/README/guard fixes | `app/portable_launcher_win.c`, `app/proxy.*`, `README.md`, embedded header |
 | Inline text | Whitespace-faithful inline layout (`foo**bar**` -> `foobar`) | `core/src/rich_text_layout.cpp` |
 | Inline text | Wrap over-long tokens instead of overrunning the margin | `core/src/rich_text_layout.cpp` |
+| Code blocks | Wrap over-long code lines at the code area width | `core/src/rich_text_layout.cpp` |
 
 **Runtime-verification caveat:** the GUI-side changes (proxy hardening,
 `validate_directory`) are compile-verified only. There is no automated GUI test

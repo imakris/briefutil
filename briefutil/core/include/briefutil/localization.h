@@ -36,6 +36,8 @@ struct Localization
         "A table row is too tall to fit on a page. Reduce its content or the typography scale.";
     std::string    error_closing_does_not_fit =
         "The closing block does not fit on the page. Use a smaller signature or typography scale.";
+    std::string    error_code_does_not_fit =
+        "A code block does not fit on the page. Use a smaller typography scale or a wider page area.";
     std::string error_pdf_open_failed_format =
         "The PDF was created but could not be opened automatically: {path}";
 };
@@ -107,6 +109,9 @@ inline Localization german_localization()
     L.error_closing_does_not_fit =
         "Der Schlussblock passt nicht auf die Seite. Bitte eine kleinere "
         "Signatur oder Schriftskalierung verwenden.";
+    L.error_code_does_not_fit =
+        "Ein Codeblock passt nicht auf die Seite. Bitte eine kleinere "
+        "Schriftskalierung oder einen breiteren Seitenbereich verwenden.";
     L.error_pdf_open_failed_format =
         "PDF wurde erstellt, konnte aber nicht automatisch ge\xc3\xb6" "ffnet "
         "werden: {path}";

@@ -536,8 +536,36 @@ Layout_result layout_body(
                 float                    code_size_pt  = params.typo.body_size_pt * params.typo.code_scale;
                 float                    code_lead_pt  = code_size_pt * 1.3f;
 
-                // Split code into lines (preserve all whitespace)
-                auto code_lines = split_lines(b.text);
+                // Split code into lines (preserve all whitespace) and break each
+                // line that is wider than the code area at a code point. Prose
+                // tokenization is avoided on purpose: indentation, tabs, trailing
+                // spaces and empty lines must survive.
+                const float code_width_pt = mm_to_pt(params.width_mm - 2 * k_code_pad_mm);
+                std::vector<std::string> code_lines;
+                for (const auto& raw : split_lines(b.text)) {
+                    std::string fragment;
+                    double      fragment_width_pt = 0.0;
+                    for (const auto& piece : mark2haru::utf8::split_pieces(raw)) {
+                        const double piece_width_pt =
+                            params.measurement.context()->measure_text_width(
+                                mark2haru::Pdf_font::MONO, piece, code_size_pt);
+                        if (!(piece_width_pt <= code_width_pt)) {
+                            // Not even one character fits the code area.
+                            result.error = params.loc.error_code_does_not_fit;
+                            return;
+                        }
+                        if (!fragment.empty() &&
+                            fragment_width_pt + piece_width_pt > code_width_pt)
+                        {
+                            code_lines.push_back(std::move(fragment));
+                            fragment.clear();
+                            fragment_width_pt = 0.0;
+                        }
+                        fragment += piece;
+                        fragment_width_pt += piece_width_pt;
+                    }
+                    code_lines.push_back(std::move(fragment));
+                }
 
                 float line_h_mm = pt_to_mm(code_lead_pt);
 

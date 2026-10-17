@@ -1349,6 +1349,178 @@ int main(int argc, char* argv[])
         std::printf("[OK] Mixed-format headings use final font metrics before wrapping\n");
     }
 
+    // Code lines are hard-wrapped at the content width. Every case builds a
+    // letter whose body is one fenced block and inspects the laid-out spans.
+    {
+        Profile_fixture fx("briefutil_test_code_wrap", k_default_profile_simple_json);
+        if (!fx.ok) {
+            std::fprintf(stderr, "FAIL: code-wrap profile load: %s\n", fx.error.c_str());
+            return 1;
+        }
+        fx.profile.signature_image.clear();
+
+        const auto page_layout = din_5008_form_b();
+        const float right_mm   = page_layout.page_width_mm - page_layout.margin_right_mm;
+
+        // Builds a letter around `code` and collects every code span in
+        // order. Fails when the letter does not build or a span leaves the
+        // margin, its grey background box or the page.
+        auto code_spans = [&](const std::string& code, std::vector<std::string>& spans,
+                              size_t& page_count) {
+            Letter_input input;
+            input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+            input.subject   = "Code";
+            input.body      = "```\n" + code + "\n```";
+            auto br = build_letter(fx.profile, input, qs(fx.tmp_dir));
+            if (!br.error.empty()) {
+                std::fprintf(stderr, "FAIL: code block build: %s\n", br.error.c_str());
+                return false;
+            }
+            page_count = br.doc.pages.size();
+            for (const auto& page : br.doc.pages) {
+                for (const auto& element : page.elements) {
+                    const auto* span = std::get_if<Text_span>(&element);
+                    if (!span || span->font != Font_id::MONO) {
+                        continue;
+                    }
+                    const float width_mm = pt_to_mm(br.measurement->measure_text(
+                        span->text, span->font, span->size_pt, 0, 0, false).width_pt);
+                    if (span->x_mm + width_mm > right_mm) {
+                        std::fprintf(stderr,
+                            "FAIL: code line ends at %.1fmm, past the %.1fmm margin\n",
+                            span->x_mm + width_mm, right_mm);
+                        return false;
+                    }
+                    bool inside_box = false;
+                    for (const auto& other : page.elements) {
+                        const auto* box = std::get_if<filled_rect_t>(&other);
+                        if (box && span->y_mm >= box->y_mm &&
+                            span->y_mm + pt_to_mm(span->size_pt) <= box->y_mm + box->height_mm &&
+                            box->y_mm + box->height_mm <= page_layout.page_height_mm)
+                        {
+                            inside_box = true;
+                        }
+                    }
+                    if (!inside_box) {
+                        std::fprintf(stderr,
+                            "FAIL: code line at y=%.1fmm is outside its background box or the page\n",
+                            span->y_mm);
+                        return false;
+                    }
+                    spans.push_back(span->text);
+                }
+            }
+            return true;
+        };
+
+        // A 200-character line is wider than the page and must be wrapped
+        // without losing a character.
+        {
+            const std::string line(200, 'x');
+            std::vector<std::string> spans;
+            size_t pages = 0;
+            if (!code_spans(line, spans, pages)) {
+                return 1;
+            }
+            std::string joined;
+            for (const auto& s : spans) {
+                joined += s;
+            }
+            if (joined != line || spans.size() < 2) {
+                std::fprintf(stderr,
+                    "FAIL: 200-character code line gave %zu span(s) with %zu characters\n",
+                    spans.size(), joined.size());
+                return 1;
+            }
+        }
+
+        // Indentation, tabs, trailing spaces, blank lines and multi-byte
+        // characters survive; short lines are untouched.
+        {
+            std::string wide_utf8 = "    ";
+            for (int i = 0; i < 120; ++i) {
+                wide_utf8 += "\xc3\xa4";
+            }
+            const std::string code =
+                "    indented\n\n\ttabbed\ntrailing   \n" + wide_utf8;
+            std::vector<std::string> spans;
+            size_t pages = 0;
+            if (!code_spans(code, spans, pages)) {
+                return 1;
+            }
+            if (spans.size() < 6 || spans[0] != "    indented" || !spans[1].empty() ||
+                spans[2] != "\ttabbed" || spans[3] != "trailing   ")
+            {
+                std::fprintf(stderr, "FAIL: short code lines were altered (%zu spans)\n",
+                    spans.size());
+                return 1;
+            }
+            std::string joined;
+            for (size_t i = 4; i < spans.size(); ++i) {
+                joined += spans[i];
+            }
+            if (joined != wide_utf8) {
+                std::fprintf(stderr,
+                    "FAIL: wrapped UTF-8 code line changed (%zu bytes, expected %zu)\n",
+                    joined.size(), wide_utf8.size());
+                return 1;
+            }
+        }
+
+        // A block that wraps over several pages keeps every line, in order,
+        // inside the page.
+        {
+            std::string code;
+            std::string expected;
+            for (int i = 0; i < 100; ++i) {
+                std::string line = "L" + std::to_string(1000 + i) + " ";
+                line.resize(200, 'y');
+                code += line + "\n";
+                expected += line;
+            }
+            std::vector<std::string> spans;
+            size_t pages = 0;
+            if (!code_spans(code, spans, pages)) {
+                return 1;
+            }
+            std::string joined;
+            for (const auto& s : spans) {
+                joined += s;
+            }
+            if (pages < 2 || joined != expected) {
+                std::fprintf(stderr,
+                    "FAIL: multi-page code block gave %zu page(s), %zu of %zu characters\n",
+                    pages, joined.size(), expected.size());
+                return 1;
+            }
+        }
+
+        // A content area narrower than one code character cannot hold any
+        // code: the letter is rejected with the localized message.
+        {
+            letter_layout_spec_t narrow = page_layout;
+            narrow.margin_left_mm  = 100.0f;
+            narrow.margin_right_mm = 103.0f;
+
+            Localization custom;
+            custom.error_code_does_not_fit = "Custom: the code does not fit.";
+
+            Letter_input input;
+            input.recipient = "Beispiel GmbH\nMusterstr. 1\n12345 Beispielstadt";
+            input.subject   = "Narrow";
+            input.body      = "```\nabc\n```";
+            auto br = build_letter(
+                fx.profile, input, qs(fx.tmp_dir), default_theme(), narrow, custom);
+            if (br.error != custom.error_code_does_not_fit) {
+                std::fprintf(stderr,
+                    "FAIL: code in an area narrower than one character gave '%s'\n",
+                    br.error.c_str());
+                return 1;
+            }
+        }
+        std::printf("[OK] Code lines wrap at the margin and keep their whitespace\n");
+    }
+
     std::printf("\nAll letter-builder tests passed.\n");
     return 0;
 }
