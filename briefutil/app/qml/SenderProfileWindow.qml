@@ -486,72 +486,6 @@ Window {
         }
     }
 
-    component StyledComboBox: ComboBox {
-        id: styledCombo
-        background: Rectangle {
-            color: editorWin.fieldBg
-            border.width: 1
-            border.color: editorWin.fieldBorder
-            radius: 2
-        }
-        contentItem: Text {
-            leftPadding: 8
-            rightPadding: 24
-            text: styledCombo.displayText
-            color: editorWin.textColor
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        delegate: ItemDelegate {
-            width: styledCombo.width
-            highlighted: styledCombo.highlightedIndex === index
-            background: Rectangle {
-                color: highlighted
-                    ? (editorWin.darkMode ? "#505050" : "#d0d0d0")
-                    : (editorWin.darkMode ? "#2d2d2d" : "#eeeeee")
-            }
-            contentItem: Text {
-                text: modelData
-                color: editorWin.textColor
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-        }
-        popup: Popup {
-            y: styledCombo.height
-            width: styledCombo.width
-            padding: 1
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: styledCombo.popup.visible ? styledCombo.delegateModel : null
-                currentIndex: styledCombo.highlightedIndex
-            }
-            background: Rectangle {
-                color: editorWin.darkMode ? "#2d2d2d" : "#eeeeee"
-                border.width: 1
-                border.color: editorWin.fieldBorder
-                radius: 2
-            }
-        }
-        indicator: Canvas {
-            x: styledCombo.width - width - 8
-            y: (styledCombo.height - height) / 2
-            width: 12
-            height: 8
-            contextType: "2d"
-            onPaint: {
-                context.reset()
-                context.moveTo(0, 0)
-                context.lineTo(width, 0)
-                context.lineTo(width / 2, height)
-                context.closePath()
-                context.fillStyle = editorWin.textColor
-                context.fill()
-            }
-        }
-    }
-
     ScrollView {
         id: editorScroll
         anchors.fill: parent
@@ -586,6 +520,11 @@ Window {
 
                     StyledComboBox {
                         id: profileCombo
+                        darkMode: editorWin.darkMode
+                        fieldBg: editorWin.fieldBg
+                        fieldBorder: editorWin.fieldBorder
+                        textColor: editorWin.textColor
+                        backgroundImplicitHeight: 0
                         Layout.fillWidth: true
                         Layout.preferredHeight: idField.implicitHeight
                         model: []
@@ -698,6 +637,11 @@ Window {
                     Label { text: "Style"; color: editorWin.dimTextColor }
                     StyledComboBox {
                         id: styleCombo
+                        darkMode: editorWin.darkMode
+                        fieldBg: editorWin.fieldBg
+                        fieldBorder: editorWin.fieldBorder
+                        textColor: editorWin.textColor
+                        backgroundImplicitHeight: 0
                         Layout.fillWidth: true
                         Layout.preferredHeight: idField.implicitHeight
                         model: ["simple", "commercial"]
@@ -722,6 +666,11 @@ Window {
                     Label { text: "Language"; color: editorWin.dimTextColor }
                     StyledComboBox {
                         id: languageCombo
+                        darkMode: editorWin.darkMode
+                        fieldBg: editorWin.fieldBg
+                        fieldBorder: editorWin.fieldBorder
+                        textColor: editorWin.textColor
+                        backgroundImplicitHeight: 0
                         Layout.fillWidth: true
                         Layout.preferredHeight: idField.implicitHeight
                         model: ["English", "German"]

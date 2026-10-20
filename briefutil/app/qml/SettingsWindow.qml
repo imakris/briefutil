@@ -262,83 +262,6 @@ Window {
         }
     }
 
-    component StyledComboBox: ComboBox {
-        id: styledCombo
-
-        background: Rectangle {
-            implicitHeight: 28
-            color: settingsWin.fieldBg
-            border.width: 1
-            border.color: settingsWin.fieldBorder
-            radius: 2
-        }
-
-        contentItem: Text {
-            leftPadding: 8
-            rightPadding: 24
-            text: styledCombo.displayText
-            color: settingsWin.textColor
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-
-        delegate: ItemDelegate {
-            width: styledCombo.width
-            highlighted: styledCombo.highlightedIndex === index
-
-            background: Rectangle {
-                color: highlighted
-                    ? (settingsWin.darkMode ? "#505050" : "#d0d0d0")
-                    : (settingsWin.darkMode ? "#2d2d2d" : "#eeeeee")
-            }
-
-            contentItem: Text {
-                text: model[textRole]
-                color: settingsWin.textColor
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-        }
-
-        popup: Popup {
-            y: styledCombo.height
-            width: styledCombo.width
-            padding: 1
-
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: styledCombo.popup.visible ? styledCombo.delegateModel : null
-                currentIndex: styledCombo.highlightedIndex
-            }
-
-            background: Rectangle {
-                color: settingsWin.darkMode ? "#2d2d2d" : "#eeeeee"
-                border.width: 1
-                border.color: settingsWin.fieldBorder
-                radius: 2
-            }
-        }
-
-        indicator: Canvas {
-            x: styledCombo.width - width - 8
-            y: (styledCombo.height - height) / 2
-            width: 12
-            height: 8
-            contextType: "2d"
-
-            onPaint: {
-                context.reset()
-                context.moveTo(0, 0)
-                context.lineTo(width, 0)
-                context.lineTo(width / 2, height)
-                context.closePath()
-                context.fillStyle = settingsWin.textColor
-                context.fill()
-            }
-        }
-    }
-
     ListModel {
         id: layoutPresetModel
         ListElement { text: "DIN 5008 Form B"; value: "din_5008_form_b" }
@@ -573,6 +496,10 @@ Window {
 
             StyledComboBox {
                 id: layoutPresetCombo
+                darkMode: settingsWin.darkMode
+                fieldBg: settingsWin.fieldBg
+                fieldBorder: settingsWin.fieldBorder
+                textColor: settingsWin.textColor
                 Layout.fillWidth: true
                 Layout.preferredHeight: 28
                 model: layoutPresetModel

@@ -3,5 +3,6 @@
         <file alias="main.qml">../qml/main.qml</file>
         <file alias="SenderProfileWindow.qml">../qml/SenderProfileWindow.qml</file>
         <file alias="SettingsWindow.qml">../qml/SettingsWindow.qml</file>
+        <file alias="StyledComboBox.qml">../qml/StyledComboBox.qml</file>
     </qresource>
 </RCC>
